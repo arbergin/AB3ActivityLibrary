@@ -42,9 +42,9 @@ export function getStoredActivityById(id: string): Activity | undefined {
   return getStoredActivities().find((activity) => activity.id === id);
 }
 
-export function updateStoredActivity(updatedActivity: Activity):
-  | Activity
-  | undefined {
+export function updateStoredActivity(
+  updatedActivity: Activity
+): Activity | undefined {
   if (typeof window === "undefined") {
     return undefined;
   }
@@ -104,4 +104,28 @@ export function updateStoredActivityHidden(
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedActivities));
 
   return updatedActivity;
+}
+
+export function deleteStoredActivity(id: string): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const existingActivities = getStoredActivities();
+
+  const activityExists = existingActivities.some(
+    (activity) => activity.id === id
+  );
+
+  if (!activityExists) {
+    return false;
+  }
+
+  const updatedActivities = existingActivities.filter(
+    (activity) => activity.id !== id
+  );
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedActivities));
+
+  return true;
 }

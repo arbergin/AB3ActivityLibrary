@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  deleteStoredActivity,
   getStoredActivities,
   updateStoredActivityHidden,
 } from "@/lib/activityStorage";
@@ -22,6 +23,7 @@ export default function SearchResultsPanel({
   );
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   function loadActivitiesFromStorage() {
     const storedActivities = getStoredActivities();
@@ -76,6 +78,9 @@ export default function SearchResultsPanel({
   }, [visibleActivities, selectedActivity.id]);
 
   function handleDownload() {
+    setActionMessage("");
+    setShowDeleteConfirm(false);
+
     if (!selectedActivity.previewDataUrl) {
       if (selectedActivity.fileType === "application/pdf") {
         setDownloadMessage("PDF download will be added later.");
@@ -101,6 +106,7 @@ export default function SearchResultsPanel({
     setSelectedActivity(activity);
     setDownloadMessage("");
     setActionMessage("");
+    setShowDeleteConfirm(false);
   }
 
   function handleToggleHidden() {
@@ -110,6 +116,7 @@ export default function SearchResultsPanel({
     );
 
     setDownloadMessage("");
+    setShowDeleteConfirm(false);
 
     if (!updatedActivity) {
       setActionMessage(
@@ -129,6 +136,52 @@ export default function SearchResultsPanel({
         ? "Activity hidden. Check Include hidden activities to view it again."
         : "Activity is visible again."
     );
+  }
+
+  function handleDeleteClick() {
+    setDownloadMessage("");
+
+    const isLocalActivity = Boolean(getStoredActivities().find(
+      (activity) => activity.id === selectedActivity.id
+    ));
+
+    if (!isLocalActivity) {
+      setActionMessage(
+        "Only locally imported activities can be deleted for now. Sample activities are read-only."
+      );
+      setShowDeleteConfirm(false);
+      return;
+    }
+
+    setActionMessage("");
+    setShowDeleteConfirm(true);
+  }
+
+  function handleConfirmDelete() {
+    const deleted = deleteStoredActivity(selectedActivity.id);
+
+    if (!deleted) {
+      setActionMessage("This activity could not be deleted.");
+      setShowDeleteConfirm(false);
+      return;
+    }
+
+    const storedActivities = getStoredActivities();
+    const combinedActivities = [...storedActivities, ...mockActivities];
+
+    setActivities(combinedActivities);
+
+    const nextVisibleActivity =
+      combinedActivities.find((activity) => includeHidden || !activity.hidden) ??
+      combinedActivities[0];
+
+    if (nextVisibleActivity) {
+      setSelectedActivity(nextVisibleActivity);
+    }
+
+    setShowDeleteConfirm(false);
+    setDownloadMessage("");
+    setActionMessage("Activity deleted.");
   }
 
   return (
@@ -309,6 +362,35 @@ export default function SearchResultsPanel({
           </div>
         )}
 
+        {showDeleteConfirm && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="font-semibold">
+              Delete this activity permanently?
+            </div>
+            <div className="mt-1">
+              This removes the locally saved activity from this browser.
+            </div>
+
+            <div className="mt-4 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
+              >
+                Delete Activity
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 flex flex-wrap justify-end gap-3">
           <button
             type="button"
@@ -331,6 +413,14 @@ export default function SearchResultsPanel({
             className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
           >
             {selectedActivity.hidden ? "Unhide" : "Hide"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700"
+          >
+            Delete
           </button>
         </div>
       </section>

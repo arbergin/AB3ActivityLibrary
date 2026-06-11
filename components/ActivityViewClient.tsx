@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import {
+  deleteStoredActivity,
   getStoredActivityById,
   updateStoredActivityHidden,
 } from "@/lib/activityStorage";
@@ -17,10 +19,13 @@ type ActivityViewClientProps = {
 export default function ActivityViewClient({
   activityId,
 }: ActivityViewClientProps) {
+  const router = useRouter();
+
   const [activity, setActivity] = useState<Activity | undefined>(undefined);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     const mockActivity = mockActivities.find((item) => item.id === activityId);
@@ -36,6 +41,7 @@ export default function ActivityViewClient({
     }
 
     setActionMessage("");
+    setShowDeleteConfirm(false);
 
     if (!activity.previewDataUrl) {
       if (activity.fileType === "application/pdf") {
@@ -68,6 +74,7 @@ export default function ActivityViewClient({
     );
 
     setDownloadMessage("");
+    setShowDeleteConfirm(false);
 
     if (!updatedActivity) {
       setActionMessage(
@@ -83,6 +90,43 @@ export default function ActivityViewClient({
         ? "Activity hidden. Check Include hidden activities on Search to view it again."
         : "Activity is visible again."
     );
+  }
+
+  function handleDeleteClick() {
+    setDownloadMessage("");
+
+    if (!activity) {
+      return;
+    }
+
+    const isLocalActivity = Boolean(getStoredActivityById(activity.id));
+
+    if (!isLocalActivity) {
+      setActionMessage(
+        "Only locally imported activities can be deleted for now. Sample activities are read-only."
+      );
+      setShowDeleteConfirm(false);
+      return;
+    }
+
+    setActionMessage("");
+    setShowDeleteConfirm(true);
+  }
+
+  function handleConfirmDelete() {
+    if (!activity) {
+      return;
+    }
+
+    const deleted = deleteStoredActivity(activity.id);
+
+    if (!deleted) {
+      setActionMessage("This activity could not be deleted.");
+      setShowDeleteConfirm(false);
+      return;
+    }
+
+    router.push("/search");
   }
 
   if (!hasLoaded) {
@@ -202,6 +246,35 @@ export default function ActivityViewClient({
               </div>
             )}
 
+            {showDeleteConfirm && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <div className="font-semibold">
+                  Delete this activity permanently?
+                </div>
+                <div className="mt-1">
+                  This removes the locally saved activity from this browser.
+                </div>
+
+                <div className="mt-4 flex flex-wrap justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
+                  >
+                    Delete Activity
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
@@ -224,6 +297,14 @@ export default function ActivityViewClient({
                 className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
               >
                 {activity.hidden ? "Unhide" : "Hide"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700"
+              >
+                Delete
               </button>
             </div>
           </section>
