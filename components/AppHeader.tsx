@@ -27,21 +27,21 @@ export default function AppHeader() {
         </Link>
 
         <Link
-          href="/import-test"
+          href="/import"
           className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900"
         >
           Import
         </Link>
 
         <Link
-          href="/search-test"
+          href="/search"
           className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900"
         >
           Search
         </Link>
 
         <Link
-          href="/settings-test"
+          href="/settings"
           className="rounded-lg border border-slate-500 px-4 py-2 font-semibold text-white"
         >
           Settings
