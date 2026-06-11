@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function AppHeader() {
   return (
     <header className="flex items-center justify-between bg-slate-900 px-8 py-4 text-white">
-      <div className="flex items-center gap-3">
+      <Link href="/" className="flex items-center gap-3">
         <img
           src="/ab3-activity-library-logo.png"
           alt="AB3 Activity Library Logo"
@@ -16,9 +16,16 @@ export default function AppHeader() {
             Store, tag, search, and download soccer activities.
           </p>
         </div>
-      </div>
+      </Link>
 
       <nav className="flex gap-3">
+        <Link
+          href="/"
+          className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900"
+        >
+          Home
+        </Link>
+
         <Link
           href="/import-test"
           className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900"
