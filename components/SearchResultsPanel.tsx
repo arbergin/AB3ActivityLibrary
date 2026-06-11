@@ -303,9 +303,12 @@ export default function SearchResultsPanel({
             Download
           </button>
 
-          <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700">
+          <Link
+            href={`/activity/${selectedActivity.id}/edit`}
+            className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+          >
             Edit
-          </button>
+          </Link>
 
           <button
             type="button"
