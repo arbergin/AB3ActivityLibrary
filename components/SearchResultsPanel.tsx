@@ -8,6 +8,11 @@ import {
   updateStoredActivityHidden,
 } from "@/lib/activityStorage";
 import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
+import {
+  deleteSupabaseActivity,
+  getSupabaseActivities,
+  updateSupabaseActivityHidden,
+} from "@/lib/supabaseActivities";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 import type {
@@ -21,6 +26,19 @@ type SearchResultsPanelProps = {
   sortValue: SearchSortValue;
   hasSearched: boolean;
 };
+
+type ActivitySource = "supabase" | "local" | "mock";
+
+type ActivityWithSource = Activity & {
+  source: ActivitySource;
+};
+
+function isUuid(value: string) {
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  return uuidPattern.test(value);
+}
 
 function numberOfPlayersMatchesFilter(
   activityPlayerCount: number | "",
@@ -170,25 +188,89 @@ function formatDate(dateValue?: string) {
   });
 }
 
+function removeDuplicateActivities(activities: ActivityWithSource[]) {
+  const activityMap = new Map<string, ActivityWithSource>();
+
+  activities.forEach((activity) => {
+    if (!activityMap.has(activity.id)) {
+      activityMap.set(activity.id, activity);
+    }
+  });
+
+  return Array.from(activityMap.values());
+}
+
 export default function SearchResultsPanel({
   includeHidden,
   filters,
   sortValue,
   hasSearched,
 }: SearchResultsPanelProps) {
-  const [activities, setActivities] = useState<Activity[]>(mockActivities);
+  const [activities, setActivities] = useState<ActivityWithSource[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<
-    Activity | undefined
+    ActivityWithSource | undefined
   >(undefined);
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true);
 
-  function loadActivitiesFromStorage() {
-    const storedActivities = getStoredActivities();
-    const combinedActivities = [...storedActivities, ...mockActivities];
+  async function loadActivities() {
+    setIsLoadingActivities(true);
 
-    setActivities(combinedActivities);
+    try {
+      const supabaseActivities = await getSupabaseActivities();
+
+      const supabaseActivitiesWithSource: ActivityWithSource[] =
+        supabaseActivities.map((activity) => ({
+          ...activity,
+          source: "supabase",
+        }));
+
+      const storedActivitiesWithSource: ActivityWithSource[] =
+        getStoredActivities().map((activity) => ({
+          ...activity,
+          source: isUuid(activity.id) ? "supabase" : "local",
+        }));
+
+      const mockActivitiesWithSource: ActivityWithSource[] = mockActivities.map(
+        (activity) => ({
+          ...activity,
+          source: "mock",
+        })
+      );
+
+      const combinedActivities = removeDuplicateActivities([
+        ...supabaseActivitiesWithSource,
+        ...storedActivitiesWithSource,
+        ...mockActivitiesWithSource,
+      ]);
+
+      setActivities(combinedActivities);
+      setActionMessage("");
+    } catch (error) {
+      console.error("Unable to load activities from Supabase.", error);
+
+      const storedActivitiesWithSource: ActivityWithSource[] =
+        getStoredActivities().map((activity) => ({
+          ...activity,
+          source: "local",
+        }));
+
+      const mockActivitiesWithSource: ActivityWithSource[] = mockActivities.map(
+        (activity) => ({
+          ...activity,
+          source: "mock",
+        })
+      );
+
+      setActivities([...storedActivitiesWithSource, ...mockActivitiesWithSource]);
+      setActionMessage(
+        "Supabase activities could not be loaded. Showing local and sample activities only."
+      );
+    } finally {
+      setIsLoadingActivities(false);
+    }
   }
 
   const searchableActivities = useMemo(() => {
@@ -293,10 +375,10 @@ export default function SearchResultsPanel({
     : "No search run yet";
 
   useEffect(() => {
-    loadActivitiesFromStorage();
+    loadActivities();
 
     function handleWindowFocus() {
-      loadActivitiesFromStorage();
+      loadActivities();
     }
 
     window.addEventListener("focus", handleWindowFocus);
@@ -310,7 +392,6 @@ export default function SearchResultsPanel({
     if (!hasSearched) {
       setSelectedActivity(undefined);
       setDownloadMessage("");
-      setActionMessage("");
       setShowDeleteConfirm(false);
       return;
     }
@@ -318,7 +399,6 @@ export default function SearchResultsPanel({
     if (sortedActivities.length === 0) {
       setSelectedActivity(undefined);
       setDownloadMessage("");
-      setActionMessage("");
       setShowDeleteConfirm(false);
       return;
     }
@@ -330,7 +410,6 @@ export default function SearchResultsPanel({
     if (!selectedActivityIsVisible) {
       setSelectedActivity(sortedActivities[0]);
       setDownloadMessage("");
-      setActionMessage("");
       setShowDeleteConfirm(false);
     }
   }, [hasSearched, sortedActivities, selectedActivity?.id]);
@@ -351,21 +430,61 @@ export default function SearchResultsPanel({
     try {
       await downloadActivityAsPdf(selectedActivity);
       setDownloadMessage("PDF export download started.");
-    } catch {
+    } catch (error) {
+      console.error("PDF export failed.", error);
       setDownloadMessage("The PDF export could not be created.");
     }
   }
 
-  function handleSelectActivity(activity: Activity) {
+  function handleSelectActivity(activity: ActivityWithSource) {
     setSelectedActivity(activity);
     setDownloadMessage("");
     setActionMessage("");
     setShowDeleteConfirm(false);
   }
 
-  function handleToggleHidden() {
+  async function handleToggleHidden() {
     if (!selectedActivity) {
       return;
+    }
+
+    setDownloadMessage("");
+    setShowDeleteConfirm(false);
+    setActionMessage("");
+
+    if (selectedActivity.source === "supabase") {
+      try {
+        const updatedActivity = await updateSupabaseActivityHidden(
+          selectedActivity.id,
+          !selectedActivity.hidden
+        );
+
+        const updatedActivityWithSource: ActivityWithSource = {
+          ...updatedActivity,
+          source: "supabase",
+        };
+
+        setActivities((currentActivities) =>
+          currentActivities.map((activity) =>
+            activity.id === selectedActivity.id
+              ? updatedActivityWithSource
+              : activity
+          )
+        );
+
+        setSelectedActivity(updatedActivityWithSource);
+
+        setActionMessage(
+          updatedActivity.hidden
+            ? "Activity hidden. Check Include hidden activities to view it again."
+            : "Activity is visible again."
+        );
+        return;
+      } catch (error) {
+        console.error("Supabase hide/unhide failed.", error);
+        setActionMessage("This activity could not be updated in Supabase.");
+        return;
+      }
     }
 
     const updatedActivity = updateStoredActivityHidden(
@@ -373,21 +492,25 @@ export default function SearchResultsPanel({
       !selectedActivity.hidden
     );
 
-    setDownloadMessage("");
-    setShowDeleteConfirm(false);
-
     if (!updatedActivity) {
       setActionMessage(
-        "Only locally imported activities can be hidden for now. Sample activities are read-only."
+        "Only imported activities can be hidden for now. Sample activities are read-only."
       );
       return;
     }
 
-    const storedActivities = getStoredActivities();
-    const combinedActivities = [...storedActivities, ...mockActivities];
+    const updatedActivityWithSource: ActivityWithSource = {
+      ...updatedActivity,
+      source: "local",
+    };
 
-    setActivities(combinedActivities);
-    setSelectedActivity(updatedActivity);
+    setActivities((currentActivities) =>
+      currentActivities.map((activity) =>
+        activity.id === selectedActivity.id ? updatedActivityWithSource : activity
+      )
+    );
+
+    setSelectedActivity(updatedActivityWithSource);
 
     setActionMessage(
       updatedActivity.hidden
@@ -397,33 +520,49 @@ export default function SearchResultsPanel({
   }
 
   function handleDeleteClick() {
+    setDownloadMessage("");
+    setActionMessage("");
+
     if (!selectedActivity) {
       return;
     }
 
-    setDownloadMessage("");
-
-    const isLocalActivity = Boolean(
-      getStoredActivities().find(
-        (activity) => activity.id === selectedActivity.id
-      )
-    );
-
-    if (!isLocalActivity) {
+    if (selectedActivity.source === "mock") {
       setActionMessage(
-        "Only locally imported activities can be deleted for now. Sample activities are read-only."
+        "Only imported activities can be deleted for now. Sample activities are read-only."
       );
       setShowDeleteConfirm(false);
       return;
     }
 
-    setActionMessage("");
     setShowDeleteConfirm(true);
   }
 
-  function handleConfirmDelete() {
+  async function handleConfirmDelete() {
     if (!selectedActivity) {
       return;
+    }
+
+    if (selectedActivity.source === "supabase") {
+      try {
+        await deleteSupabaseActivity(selectedActivity.id);
+
+        const updatedActivities = activities.filter(
+          (activity) => activity.id !== selectedActivity.id
+        );
+
+        setActivities(updatedActivities);
+        setSelectedActivity(undefined);
+        setShowDeleteConfirm(false);
+        setDownloadMessage("");
+        setActionMessage("Activity deleted from Supabase.");
+        return;
+      } catch (error) {
+        console.error("Supabase delete failed.", error);
+        setActionMessage("This activity could not be deleted from Supabase.");
+        setShowDeleteConfirm(false);
+        return;
+      }
     }
 
     const deleted = deleteStoredActivity(selectedActivity.id);
@@ -434,16 +573,12 @@ export default function SearchResultsPanel({
       return;
     }
 
-    const storedActivities = getStoredActivities();
-    const combinedActivities = [...storedActivities, ...mockActivities];
+    const updatedActivities = activities.filter(
+      (activity) => activity.id !== selectedActivity.id
+    );
 
-    setActivities(combinedActivities);
-
-    const nextVisibleActivity =
-      combinedActivities.find((activity) => includeHidden || !activity.hidden) ??
-      combinedActivities[0];
-
-    setSelectedActivity(nextVisibleActivity);
+    setActivities(updatedActivities);
+    setSelectedActivity(undefined);
     setShowDeleteConfirm(false);
     setDownloadMessage("");
     setActionMessage("Activity deleted.");
@@ -462,9 +597,15 @@ export default function SearchResultsPanel({
           </div>
 
           <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
-            {resultsCountText}
+            {isLoadingActivities ? "Loading activities..." : resultsCountText}
           </div>
         </div>
+
+        {actionMessage && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            {actionMessage}
+          </div>
+        )}
 
         <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
           <div className="grid grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
@@ -476,7 +617,11 @@ export default function SearchResultsPanel({
             <div>Actions</div>
           </div>
 
-          {!hasSearched ? (
+          {isLoadingActivities ? (
+            <div className="px-4 py-8 text-sm text-slate-500">
+              Loading activities...
+            </div>
+          ) : !hasSearched ? (
             <div className="px-4 py-8 text-sm text-slate-500">
               No results yet. Enter at least one search criteria and click
               Search.
@@ -500,6 +645,10 @@ export default function SearchResultsPanel({
                   <div>
                     <div className="font-semibold text-slate-800">
                       {activity.activityName}
+                    </div>
+
+                    <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Source: {activity.source}
                     </div>
 
                     {activity.fileName && (
@@ -675,17 +824,16 @@ export default function SearchResultsPanel({
                   </div>
                 </div>
               )}
+
+              <div>
+                <div className="font-semibold text-slate-700">Source</div>
+                <div className="text-slate-600">{selectedActivity.source}</div>
+              </div>
             </div>
 
             {downloadMessage && (
               <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
                 {downloadMessage}
-              </div>
-            )}
-
-            {actionMessage && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-                {actionMessage}
               </div>
             )}
 
@@ -695,7 +843,8 @@ export default function SearchResultsPanel({
                   Delete this activity permanently?
                 </div>
                 <div className="mt-1">
-                  This removes the locally saved activity from this browser.
+                  This removes the activity and its uploaded file if it came
+                  from Supabase.
                 </div>
 
                 <div className="mt-4 flex flex-wrap justify-end gap-3">
