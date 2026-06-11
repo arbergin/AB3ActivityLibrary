@@ -11,6 +11,7 @@ export default function SearchResultsPanel() {
   const [selectedActivity, setSelectedActivity] = useState<Activity>(
     mockActivities[0]
   );
+  const [downloadMessage, setDownloadMessage] = useState("");
 
   useEffect(() => {
     const storedActivities = getStoredActivities();
@@ -22,6 +23,33 @@ export default function SearchResultsPanel() {
       setSelectedActivity(combinedActivities[0]);
     }
   }, []);
+
+  function handleDownload() {
+    if (!selectedActivity.previewDataUrl) {
+      if (selectedActivity.fileType === "application/pdf") {
+        setDownloadMessage("PDF download will be added later.");
+        return;
+      }
+
+      setDownloadMessage("No imported file is available for this activity.");
+      return;
+    }
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = selectedActivity.previewDataUrl;
+    downloadLink.download =
+      selectedActivity.fileName || `${selectedActivity.activityName}.png`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    setDownloadMessage("PNG download started.");
+  }
+
+  function handleSelectActivity(activity: Activity) {
+    setSelectedActivity(activity);
+    setDownloadMessage("");
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
@@ -47,7 +75,7 @@ export default function SearchResultsPanel() {
             return (
               <div
                 key={activity.id}
-                onClick={() => setSelectedActivity(activity)}
+                onClick={() => handleSelectActivity(activity)}
                 className={`grid cursor-pointer grid-cols-[1.5fr_1fr_1fr_1fr_auto] items-center border-t border-slate-200 px-4 py-4 text-sm ${
                   isSelected ? "bg-slate-100" : "bg-white hover:bg-slate-50"
                 }`}
@@ -70,9 +98,13 @@ export default function SearchResultsPanel() {
                   )}
                 </div>
 
-                <div className="text-slate-600">{activity.fieldLocation}</div>
-                <div className="text-slate-600">{activity.gamePhase}</div>
-                <div className="text-slate-600">{activity.category}</div>
+                <div className="text-slate-600">
+                  {activity.fieldLocation || "—"}
+                </div>
+                <div className="text-slate-600">
+                  {activity.gamePhase || "—"}
+                </div>
+                <div className="text-slate-600">{activity.category || "—"}</div>
 
                 <div className="flex gap-3">
                   <Link
@@ -123,20 +155,22 @@ export default function SearchResultsPanel() {
                 Field Location
               </div>
               <div className="text-slate-600">
-                {selectedActivity.fieldLocation}
+                {selectedActivity.fieldLocation || "—"}
               </div>
             </div>
 
             <div>
               <div className="font-semibold text-slate-700">Game Phase</div>
               <div className="text-slate-600">
-                {selectedActivity.gamePhase}
+                {selectedActivity.gamePhase || "—"}
               </div>
             </div>
 
             <div>
               <div className="font-semibold text-slate-700">Category</div>
-              <div className="text-slate-600">{selectedActivity.category}</div>
+              <div className="text-slate-600">
+                {selectedActivity.category || "—"}
+              </div>
             </div>
 
             <div>
@@ -175,8 +209,18 @@ export default function SearchResultsPanel() {
           )}
         </div>
 
+        {downloadMessage && (
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+            {downloadMessage}
+          </div>
+        )}
+
         <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+          >
             Download
           </button>
 

@@ -16,6 +16,7 @@ export default function ActivityViewClient({
 }: ActivityViewClientProps) {
   const [activity, setActivity] = useState<Activity | undefined>(undefined);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState("");
 
   useEffect(() => {
     const mockActivity = mockActivities.find((item) => item.id === activityId);
@@ -24,6 +25,31 @@ export default function ActivityViewClient({
     setActivity(storedActivity ?? mockActivity);
     setHasLoaded(true);
   }, [activityId]);
+
+  function handleDownload() {
+    if (!activity) {
+      return;
+    }
+
+    if (!activity.previewDataUrl) {
+      if (activity.fileType === "application/pdf") {
+        setDownloadMessage("PDF download will be added later.");
+        return;
+      }
+
+      setDownloadMessage("No imported file is available for this activity.");
+      return;
+    }
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = activity.previewDataUrl;
+    downloadLink.download = activity.fileName || `${activity.activityName}.png`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    setDownloadMessage("PNG download started.");
+  }
 
   if (!hasLoaded) {
     return (
@@ -130,8 +156,18 @@ export default function ActivityViewClient({
               )}
             </div>
 
+            {downloadMessage && (
+              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                {downloadMessage}
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+              >
                 Download
               </button>
 
@@ -164,7 +200,7 @@ export default function ActivityViewClient({
                     Field Location
                   </div>
                   <div className="mt-1 text-slate-600">
-                    {activity.fieldLocation}
+                    {activity.fieldLocation || "—"}
                   </div>
                 </div>
 
@@ -173,14 +209,14 @@ export default function ActivityViewClient({
                     Game Phase
                   </div>
                   <div className="mt-1 text-slate-600">
-                    {activity.gamePhase}
+                    {activity.gamePhase || "—"}
                   </div>
                 </div>
 
                 <div>
                   <div className="font-semibold text-slate-700">Category</div>
                   <div className="mt-1 text-slate-600">
-                    {activity.category}
+                    {activity.category || "—"}
                   </div>
                 </div>
 
