@@ -136,6 +136,24 @@ function getPlayerCountForSort(activity: Activity) {
   return Number(activity.numberOfPlayers);
 }
 
+function formatCreatedDate(createdAt?: string) {
+  if (!createdAt) {
+    return "—";
+  }
+
+  const createdDate = new Date(createdAt);
+
+  if (Number.isNaN(createdDate.getTime())) {
+    return "—";
+  }
+
+  return createdDate.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function SearchResultsPanel({
   includeHidden,
   filters,
@@ -230,11 +248,15 @@ export default function SearchResultsPanel({
       }
 
       if (sortValue === "playersLowToHigh") {
-        return getPlayerCountForSort(activityA) - getPlayerCountForSort(activityB);
+        return (
+          getPlayerCountForSort(activityA) - getPlayerCountForSort(activityB)
+        );
       }
 
       if (sortValue === "playersHighToLow") {
-        return getPlayerCountForSort(activityB) - getPlayerCountForSort(activityA);
+        return (
+          getPlayerCountForSort(activityB) - getPlayerCountForSort(activityA)
+        );
       }
 
       return 0;
@@ -421,11 +443,12 @@ export default function SearchResultsPanel({
         </div>
 
         <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
-          <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+          <div className="grid grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
             <div>Activity</div>
             <div>Location</div>
             <div>Phase</div>
             <div>Category</div>
+            <div>Created</div>
             <div>Actions</div>
           </div>
 
@@ -441,7 +464,7 @@ export default function SearchResultsPanel({
                 <div
                   key={activity.id}
                   onClick={() => handleSelectActivity(activity)}
-                  className={`grid cursor-pointer grid-cols-[1.5fr_1fr_1fr_1fr_auto] items-center border-t border-slate-200 px-4 py-4 text-sm ${
+                  className={`grid cursor-pointer grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] items-center border-t border-slate-200 px-4 py-4 text-sm ${
                     isSelected ? "bg-slate-100" : "bg-white hover:bg-slate-50"
                   }`}
                 >
@@ -473,6 +496,10 @@ export default function SearchResultsPanel({
 
                   <div className="text-slate-600">
                     {activity.category || "—"}
+                  </div>
+
+                  <div className="text-slate-600">
+                    {formatCreatedDate(activity.createdAt)}
                   </div>
 
                   <div className="flex gap-3">
@@ -561,6 +588,15 @@ export default function SearchResultsPanel({
                   </div>
                   <div className="text-slate-600">
                     {selectedActivity.numberOfPlayers || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Created Date
+                  </div>
+                  <div className="text-slate-600">
+                    {formatCreatedDate(selectedActivity.createdAt)}
                   </div>
                 </div>
               </div>

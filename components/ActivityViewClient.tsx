@@ -16,6 +16,24 @@ type ActivityViewClientProps = {
   activityId: string;
 };
 
+function formatCreatedDate(createdAt?: string) {
+  if (!createdAt) {
+    return "—";
+  }
+
+  const createdDate = new Date(createdAt);
+
+  if (Number.isNaN(createdDate.getTime())) {
+    return "—";
+  }
+
+  return createdDate.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function ActivityViewClient({
   activityId,
 }: ActivityViewClientProps) {
@@ -354,6 +372,15 @@ export default function ActivityViewClient({
                   </div>
                   <div className="mt-1 text-slate-600">
                     {activity.numberOfPlayers || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Created Date
+                  </div>
+                  <div className="mt-1 text-slate-600">
+                    {formatCreatedDate(activity.createdAt)}
                   </div>
                 </div>
               </div>
