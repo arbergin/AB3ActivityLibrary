@@ -1,25 +1,21 @@
-import ActivityMetadataForm from "@/components/ActivityMetadataForm";
 import AppHeader from "@/components/AppHeader";
-import ImportActivityModal from "@/components/ImportActivityModal";
+import ImportFlow from "@/components/ImportFlow";
 
-export default function ImportTestPage() {
+export default function ImportPage() {
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <AppHeader />
 
       <section className="mx-auto max-w-6xl px-8 py-10">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold">Import Flow Test</h2>
+          <h2 className="text-2xl font-bold">Import Activity</h2>
           <p className="mt-2 text-slate-600">
-            Temporary page to preview the import modal and metadata form.
+            Upload a PNG or PDF exported from the AB3 Activity Planner, then add
+            searchable metadata.
           </p>
         </div>
 
-        <div className="grid gap-8">
-          <ImportActivityModal />
-
-          <ActivityMetadataForm />
-        </div>
+        <ImportFlow />
       </section>
     </main>
   );
