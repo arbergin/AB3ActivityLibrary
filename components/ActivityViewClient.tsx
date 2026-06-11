@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
+import ProtectedPage from "@/components/ProtectedPage";
 import {
   deleteStoredActivity,
   getStoredActivityById,
@@ -235,301 +236,311 @@ export default function ActivityViewClient({
 
   if (!hasLoaded) {
     return (
-      <main className="min-h-screen bg-slate-100 text-slate-900">
-        <AppHeader />
+      <ProtectedPage>
+        <main className="min-h-screen bg-slate-100 text-slate-900">
+          <AppHeader />
 
-        <section className="mx-auto max-w-6xl px-8 py-10">
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-            Loading activity...
-          </div>
-        </section>
-      </main>
+          <section className="mx-auto max-w-6xl px-8 py-10">
+            <div className="rounded-xl bg-white p-6 shadow-sm">
+              Loading activity...
+            </div>
+          </section>
+        </main>
+      </ProtectedPage>
     );
   }
 
   if (!activity) {
     return (
-      <main className="min-h-screen bg-slate-100 text-slate-900">
-        <AppHeader />
+      <ProtectedPage>
+        <main className="min-h-screen bg-slate-100 text-slate-900">
+          <AppHeader />
 
-        <section className="mx-auto max-w-6xl px-8 py-10">
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-bold">Activity not found</h2>
-            <p className="mt-2 text-slate-600">
-              The activity you are looking for does not exist.
-            </p>
+          <section className="mx-auto max-w-6xl px-8 py-10">
+            <div className="rounded-xl bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-bold">Activity not found</h2>
+              <p className="mt-2 text-slate-600">
+                The activity you are looking for does not exist.
+              </p>
 
-            <Link
-              href="/search"
-              className="mt-6 inline-block rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
-            >
-              Back to Search Results
-            </Link>
-          </div>
-        </section>
-      </main>
+              <Link
+                href="/search"
+                className="mt-6 inline-block rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
+              >
+                Back to Search Results
+              </Link>
+            </div>
+          </section>
+        </main>
+      </ProtectedPage>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-900">
-      <AppHeader />
+    <ProtectedPage>
+      <main className="min-h-screen bg-slate-100 text-slate-900">
+        <AppHeader />
 
-      <section className="mx-auto max-w-7xl px-8 py-10">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold">{activity.activityName}</h2>
-            <p className="mt-2 text-slate-600">
-              Open activity view with larger preview and full metadata.
-            </p>
-
-            {activitySource && (
-              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Source: {activitySource}
+        <section className="mx-auto max-w-7xl px-8 py-10">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold">{activity.activityName}</h2>
+              <p className="mt-2 text-slate-600">
+                Open activity view with larger preview and full metadata.
               </p>
-            )}
-          </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/search"
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700"
-            >
-              Close
-            </Link>
-
-            <Link
-              href="/"
-              className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
-            >
-              Home
-            </Link>
-          </div>
-        </div>
-
-        <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
-          <section className="rounded-xl bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <h3 className="text-xl font-bold">Large Activity Preview</h3>
-
-              {activity.hidden && (
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                  Hidden — admin only
-                </span>
+              {activitySource && (
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Source: {activitySource}
+                </p>
               )}
             </div>
 
-            <div className="mt-6 flex min-h-[520px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-slate-500">
-              {activity.previewDataUrl &&
-              activity.fileType === "application/pdf" ? (
-                <iframe
-                  src={activity.previewDataUrl}
-                  title={`${activity.activityName} PDF preview`}
-                  className="h-[620px] w-full rounded-lg border border-slate-200"
-                />
-              ) : activity.previewDataUrl ? (
-                <img
-                  src={activity.previewDataUrl}
-                  alt={`${activity.activityName} preview`}
-                  className="max-h-[620px] w-full rounded-lg object-contain"
-                />
-              ) : (
-                <div>
-                  <div className="font-semibold">
-                    PNG/PDF viewer placeholder
-                  </div>
-                  <div className="mt-2 text-sm">
-                    Large preview will show here
-                  </div>
-
-                  {activity.fileName && (
-                    <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                      Imported file: {activity.fileName}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {downloadMessage && (
-              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-                {downloadMessage}
-              </div>
-            )}
-
-            {actionMessage && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-                {actionMessage}
-              </div>
-            )}
-
-            {showDeleteConfirm && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                <div className="font-semibold">
-                  Delete this activity permanently?
-                </div>
-                <div className="mt-1">
-                  This removes the activity and its uploaded file.
-                </div>
-
-                <div className="mt-4 flex flex-wrap justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleConfirmDelete}
-                    className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
-                  >
-                    Delete Activity
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
-              >
-                Download
-              </button>
-
+            <div className="flex flex-wrap gap-3">
               <Link
-                href={`/activity/${activity.id}/edit`}
-                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+                href="/search"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700"
               >
-                Edit
+                Close
               </Link>
 
-              <button
-                type="button"
-                onClick={handleToggleHidden}
-                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+              <Link
+                href="/"
+                className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
               >
-                {activity.hidden ? "Unhide" : "Hide"}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700"
-              >
-                Delete
-              </button>
+                Home
+              </Link>
             </div>
-          </section>
+          </div>
 
-          <section className="rounded-xl bg-white p-6 shadow-sm">
-            <h3 className="text-xl font-bold">Activity Metadata</h3>
+          <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
+            <section className="rounded-xl bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="text-xl font-bold">Large Activity Preview</h3>
 
-            <div className="mt-6 grid gap-5 text-sm">
-              <div>
-                <div className="font-semibold text-slate-700">
-                  Activity Name
-                </div>
-                <div className="mt-1 text-slate-600">
-                  {activity.activityName}
-                </div>
+                {activity.hidden && (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                    Hidden — admin only
+                  </span>
+                )}
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Field Location
-                  </div>
-                  <div className="mt-1 text-slate-600">
-                    {activity.fieldLocation || "—"}
-                  </div>
-                </div>
+              <div className="mt-6 flex min-h-[520px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-slate-500">
+                {activity.previewDataUrl &&
+                activity.fileType === "application/pdf" ? (
+                  <iframe
+                    src={activity.previewDataUrl}
+                    title={`${activity.activityName} PDF preview`}
+                    className="h-[620px] w-full rounded-lg border border-slate-200"
+                  />
+                ) : activity.previewDataUrl ? (
+                  <img
+                    src={activity.previewDataUrl}
+                    alt={`${activity.activityName} preview`}
+                    className="max-h-[620px] w-full rounded-lg object-contain"
+                  />
+                ) : (
+                  <div>
+                    <div className="font-semibold">
+                      PNG/PDF viewer placeholder
+                    </div>
+                    <div className="mt-2 text-sm">
+                      Large preview will show here
+                    </div>
 
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Game Phase
+                    {activity.fileName && (
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                        Imported file: {activity.fileName}
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-1 text-slate-600">
-                    {activity.gamePhase || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-700">Category</div>
-                  <div className="mt-1 text-slate-600">
-                    {activity.category || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Number of Players
-                  </div>
-                  <div className="mt-1 text-slate-600">
-                    {activity.numberOfPlayers || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Created Date
-                  </div>
-                  <div className="mt-1 text-slate-600">
-                    {formatDate(activity.createdAt)}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Last Updated
-                  </div>
-                  <div className="mt-1 text-slate-600">
-                    {formatDate(activity.updatedAt)}
-                  </div>
-                </div>
+                )}
               </div>
 
-              <div>
-                <div className="font-semibold text-slate-700">
-                  Positions Involved
+              {downloadMessage && (
+                <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                  {downloadMessage}
                 </div>
-                <div className="mt-1 text-slate-600">
-                  {activity.positionsInvolved || "—"}
-                </div>
-              </div>
+              )}
 
-              <div>
-                <div className="font-semibold text-slate-700">
-                  Activity Details
+              {actionMessage && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                  {actionMessage}
                 </div>
-                <div className="mt-1 text-slate-600">
-                  {activity.activityDetails || "—"}
-                </div>
-              </div>
+              )}
 
-              {activity.fileName && (
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Imported File
+              {showDeleteConfirm && (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  <div className="font-semibold">
+                    Delete this activity permanently?
                   </div>
-                  <div className="mt-1 text-slate-600">
-                    {activity.fileName}
+                  <div className="mt-1">
+                    This removes the activity and its uploaded file.
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmDelete}
+                      className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
+                    >
+                      Delete Activity
+                    </button>
                   </div>
                 </div>
               )}
 
-              <div>
-                <div className="font-semibold text-slate-700">Created By</div>
-                <div className="mt-1 text-slate-600">{activity.createdBy}</div>
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
+                >
+                  Download
+                </button>
+
+                <Link
+                  href={`/activity/${activity.id}/edit`}
+                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+                >
+                  Edit
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleToggleHidden}
+                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+                >
+                  {activity.hidden ? "Unhide" : "Hide"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDeleteClick}
+                  className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700"
+                >
+                  Delete
+                </button>
               </div>
-            </div>
-          </section>
-        </div>
-      </section>
-    </main>
+            </section>
+
+            <section className="rounded-xl bg-white p-6 shadow-sm">
+              <h3 className="text-xl font-bold">Activity Metadata</h3>
+
+              <div className="mt-6 grid gap-5 text-sm">
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Activity Name
+                  </div>
+                  <div className="mt-1 text-slate-600">
+                    {activity.activityName}
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Field Location
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {activity.fieldLocation || "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Game Phase
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {activity.gamePhase || "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-slate-700">Category</div>
+                    <div className="mt-1 text-slate-600">
+                      {activity.category || "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Number of Players
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {activity.numberOfPlayers || "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Created Date
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {formatDate(activity.createdAt)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Last Updated
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {formatDate(activity.updatedAt)}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Positions Involved
+                  </div>
+                  <div className="mt-1 text-slate-600">
+                    {activity.positionsInvolved || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Activity Details
+                  </div>
+                  <div className="mt-1 text-slate-600">
+                    {activity.activityDetails || "—"}
+                  </div>
+                </div>
+
+                {activity.fileName && (
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Imported File
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {activity.fileName}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Created By
+                  </div>
+                  <div className="mt-1 text-slate-600">
+                    {activity.createdBy}
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </ProtectedPage>
   );
 }

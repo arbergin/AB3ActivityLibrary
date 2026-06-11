@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import AuthStatus from "@/components/AuthStatus";
 
 export default function AppHeader() {
   return (
@@ -25,35 +26,39 @@ export default function AppHeader() {
           </div>
         </Link>
 
-        <nav className="flex flex-wrap items-center gap-3 text-sm font-semibold">
-          <Link
-            href="/"
-            className="rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10 hover:text-white"
-          >
-            Dashboard
-          </Link>
+        <div className="flex flex-wrap items-center gap-4">
+          <nav className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+            <Link
+              href="/"
+              className="rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10 hover:text-white"
+            >
+              Dashboard
+            </Link>
 
-          <Link
-            href="/import"
-            className="rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10 hover:text-white"
-          >
-            Import
-          </Link>
+            <Link
+              href="/import"
+              className="rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10 hover:text-white"
+            >
+              Import
+            </Link>
 
-          <Link
-            href="/search"
-            className="rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10 hover:text-white"
-          >
-            Search
-          </Link>
+            <Link
+              href="/search"
+              className="rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10 hover:text-white"
+            >
+              Search
+            </Link>
 
-          <Link
-            href="/settings"
-            className="rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10 hover:text-white"
-          >
-            Settings
-          </Link>
-        </nav>
+            <Link
+              href="/settings"
+              className="rounded-lg px-3 py-2 text-slate-200 hover:bg-white/10 hover:text-white"
+            >
+              Settings
+            </Link>
+          </nav>
+
+          <AuthStatus />
+        </div>
       </div>
     </header>
   );
