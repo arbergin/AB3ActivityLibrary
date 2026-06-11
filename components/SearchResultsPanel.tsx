@@ -18,6 +18,7 @@ type SearchResultsPanelProps = {
   includeHidden: boolean;
   filters: SearchFilterValues;
   sortValue: SearchSortValue;
+  hasSearched: boolean;
 };
 
 function numberOfPlayersMatchesFilter(
@@ -172,11 +173,12 @@ export default function SearchResultsPanel({
   includeHidden,
   filters,
   sortValue,
+  hasSearched,
 }: SearchResultsPanelProps) {
   const [activities, setActivities] = useState<Activity[]>(mockActivities);
   const [selectedActivity, setSelectedActivity] = useState<
     Activity | undefined
-  >(mockActivities[0]);
+  >(undefined);
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -186,12 +188,6 @@ export default function SearchResultsPanel({
     const combinedActivities = [...storedActivities, ...mockActivities];
 
     setActivities(combinedActivities);
-
-    const firstVisibleActivity =
-      combinedActivities.find((activity) => includeHidden || !activity.hidden) ??
-      combinedActivities[0];
-
-    setSelectedActivity(firstVisibleActivity);
   }
 
   const searchableActivities = useMemo(() => {
@@ -203,6 +199,10 @@ export default function SearchResultsPanel({
   }, [activities, includeHidden]);
 
   const filteredActivities = useMemo(() => {
+    if (!hasSearched) {
+      return [];
+    }
+
     return searchableActivities.filter((activity) => {
       const activityNameMatches = activity.activityName
         .toLowerCase()
@@ -241,7 +241,7 @@ export default function SearchResultsPanel({
         detailsMatch
       );
     });
-  }, [searchableActivities, filters]);
+  }, [hasSearched, searchableActivities, filters]);
 
   const sortedActivities = useMemo(() => {
     return [...filteredActivities].sort((activityA, activityB) => {
@@ -285,9 +285,11 @@ export default function SearchResultsPanel({
     });
   }, [filteredActivities, sortValue]);
 
-  const resultsCountText = `Showing ${sortedActivities.length} of ${searchableActivities.length} ${
-    searchableActivities.length === 1 ? "activity" : "activities"
-  }`;
+  const resultsCountText = hasSearched
+    ? `Showing ${sortedActivities.length} of ${searchableActivities.length} ${
+        searchableActivities.length === 1 ? "activity" : "activities"
+      }`
+    : "No search run yet";
 
   useEffect(() => {
     loadActivitiesFromStorage();
@@ -301,10 +303,17 @@ export default function SearchResultsPanel({
     return () => {
       window.removeEventListener("focus", handleWindowFocus);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    if (!hasSearched) {
+      setSelectedActivity(undefined);
+      setDownloadMessage("");
+      setActionMessage("");
+      setShowDeleteConfirm(false);
+      return;
+    }
+
     if (sortedActivities.length === 0) {
       setSelectedActivity(undefined);
       setDownloadMessage("");
@@ -323,7 +332,7 @@ export default function SearchResultsPanel({
       setActionMessage("");
       setShowDeleteConfirm(false);
     }
-  }, [sortedActivities, selectedActivity?.id]);
+  }, [hasSearched, sortedActivities, selectedActivity?.id]);
 
   function handleDownload() {
     if (!selectedActivity) {
@@ -454,8 +463,8 @@ export default function SearchResultsPanel({
           <div>
             <h2 className="text-xl font-bold">Results</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Click a row to update the preview and metadata. Use Open to view
-              the activity larger.
+              Enter search criteria above, then click Search to view matching
+              activities.
             </p>
           </div>
 
@@ -474,7 +483,12 @@ export default function SearchResultsPanel({
             <div>Actions</div>
           </div>
 
-          {sortedActivities.length === 0 ? (
+          {!hasSearched ? (
+            <div className="px-4 py-8 text-sm text-slate-500">
+              No results yet. Enter at least one search criteria and click
+              Search.
+            </div>
+          ) : sortedActivities.length === 0 ? (
             <div className="px-4 py-6 text-sm text-slate-500">
               No activities match the current filters.
             </div>
@@ -547,7 +561,8 @@ export default function SearchResultsPanel({
 
         {!selectedActivity ? (
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-            Select an activity or adjust the filters to see activity details.
+            Search for an activity, then select a result to see activity
+            details.
           </div>
         ) : (
           <>

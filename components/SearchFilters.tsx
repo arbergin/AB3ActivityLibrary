@@ -17,7 +17,9 @@ type SearchFiltersProps = {
   onIncludeHiddenChange: (includeHidden: boolean) => void;
   sortValue: SearchSortValue;
   onSortValueChange: (sortValue: SearchSortValue) => void;
+  onSearch: () => void;
   onClearFilters: () => void;
+  searchMessage: string;
 };
 
 export default function SearchFilters({
@@ -27,7 +29,9 @@ export default function SearchFilters({
   onIncludeHiddenChange,
   sortValue,
   onSortValueChange,
+  onSearch,
   onClearFilters,
+  searchMessage,
 }: SearchFiltersProps) {
   function updateFilter(field: keyof SearchFilterValues, value: string) {
     onFiltersChange({
@@ -42,7 +46,8 @@ export default function SearchFilters({
         <div>
           <h2 className="text-xl font-bold">Filters</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Results update automatically as you enter filter values.
+            Enter search criteria, then click Search to view matching
+            activities.
           </p>
         </div>
 
@@ -191,14 +196,30 @@ export default function SearchFilters({
           </select>
         </label>
 
-        <button
-          type="button"
-          onClick={onClearFilters}
-          className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
-        >
-          Clear Filters
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={onClearFilters}
+            className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+          >
+            Clear Filters
+          </button>
+
+          <button
+            type="button"
+            onClick={onSearch}
+            className="rounded-lg bg-slate-900 px-5 py-2 font-semibold text-white"
+          >
+            Search
+          </button>
+        </div>
       </div>
+
+      {searchMessage && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+          {searchMessage}
+        </div>
+      )}
     </section>
   );
 }
