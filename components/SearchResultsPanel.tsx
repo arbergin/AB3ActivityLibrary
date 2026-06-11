@@ -9,18 +9,21 @@ import {
 } from "@/lib/activityStorage";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
+import type { SearchFilterValues } from "@/components/SearchPageClient";
 
 type SearchResultsPanelProps = {
   includeHidden: boolean;
+  filters: SearchFilterValues;
 };
 
 export default function SearchResultsPanel({
   includeHidden,
+  filters,
 }: SearchResultsPanelProps) {
   const [activities, setActivities] = useState<Activity[]>(mockActivities);
-  const [selectedActivity, setSelectedActivity] = useState<Activity>(
-    mockActivities[0]
-  );
+  const [selectedActivity, setSelectedActivity] = useState<
+    Activity | undefined
+  >(mockActivities[0]);
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -35,18 +38,52 @@ export default function SearchResultsPanel({
       combinedActivities.find((activity) => includeHidden || !activity.hidden) ??
       combinedActivities[0];
 
-    if (firstVisibleActivity) {
-      setSelectedActivity(firstVisibleActivity);
-    }
+    setSelectedActivity(firstVisibleActivity);
   }
 
-  const visibleActivities = useMemo(() => {
-    if (includeHidden) {
-      return activities;
-    }
+  const filteredActivities = useMemo(() => {
+    return activities.filter((activity) => {
+      if (!includeHidden && activity.hidden) {
+        return false;
+      }
 
-    return activities.filter((activity) => !activity.hidden);
-  }, [activities, includeHidden]);
+      const activityNameMatches = activity.activityName
+        .toLowerCase()
+        .includes(filters.activityName.toLowerCase().trim());
+
+      const fieldLocationMatches =
+        !filters.fieldLocation ||
+        activity.fieldLocation === filters.fieldLocation;
+
+      const gamePhaseMatches =
+        !filters.gamePhase || activity.gamePhase === filters.gamePhase;
+
+      const categoryMatches =
+        !filters.category || activity.category === filters.category;
+
+      const positionsMatch = activity.positionsInvolved
+        .toLowerCase()
+        .includes(filters.positionsInvolved.toLowerCase().trim());
+
+      const numberOfPlayersMatches =
+        !filters.numberOfPlayers ||
+        String(activity.numberOfPlayers) === filters.numberOfPlayers;
+
+      const detailsMatch = activity.activityDetails
+        .toLowerCase()
+        .includes(filters.activityDetails.toLowerCase().trim());
+
+      return (
+        activityNameMatches &&
+        fieldLocationMatches &&
+        gamePhaseMatches &&
+        categoryMatches &&
+        positionsMatch &&
+        numberOfPlayersMatches &&
+        detailsMatch
+      );
+    });
+  }, [activities, includeHidden, filters]);
 
   useEffect(() => {
     loadActivitiesFromStorage();
@@ -64,20 +101,31 @@ export default function SearchResultsPanel({
   }, []);
 
   useEffect(() => {
-    if (visibleActivities.length === 0) {
+    if (filteredActivities.length === 0) {
+      setSelectedActivity(undefined);
+      setDownloadMessage("");
+      setActionMessage("");
+      setShowDeleteConfirm(false);
       return;
     }
 
-    const selectedActivityIsVisible = visibleActivities.some(
-      (activity) => activity.id === selectedActivity.id
+    const selectedActivityIsVisible = filteredActivities.some(
+      (activity) => activity.id === selectedActivity?.id
     );
 
     if (!selectedActivityIsVisible) {
-      setSelectedActivity(visibleActivities[0]);
+      setSelectedActivity(filteredActivities[0]);
+      setDownloadMessage("");
+      setActionMessage("");
+      setShowDeleteConfirm(false);
     }
-  }, [visibleActivities, selectedActivity.id]);
+  }, [filteredActivities, selectedActivity?.id]);
 
   function handleDownload() {
+    if (!selectedActivity) {
+      return;
+    }
+
     setActionMessage("");
     setShowDeleteConfirm(false);
 
@@ -110,6 +158,10 @@ export default function SearchResultsPanel({
   }
 
   function handleToggleHidden() {
+    if (!selectedActivity) {
+      return;
+    }
+
     const updatedActivity = updateStoredActivityHidden(
       selectedActivity.id,
       !selectedActivity.hidden
@@ -139,11 +191,17 @@ export default function SearchResultsPanel({
   }
 
   function handleDeleteClick() {
+    if (!selectedActivity) {
+      return;
+    }
+
     setDownloadMessage("");
 
-    const isLocalActivity = Boolean(getStoredActivities().find(
-      (activity) => activity.id === selectedActivity.id
-    ));
+    const isLocalActivity = Boolean(
+      getStoredActivities().find(
+        (activity) => activity.id === selectedActivity.id
+      )
+    );
 
     if (!isLocalActivity) {
       setActionMessage(
@@ -158,6 +216,10 @@ export default function SearchResultsPanel({
   }
 
   function handleConfirmDelete() {
+    if (!selectedActivity) {
+      return;
+    }
+
     const deleted = deleteStoredActivity(selectedActivity.id);
 
     if (!deleted) {
@@ -175,10 +237,7 @@ export default function SearchResultsPanel({
       combinedActivities.find((activity) => includeHidden || !activity.hidden) ??
       combinedActivities[0];
 
-    if (nextVisibleActivity) {
-      setSelectedActivity(nextVisibleActivity);
-    }
-
+    setSelectedActivity(nextVisibleActivity);
     setShowDeleteConfirm(false);
     setDownloadMessage("");
     setActionMessage("Activity deleted.");
@@ -202,13 +261,13 @@ export default function SearchResultsPanel({
             <div>Actions</div>
           </div>
 
-          {visibleActivities.length === 0 ? (
+          {filteredActivities.length === 0 ? (
             <div className="px-4 py-6 text-sm text-slate-500">
-              No visible activities found.
+              No activities match the current filters.
             </div>
           ) : (
-            visibleActivities.map((activity) => {
-              const isSelected = activity.id === selectedActivity.id;
+            filteredActivities.map((activity) => {
+              const isSelected = activity.id === selectedActivity?.id;
 
               return (
                 <div
@@ -267,162 +326,178 @@ export default function SearchResultsPanel({
       <section className="rounded-xl bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold">Activity Detail</h2>
 
-        <div className="mt-4 flex min-h-64 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-          {selectedActivity.previewDataUrl ? (
-            <img
-              src={selectedActivity.previewDataUrl}
-              alt={`${selectedActivity.activityName} preview`}
-              className="max-h-80 w-full rounded-lg object-contain"
-            />
-          ) : (
-            <div>
-              Preview pane
-              <div className="mt-2 text-xs">PNG/PDF viewer placeholder</div>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 grid gap-3 text-sm">
-          <div>
-            <div className="font-semibold text-slate-700">Activity Name</div>
-            <div className="text-slate-600">
-              {selectedActivity.activityName}
-            </div>
+        {!selectedActivity ? (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+            Select an activity or adjust the filters to see activity details.
           </div>
+        ) : (
+          <>
+            <div className="mt-4 flex min-h-64 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+              {selectedActivity.previewDataUrl ? (
+                <img
+                  src={selectedActivity.previewDataUrl}
+                  alt={`${selectedActivity.activityName} preview`}
+                  className="max-h-80 w-full rounded-lg object-contain"
+                />
+              ) : (
+                <div>
+                  Preview pane
+                  <div className="mt-2 text-xs">PNG/PDF viewer placeholder</div>
+                </div>
+              )}
+            </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div>
-              <div className="font-semibold text-slate-700">
-                Field Location
+            <div className="mt-6 grid gap-3 text-sm">
+              <div>
+                <div className="font-semibold text-slate-700">
+                  Activity Name
+                </div>
+                <div className="text-slate-600">
+                  {selectedActivity.activityName}
+                </div>
               </div>
-              <div className="text-slate-600">
-                {selectedActivity.fieldLocation || "—"}
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Field Location
+                  </div>
+                  <div className="text-slate-600">
+                    {selectedActivity.fieldLocation || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Game Phase
+                  </div>
+                  <div className="text-slate-600">
+                    {selectedActivity.gamePhase || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">Category</div>
+                  <div className="text-slate-600">
+                    {selectedActivity.category || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Number of Players
+                  </div>
+                  <div className="text-slate-600">
+                    {selectedActivity.numberOfPlayers || "—"}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <div className="font-semibold text-slate-700">Game Phase</div>
-              <div className="text-slate-600">
-                {selectedActivity.gamePhase || "—"}
+              <div>
+                <div className="font-semibold text-slate-700">
+                  Positions Involved
+                </div>
+                <div className="text-slate-600">
+                  {selectedActivity.positionsInvolved || "—"}
+                </div>
               </div>
-            </div>
 
-            <div>
-              <div className="font-semibold text-slate-700">Category</div>
-              <div className="text-slate-600">
-                {selectedActivity.category || "—"}
+              <div>
+                <div className="font-semibold text-slate-700">
+                  Activity Details
+                </div>
+                <div className="text-slate-600">
+                  {selectedActivity.activityDetails || "—"}
+                </div>
               </div>
+
+              {selectedActivity.fileName && (
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Imported File
+                  </div>
+                  <div className="text-slate-600">
+                    {selectedActivity.fileName}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div>
-              <div className="font-semibold text-slate-700">
-                Number of Players
+            {downloadMessage && (
+              <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                {downloadMessage}
               </div>
-              <div className="text-slate-600">
-                {selectedActivity.numberOfPlayers || "—"}
+            )}
+
+            {actionMessage && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                {actionMessage}
               </div>
-            </div>
-          </div>
+            )}
 
-          <div>
-            <div className="font-semibold text-slate-700">
-              Positions Involved
-            </div>
-            <div className="text-slate-600">
-              {selectedActivity.positionsInvolved || "—"}
-            </div>
-          </div>
+            {showDeleteConfirm && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <div className="font-semibold">
+                  Delete this activity permanently?
+                </div>
+                <div className="mt-1">
+                  This removes the locally saved activity from this browser.
+                </div>
 
-          <div>
-            <div className="font-semibold text-slate-700">
-              Activity Details
-            </div>
-            <div className="text-slate-600">
-              {selectedActivity.activityDetails || "—"}
-            </div>
-          </div>
+                <div className="mt-4 flex flex-wrap justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
+                  >
+                    Cancel
+                  </button>
 
-          {selectedActivity.fileName && (
-            <div>
-              <div className="font-semibold text-slate-700">Imported File</div>
-              <div className="text-slate-600">{selectedActivity.fileName}</div>
-            </div>
-          )}
-        </div>
+                  <button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
+                  >
+                    Delete Activity
+                  </button>
+                </div>
+              </div>
+            )}
 
-        {downloadMessage && (
-          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-            {downloadMessage}
-          </div>
-        )}
-
-        {actionMessage && (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-            {actionMessage}
-          </div>
-        )}
-
-        {showDeleteConfirm && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <div className="font-semibold">
-              Delete this activity permanently?
-            </div>
-            <div className="mt-1">
-              This removes the locally saved activity from this browser.
-            </div>
-
-            <div className="mt-4 flex flex-wrap justify-end gap-3">
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
+                onClick={handleDownload}
+                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
               >
-                Cancel
+                Download
+              </button>
+
+              <Link
+                href={`/activity/${selectedActivity.id}/edit`}
+                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+              >
+                Edit
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleToggleHidden}
+                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+              >
+                {selectedActivity.hidden ? "Unhide" : "Hide"}
               </button>
 
               <button
                 type="button"
-                onClick={handleConfirmDelete}
-                className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
+                onClick={handleDeleteClick}
+                className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700"
               >
-                Delete Activity
+                Delete
               </button>
             </div>
-          </div>
+          </>
         )}
-
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
-          >
-            Download
-          </button>
-
-          <Link
-            href={`/activity/${selectedActivity.id}/edit`}
-            className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
-          >
-            Edit
-          </Link>
-
-          <button
-            type="button"
-            onClick={handleToggleHidden}
-            className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
-          >
-            {selectedActivity.hidden ? "Unhide" : "Hide"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDeleteClick}
-            className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700"
-          >
-            Delete
-          </button>
-        </div>
       </section>
     </div>
   );
