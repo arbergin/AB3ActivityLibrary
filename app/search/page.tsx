@@ -1,6 +1,5 @@
 import AppHeader from "@/components/AppHeader";
-import SearchFilters from "@/components/SearchFilters";
-import SearchResultsPanel from "@/components/SearchResultsPanel";
+import SearchPageClient from "@/components/SearchPageClient";
 
 export default function SearchPage() {
   return (
@@ -16,10 +15,7 @@ export default function SearchPage() {
           </p>
         </div>
 
-        <div className="grid gap-8">
-          <SearchFilters />
-          <SearchResultsPanel />
-        </div>
+        <SearchPageClient />
       </section>
     </main>
   );

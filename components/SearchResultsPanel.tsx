@@ -1,17 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { getStoredActivities } from "@/lib/activityStorage";
+import { useEffect, useMemo, useState } from "react";
+import {
+  getStoredActivities,
+  updateStoredActivityHidden,
+} from "@/lib/activityStorage";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 
-export default function SearchResultsPanel() {
+type SearchResultsPanelProps = {
+  includeHidden: boolean;
+};
+
+export default function SearchResultsPanel({
+  includeHidden,
+}: SearchResultsPanelProps) {
   const [activities, setActivities] = useState<Activity[]>(mockActivities);
   const [selectedActivity, setSelectedActivity] = useState<Activity>(
     mockActivities[0]
   );
   const [downloadMessage, setDownloadMessage] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+
+  const visibleActivities = useMemo(() => {
+    if (includeHidden) {
+      return activities;
+    }
+
+    return activities.filter((activity) => !activity.hidden);
+  }, [activities, includeHidden]);
 
   useEffect(() => {
     const storedActivities = getStoredActivities();
@@ -19,10 +37,28 @@ export default function SearchResultsPanel() {
 
     setActivities(combinedActivities);
 
-    if (combinedActivities.length > 0) {
-      setSelectedActivity(combinedActivities[0]);
+    const firstVisibleActivity =
+      combinedActivities.find((activity) => !activity.hidden) ??
+      combinedActivities[0];
+
+    if (firstVisibleActivity) {
+      setSelectedActivity(firstVisibleActivity);
     }
   }, []);
+
+  useEffect(() => {
+    if (visibleActivities.length === 0) {
+      return;
+    }
+
+    const selectedActivityIsVisible = visibleActivities.some(
+      (activity) => activity.id === selectedActivity.id
+    );
+
+    if (!selectedActivityIsVisible) {
+      setSelectedActivity(visibleActivities[0]);
+    }
+  }, [visibleActivities, selectedActivity.id]);
 
   function handleDownload() {
     if (!selectedActivity.previewDataUrl) {
@@ -49,6 +85,35 @@ export default function SearchResultsPanel() {
   function handleSelectActivity(activity: Activity) {
     setSelectedActivity(activity);
     setDownloadMessage("");
+    setActionMessage("");
+  }
+
+  function handleToggleHidden() {
+    const updatedActivity = updateStoredActivityHidden(
+      selectedActivity.id,
+      !selectedActivity.hidden
+    );
+
+    if (!updatedActivity) {
+      setActionMessage(
+        "Only locally imported activities can be hidden for now. Sample activities are read-only."
+      );
+      return;
+    }
+
+    setActivities((currentActivities) =>
+      currentActivities.map((activity) =>
+        activity.id === updatedActivity.id ? updatedActivity : activity
+      )
+    );
+
+    setSelectedActivity(updatedActivity);
+    setDownloadMessage("");
+    setActionMessage(
+      updatedActivity.hidden
+        ? "Activity hidden. Check Include hidden activities to view it again."
+        : "Activity is visible again."
+    );
   }
 
   return (
@@ -69,57 +134,65 @@ export default function SearchResultsPanel() {
             <div>Actions</div>
           </div>
 
-          {activities.map((activity) => {
-            const isSelected = activity.id === selectedActivity.id;
+          {visibleActivities.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-slate-500">
+              No visible activities found.
+            </div>
+          ) : (
+            visibleActivities.map((activity) => {
+              const isSelected = activity.id === selectedActivity.id;
 
-            return (
-              <div
-                key={activity.id}
-                onClick={() => handleSelectActivity(activity)}
-                className={`grid cursor-pointer grid-cols-[1.5fr_1fr_1fr_1fr_auto] items-center border-t border-slate-200 px-4 py-4 text-sm ${
-                  isSelected ? "bg-slate-100" : "bg-white hover:bg-slate-50"
-                }`}
-              >
-                <div>
-                  <div className="font-semibold text-slate-800">
-                    {activity.activityName}
+              return (
+                <div
+                  key={activity.id}
+                  onClick={() => handleSelectActivity(activity)}
+                  className={`grid cursor-pointer grid-cols-[1.5fr_1fr_1fr_1fr_auto] items-center border-t border-slate-200 px-4 py-4 text-sm ${
+                    isSelected ? "bg-slate-100" : "bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  <div>
+                    <div className="font-semibold text-slate-800">
+                      {activity.activityName}
+                    </div>
+
+                    {activity.fileName && (
+                      <div className="mt-1 text-xs text-slate-500">
+                        Imported from: {activity.fileName}
+                      </div>
+                    )}
+
+                    {activity.hidden && (
+                      <div className="mt-1 text-xs font-semibold text-amber-600">
+                        Hidden — admin only
+                      </div>
+                    )}
                   </div>
 
-                  {activity.fileName && (
-                    <div className="mt-1 text-xs text-slate-500">
-                      Imported from: {activity.fileName}
-                    </div>
-                  )}
+                  <div className="text-slate-600">
+                    {activity.fieldLocation || "—"}
+                  </div>
+                  <div className="text-slate-600">
+                    {activity.gamePhase || "—"}
+                  </div>
+                  <div className="text-slate-600">
+                    {activity.category || "—"}
+                  </div>
 
-                  {activity.hidden && (
-                    <div className="mt-1 text-xs font-semibold text-amber-600">
-                      Hidden — admin only
-                    </div>
-                  )}
+                  <div className="flex gap-3">
+                    <Link
+                      href={`/activity/${activity.id}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
+                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      Open
+                    </Link>
+                  </div>
                 </div>
-
-                <div className="text-slate-600">
-                  {activity.fieldLocation || "—"}
-                </div>
-                <div className="text-slate-600">
-                  {activity.gamePhase || "—"}
-                </div>
-                <div className="text-slate-600">{activity.category || "—"}</div>
-
-                <div className="flex gap-3">
-                  <Link
-                    href={`/activity/${activity.id}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                    }}
-                    className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
-                  >
-                    Open
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </section>
 
@@ -215,6 +288,12 @@ export default function SearchResultsPanel() {
           </div>
         )}
 
+        {actionMessage && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            {actionMessage}
+          </div>
+        )}
+
         <div className="mt-6 flex flex-wrap justify-end gap-3">
           <button
             type="button"
@@ -228,8 +307,12 @@ export default function SearchResultsPanel() {
             Edit
           </button>
 
-          <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700">
-            Hide
+          <button
+            type="button"
+            onClick={handleToggleHidden}
+            className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+          >
+            {selectedActivity.hidden ? "Unhide" : "Hide"}
           </button>
         </div>
       </section>

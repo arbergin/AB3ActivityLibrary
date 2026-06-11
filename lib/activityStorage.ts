@@ -41,3 +41,41 @@ export function saveStoredActivity(activity: Activity) {
 export function getStoredActivityById(id: string): Activity | undefined {
   return getStoredActivities().find((activity) => activity.id === id);
 }
+
+export function updateStoredActivityHidden(
+  id: string,
+  hidden: boolean
+): Activity | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  const existingActivities = getStoredActivities();
+
+  const activityExists = existingActivities.some(
+    (activity) => activity.id === id
+  );
+
+  if (!activityExists) {
+    return undefined;
+  }
+
+  let updatedActivity: Activity | undefined;
+
+  const updatedActivities = existingActivities.map((activity) => {
+    if (activity.id !== id) {
+      return activity;
+    }
+
+    updatedActivity = {
+      ...activity,
+      hidden,
+    };
+
+    return updatedActivity;
+  });
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedActivities));
+
+  return updatedActivity;
+}

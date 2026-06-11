@@ -7,7 +7,15 @@ import {
   gamePhaseOptions,
 } from "@/lib/activityOptions";
 
-export default function SearchFilters() {
+type SearchFiltersProps = {
+  includeHidden: boolean;
+  onIncludeHiddenChange: (includeHidden: boolean) => void;
+};
+
+export default function SearchFilters({
+  includeHidden,
+  onIncludeHiddenChange,
+}: SearchFiltersProps) {
   const [activityName, setActivityName] = useState("");
   const [fieldLocation, setFieldLocation] = useState("");
   const [gamePhase, setGamePhase] = useState("");
@@ -15,7 +23,6 @@ export default function SearchFilters() {
   const [positionsInvolved, setPositionsInvolved] = useState("");
   const [numberOfPlayers, setNumberOfPlayers] = useState("");
   const [activityDetails, setActivityDetails] = useState("");
-  const [includeHidden, setIncludeHidden] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
 
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
@@ -34,7 +41,7 @@ export default function SearchFilters() {
     setPositionsInvolved("");
     setNumberOfPlayers("");
     setActivityDetails("");
-    setIncludeHidden(false);
+    onIncludeHiddenChange(false);
     setSearchMessage("");
   }
 
@@ -138,7 +145,7 @@ export default function SearchFilters() {
           <input
             type="checkbox"
             checked={includeHidden}
-            onChange={(event) => setIncludeHidden(event.target.checked)}
+            onChange={(event) => onIncludeHiddenChange(event.target.checked)}
           />
           Include hidden activities
           <span className="text-xs text-slate-400">Admin only later</span>
