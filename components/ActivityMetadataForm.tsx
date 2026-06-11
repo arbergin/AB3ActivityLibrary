@@ -8,6 +8,7 @@ import {
   gamePhaseOptions,
 } from "@/lib/activityOptions";
 import { saveStoredActivity } from "@/lib/activityStorage";
+import { createSupabaseActivity } from "@/lib/supabaseActivities";
 import type { Activity } from "@/types/activity";
 
 type ActivityMetadataFormProps = {
@@ -32,14 +33,25 @@ export default function ActivityMetadataForm({
   const [numberOfPlayers, setNumberOfPlayers] = useState("");
   const [activityDetails, setActivityDetails] = useState("");
   const [formError, setFormError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
-  function handleSaveActivity(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSaveActivity(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSaving) {
+      return;
+    }
+
+    setFormError("");
+    setSaveMessage("");
 
     if (!activityName.trim()) {
       setFormError("Activity Name is required.");
       return;
     }
+
+    const now = new Date().toISOString();
 
     const newActivity: Activity = {
       id: `activity-${Date.now()}`,
@@ -55,12 +67,37 @@ export default function ActivityMetadataForm({
       fileName: selectedFileName,
       fileType: selectedFileType,
       previewDataUrl,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
 
-    saveStoredActivity(newActivity);
+    setIsSaving(true);
+    setSaveMessage("Saving activity...");
 
-    router.push(`/activity/${newActivity.id}`);
+    try {
+      const savedSupabaseActivity = await createSupabaseActivity(newActivity);
+
+      saveStoredActivity({
+        ...newActivity,
+        id: savedSupabaseActivity.id,
+        createdAt: savedSupabaseActivity.createdAt,
+        updatedAt: savedSupabaseActivity.updatedAt,
+      });
+
+      router.push(`/activity/${savedSupabaseActivity.id}`);
+    } catch (error) {
+      console.error("Supabase save failed. Saving locally instead.", error);
+
+      saveStoredActivity(newActivity);
+
+      setSaveMessage(
+        "Supabase save failed, so the activity was saved locally in this browser."
+      );
+
+      router.push(`/activity/${newActivity.id}`);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function handleCancel() {
@@ -72,6 +109,7 @@ export default function ActivityMetadataForm({
     setNumberOfPlayers("");
     setActivityDetails("");
     setFormError("");
+    setSaveMessage("");
   }
 
   return (
@@ -93,7 +131,21 @@ export default function ActivityMetadataForm({
         </div>
       )}
 
-      {previewDataUrl && (
+      {previewDataUrl && selectedFileType === "application/pdf" && (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+          <div className="mb-3 text-sm font-semibold text-slate-700">
+            Attached PDF Preview
+          </div>
+
+          <iframe
+            src={previewDataUrl}
+            title="Activity PDF preview"
+            className="h-[520px] w-full rounded-lg border border-slate-200"
+          />
+        </div>
+      )}
+
+      {previewDataUrl && selectedFileType !== "application/pdf" && (
         <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
           <div className="mb-3 text-sm font-semibold text-slate-700">
             Attached PNG Preview
@@ -211,20 +263,28 @@ export default function ActivityMetadataForm({
           </div>
         )}
 
+        {saveMessage && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+            {saveMessage}
+          </div>
+        )}
+
         <div className="flex justify-end gap-3">
           <button
             type="button"
             onClick={handleCancel}
-            className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+            disabled={isSaving}
+            className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Cancel
           </button>
 
           <button
             type="submit"
-            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+            disabled={isSaving}
+            className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Save Activity
+            {isSaving ? "Saving..." : "Save Activity"}
           </button>
         </div>
       </div>
