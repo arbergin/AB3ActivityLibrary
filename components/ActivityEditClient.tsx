@@ -5,20 +5,44 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import {
-  getStoredActivityById,
-  updateStoredActivity,
-} from "@/lib/activityStorage";
-import { mockActivities } from "@/lib/mockActivities";
-import {
   categoryOptions,
   fieldLocationOptions,
   gamePhaseOptions,
 } from "@/lib/activityOptions";
+import {
+  getStoredActivityById,
+  updateStoredActivity,
+} from "@/lib/activityStorage";
+import {
+  getSupabaseActivityById,
+  updateSupabaseActivity,
+} from "@/lib/supabaseActivities";
+import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 
 type ActivityEditClientProps = {
   activityId: string;
 };
+
+type ActivitySource = "supabase" | "local" | "mock";
+
+function formatDate(dateValue?: string) {
+  if (!dateValue) {
+    return "—";
+  }
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
 
 export default function ActivityEditClient({
   activityId,
@@ -26,7 +50,9 @@ export default function ActivityEditClient({
   const router = useRouter();
 
   const [activity, setActivity] = useState<Activity | undefined>(undefined);
-  const [isLocalActivity, setIsLocalActivity] = useState(false);
+  const [activitySource, setActivitySource] = useState<
+    ActivitySource | undefined
+  >(undefined);
   const [hasLoaded, setHasLoaded] = useState(false);
 
   const [activityName, setActivityName] = useState("");
@@ -37,42 +63,125 @@ export default function ActivityEditClient({
   const [positionsInvolved, setPositionsInvolved] = useState("");
   const [numberOfPlayers, setNumberOfPlayers] = useState("");
   const [activityDetails, setActivityDetails] = useState("");
+
   const [formError, setFormError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const storedActivity = getStoredActivityById(activityId);
-    const mockActivity = mockActivities.find((item) => item.id === activityId);
+    let isMounted = true;
 
-    const foundActivity = storedActivity ?? mockActivity;
+    async function loadActivity() {
+      setHasLoaded(false);
+      setFormError("");
+      setSaveMessage("");
 
-    setActivity(foundActivity);
-    setIsLocalActivity(Boolean(storedActivity));
-    setHasLoaded(true);
+      try {
+        const supabaseActivity = await getSupabaseActivityById(activityId);
 
-    if (foundActivity) {
-      setActivityName(foundActivity.activityName);
-      setFieldLocation(foundActivity.fieldLocation);
-      setGamePhase(foundActivity.gamePhase);
-      setCategory(foundActivity.category);
-      setPositionsInvolved(foundActivity.positionsInvolved);
-      setNumberOfPlayers(
-        foundActivity.numberOfPlayers === ""
-          ? ""
-          : String(foundActivity.numberOfPlayers)
-      );
-      setActivityDetails(foundActivity.activityDetails);
+        if (!isMounted) {
+          return;
+        }
+
+        if (supabaseActivity) {
+          setActivity(supabaseActivity);
+          setActivitySource("supabase");
+
+          setActivityName(supabaseActivity.activityName);
+          setFieldLocation(supabaseActivity.fieldLocation);
+          setGamePhase(supabaseActivity.gamePhase);
+          setCategory(supabaseActivity.category);
+          setPositionsInvolved(supabaseActivity.positionsInvolved);
+          setNumberOfPlayers(
+            supabaseActivity.numberOfPlayers === ""
+              ? ""
+              : String(supabaseActivity.numberOfPlayers)
+          );
+          setActivityDetails(supabaseActivity.activityDetails);
+
+          setHasLoaded(true);
+          return;
+        }
+      } catch (error) {
+        console.error("Unable to load activity from Supabase for edit.", error);
+      }
+
+      const storedActivity = getStoredActivityById(activityId);
+
+      if (storedActivity) {
+        if (!isMounted) {
+          return;
+        }
+
+        setActivity(storedActivity);
+        setActivitySource("local");
+
+        setActivityName(storedActivity.activityName);
+        setFieldLocation(storedActivity.fieldLocation);
+        setGamePhase(storedActivity.gamePhase);
+        setCategory(storedActivity.category);
+        setPositionsInvolved(storedActivity.positionsInvolved);
+        setNumberOfPlayers(
+          storedActivity.numberOfPlayers === ""
+            ? ""
+            : String(storedActivity.numberOfPlayers)
+        );
+        setActivityDetails(storedActivity.activityDetails);
+
+        setHasLoaded(true);
+        return;
+      }
+
+      const mockActivity = mockActivities.find((item) => item.id === activityId);
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (mockActivity) {
+        setActivity(mockActivity);
+        setActivitySource("mock");
+
+        setActivityName(mockActivity.activityName);
+        setFieldLocation(mockActivity.fieldLocation);
+        setGamePhase(mockActivity.gamePhase);
+        setCategory(mockActivity.category);
+        setPositionsInvolved(mockActivity.positionsInvolved);
+        setNumberOfPlayers(
+          mockActivity.numberOfPlayers === ""
+            ? ""
+            : String(mockActivity.numberOfPlayers)
+        );
+        setActivityDetails(mockActivity.activityDetails);
+      } else {
+        setActivity(undefined);
+        setActivitySource(undefined);
+      }
+
+      setHasLoaded(true);
     }
+
+    loadActivity();
+
+    return () => {
+      isMounted = false;
+    };
   }, [activityId]);
 
-  function handleSaveChanges(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSaveActivity(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!activity) {
+    if (!activity || isSaving) {
       return;
     }
 
-    if (!isLocalActivity) {
-      setFormError("Sample activities are read-only for now.");
+    setFormError("");
+    setSaveMessage("");
+
+    if (activitySource === "mock") {
+      setFormError(
+        "Sample activities are read-only. Imported activities can be edited."
+      );
       return;
     }
 
@@ -92,14 +201,51 @@ export default function ActivityEditClient({
       activityDetails: activityDetails.trim(),
     };
 
-    const savedActivity = updateStoredActivity(updatedActivity);
+    setIsSaving(true);
+    setSaveMessage(
+      activitySource === "supabase"
+        ? "Saving changes to Supabase..."
+        : "Saving changes locally..."
+    );
 
-    if (!savedActivity) {
-      setFormError("This activity could not be updated.");
+    if (activitySource === "supabase") {
+      try {
+        const savedActivity = await updateSupabaseActivity(updatedActivity);
+
+        setActivity(savedActivity);
+        setSaveMessage("Changes saved to Supabase.");
+        router.push(`/activity/${savedActivity.id}`);
+        return;
+      } catch (error) {
+        console.error("Supabase activity update failed.", error);
+        setFormError("The activity could not be updated in Supabase.");
+        setSaveMessage("");
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    const savedLocalActivity = updateStoredActivity(updatedActivity);
+
+    if (!savedLocalActivity) {
+      setFormError("The local activity could not be updated.");
+      setSaveMessage("");
+      setIsSaving(false);
       return;
     }
 
-    router.push(`/activity/${savedActivity.id}`);
+    setActivity(savedLocalActivity);
+    setSaveMessage("Changes saved locally.");
+    router.push(`/activity/${savedLocalActivity.id}`);
+  }
+
+  function handleCancel() {
+    if (!activity) {
+      router.push("/search");
+      return;
+    }
+
+    router.push(`/activity/${activity.id}`);
   }
 
   if (!hasLoaded) {
@@ -130,7 +276,7 @@ export default function ActivityEditClient({
 
             <Link
               href="/search"
-              className="mt-6 inline-block rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+              className="mt-6 inline-block rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
             >
               Back to Search
             </Link>
@@ -140,39 +286,7 @@ export default function ActivityEditClient({
     );
   }
 
-  if (!isLocalActivity) {
-    return (
-      <main className="min-h-screen bg-slate-100 text-slate-900">
-        <AppHeader />
-
-        <section className="mx-auto max-w-6xl px-8 py-10">
-          <div className="rounded-xl bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-bold">Sample activity is read-only</h2>
-            <p className="mt-2 text-slate-600">
-              Only locally imported activities can be edited right now. Sample
-              activities are placeholders until the database is connected.
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                href={`/activity/${activity.id}`}
-                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
-              >
-                Back to Activity
-              </Link>
-
-              <Link
-                href="/search"
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700"
-              >
-                Back to Search
-              </Link>
-            </div>
-          </div>
-        </section>
-      </main>
-    );
-  }
+  const isReadOnly = activitySource === "mock";
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -183,8 +297,15 @@ export default function ActivityEditClient({
           <div>
             <h2 className="text-2xl font-bold">Edit Activity</h2>
             <p className="mt-2 text-slate-600">
-              Update metadata for this imported activity.
+              Update activity metadata used for search, filtering, and PDF
+              exports.
             </p>
+
+            {activitySource && (
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Source: {activitySource}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -192,33 +313,43 @@ export default function ActivityEditClient({
               href={`/activity/${activity.id}`}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700"
             >
-              Cancel
+              Close
             </Link>
 
             <Link
               href="/search"
-              className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+              className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
             >
               Search
             </Link>
           </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+        <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr]">
           <section className="rounded-xl bg-white p-6 shadow-sm">
-            <h3 className="text-xl font-bold">Current Preview</h3>
+            <h3 className="text-xl font-bold">Activity Preview</h3>
 
             <div className="mt-6 flex min-h-[420px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-slate-500">
-              {activity.previewDataUrl ? (
+              {activity.previewDataUrl &&
+              activity.fileType === "application/pdf" ? (
+                <iframe
+                  src={activity.previewDataUrl}
+                  title={`${activity.activityName} PDF preview`}
+                  className="h-[520px] w-full rounded-lg border border-slate-200"
+                />
+              ) : activity.previewDataUrl ? (
                 <img
                   src={activity.previewDataUrl}
                   alt={`${activity.activityName} preview`}
-                  className="max-h-[500px] w-full rounded-lg object-contain"
+                  className="max-h-[520px] w-full rounded-lg object-contain"
                 />
               ) : (
                 <div>
                   <div className="font-semibold">
                     PNG/PDF viewer placeholder
+                  </div>
+                  <div className="mt-2 text-sm">
+                    Preview will show here when an imported file is available.
                   </div>
 
                   {activity.fileName && (
@@ -229,13 +360,51 @@ export default function ActivityEditClient({
                 </div>
               )}
             </div>
+
+            <div className="mt-6 grid gap-3 text-sm">
+              <div>
+                <div className="font-semibold text-slate-700">
+                  Imported File
+                </div>
+                <div className="mt-1 text-slate-600">
+                  {activity.fileName || "—"}
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Created Date
+                  </div>
+                  <div className="mt-1 text-slate-600">
+                    {formatDate(activity.createdAt)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Last Updated
+                  </div>
+                  <div className="mt-1 text-slate-600">
+                    {formatDate(activity.updatedAt)}
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
 
           <form
-            onSubmit={handleSaveChanges}
+            onSubmit={handleSaveActivity}
             className="rounded-xl bg-white p-6 shadow-sm"
           >
             <h3 className="text-xl font-bold">Activity Metadata</h3>
+
+            {isReadOnly && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                Sample activities are read-only. Imported Supabase or local
+                activities can be edited.
+              </div>
+            )}
 
             <div className="mt-6 grid gap-4">
               <label className="grid gap-1">
@@ -246,7 +415,9 @@ export default function ActivityEditClient({
                   type="text"
                   value={activityName}
                   onChange={(event) => setActivityName(event.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2"
+                  disabled={isReadOnly || isSaving}
+                  className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                  placeholder="Example: 3v2 to Counter"
                 />
               </label>
 
@@ -260,7 +431,8 @@ export default function ActivityEditClient({
                         event.target.value as Activity["fieldLocation"]
                       )
                     }
-                    className="rounded-lg border border-slate-300 px-3 py-2"
+                    disabled={isReadOnly || isSaving}
+                    className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
                   >
                     <option value="">Select field location</option>
                     {fieldLocationOptions.map((option) => (
@@ -276,7 +448,8 @@ export default function ActivityEditClient({
                     onChange={(event) =>
                       setGamePhase(event.target.value as Activity["gamePhase"])
                     }
-                    className="rounded-lg border border-slate-300 px-3 py-2"
+                    disabled={isReadOnly || isSaving}
+                    className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
                   >
                     <option value="">Select game phase</option>
                     {gamePhaseOptions.map((option) => (
@@ -292,7 +465,8 @@ export default function ActivityEditClient({
                     onChange={(event) =>
                       setCategory(event.target.value as Activity["category"])
                     }
-                    className="rounded-lg border border-slate-300 px-3 py-2"
+                    disabled={isReadOnly || isSaving}
+                    className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
                   >
                     <option value="">Select category</option>
                     {categoryOptions.map((option) => (
@@ -313,7 +487,8 @@ export default function ActivityEditClient({
                     onChange={(event) =>
                       setPositionsInvolved(event.target.value)
                     }
-                    className="rounded-lg border border-slate-300 px-3 py-2"
+                    disabled={isReadOnly || isSaving}
+                    className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
                     placeholder="Example: 9, 10, Wingers"
                   />
                 </label>
@@ -325,8 +500,11 @@ export default function ActivityEditClient({
                   <input
                     type="number"
                     value={numberOfPlayers}
-                    onChange={(event) => setNumberOfPlayers(event.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2"
+                    onChange={(event) =>
+                      setNumberOfPlayers(event.target.value)
+                    }
+                    disabled={isReadOnly || isSaving}
+                    className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
                     placeholder="Example: 8"
                   />
                 </label>
@@ -337,7 +515,8 @@ export default function ActivityEditClient({
                 <textarea
                   value={activityDetails}
                   onChange={(event) => setActivityDetails(event.target.value)}
-                  className="min-h-32 rounded-lg border border-slate-300 px-3 py-2"
+                  disabled={isReadOnly || isSaving}
+                  className="min-h-40 rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
                   placeholder="Describe setup, rules, coaching points, progressions, or constraints."
                 />
               </label>
@@ -348,19 +527,28 @@ export default function ActivityEditClient({
                 </div>
               )}
 
+              {saveMessage && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                  {saveMessage}
+                </div>
+              )}
+
               <div className="flex justify-end gap-3">
-                <Link
-                  href={`/activity/${activity.id}`}
-                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Cancel
-                </Link>
+                </button>
 
                 <button
                   type="submit"
-                  className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+                  disabled={isReadOnly || isSaving}
+                  className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Save Changes
+                  {isSaving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
