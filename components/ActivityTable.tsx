@@ -1,11 +1,6 @@
-type ActivityRow = {
-  activityName: string;
-  location: string;
-  phase: string;
-  category: string;
-};
+import type { Activity } from "@/types/activity";
 
-const activities: ActivityRow[] = [];
+const activities: Activity[] = [];
 
 export default function ActivityTable() {
   return (
@@ -32,12 +27,12 @@ export default function ActivityTable() {
         ) : (
           activities.map((activity) => (
             <div
-              key={activity.activityName}
+              key={activity.id}
               className="grid grid-cols-5 border-t border-slate-200 px-4 py-4 text-sm"
             >
               <div>{activity.activityName}</div>
-              <div>{activity.location}</div>
-              <div>{activity.phase}</div>
+              <div>{activity.fieldLocation}</div>
+              <div>{activity.gamePhase}</div>
               <div>{activity.category}</div>
               <div>
                 <button className="font-semibold text-slate-700">Open</button>
