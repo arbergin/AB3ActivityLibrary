@@ -1,13 +1,13 @@
-import ActivityTable from "@/components/ActivityTable";
 import AppHeader from "@/components/AppHeader";
 import SearchFilters from "@/components/SearchFilters";
+import SearchResultsPanel from "@/components/SearchResultsPanel";
 
 export default function SearchPage() {
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <AppHeader />
 
-      <section className="mx-auto max-w-6xl px-8 py-10">
+      <section className="mx-auto max-w-7xl px-8 py-10">
         <div className="mb-6">
           <h2 className="text-2xl font-bold">Search Activities</h2>
           <p className="mt-2 text-slate-600">
@@ -18,7 +18,7 @@ export default function SearchPage() {
 
         <div className="grid gap-8">
           <SearchFilters />
-          <ActivityTable />
+          <SearchResultsPanel />
         </div>
       </section>
     </main>
