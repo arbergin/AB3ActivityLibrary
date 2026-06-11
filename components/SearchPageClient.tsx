@@ -14,6 +14,14 @@ export type SearchFilterValues = {
   activityDetails: string;
 };
 
+export type SearchSortValue =
+  | "activityNameAsc"
+  | "activityNameDesc"
+  | "newestFirst"
+  | "oldestFirst"
+  | "playersLowToHigh"
+  | "playersHighToLow";
+
 const emptyFilters: SearchFilterValues = {
   activityName: "",
   fieldLocation: "",
@@ -27,10 +35,13 @@ const emptyFilters: SearchFilterValues = {
 export default function SearchPageClient() {
   const [includeHidden, setIncludeHidden] = useState(false);
   const [filters, setFilters] = useState<SearchFilterValues>(emptyFilters);
+  const [sortValue, setSortValue] =
+    useState<SearchSortValue>("activityNameAsc");
 
   function handleClearFilters() {
     setFilters(emptyFilters);
     setIncludeHidden(false);
+    setSortValue("activityNameAsc");
   }
 
   return (
@@ -40,10 +51,16 @@ export default function SearchPageClient() {
         onFiltersChange={setFilters}
         includeHidden={includeHidden}
         onIncludeHiddenChange={setIncludeHidden}
+        sortValue={sortValue}
+        onSortValueChange={setSortValue}
         onClearFilters={handleClearFilters}
       />
 
-      <SearchResultsPanel includeHidden={includeHidden} filters={filters} />
+      <SearchResultsPanel
+        includeHidden={includeHidden}
+        filters={filters}
+        sortValue={sortValue}
+      />
     </div>
   );
 }

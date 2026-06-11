@@ -9,11 +9,15 @@ import {
 } from "@/lib/activityStorage";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
-import type { SearchFilterValues } from "@/components/SearchPageClient";
+import type {
+  SearchFilterValues,
+  SearchSortValue,
+} from "@/components/SearchPageClient";
 
 type SearchResultsPanelProps = {
   includeHidden: boolean;
   filters: SearchFilterValues;
+  sortValue: SearchSortValue;
 };
 
 function numberOfPlayersMatchesFilter(
@@ -110,9 +114,32 @@ function numberOfPlayersMatchesFilter(
   return playerCount === exactNumber;
 }
 
+function getCreatedAtTime(activity: Activity) {
+  if (!activity.createdAt) {
+    return 0;
+  }
+
+  const createdAtTime = new Date(activity.createdAt).getTime();
+
+  if (Number.isNaN(createdAtTime)) {
+    return 0;
+  }
+
+  return createdAtTime;
+}
+
+function getPlayerCountForSort(activity: Activity) {
+  if (activity.numberOfPlayers === "") {
+    return 0;
+  }
+
+  return Number(activity.numberOfPlayers);
+}
+
 export default function SearchResultsPanel({
   includeHidden,
   filters,
+  sortValue,
 }: SearchResultsPanelProps) {
   const [activities, setActivities] = useState<Activity[]>(mockActivities);
   const [selectedActivity, setSelectedActivity] = useState<
@@ -184,7 +211,37 @@ export default function SearchResultsPanel({
     });
   }, [searchableActivities, filters]);
 
-  const resultsCountText = `Showing ${filteredActivities.length} of ${searchableActivities.length} ${
+  const sortedActivities = useMemo(() => {
+    return [...filteredActivities].sort((activityA, activityB) => {
+      if (sortValue === "activityNameAsc") {
+        return activityA.activityName.localeCompare(activityB.activityName);
+      }
+
+      if (sortValue === "activityNameDesc") {
+        return activityB.activityName.localeCompare(activityA.activityName);
+      }
+
+      if (sortValue === "newestFirst") {
+        return getCreatedAtTime(activityB) - getCreatedAtTime(activityA);
+      }
+
+      if (sortValue === "oldestFirst") {
+        return getCreatedAtTime(activityA) - getCreatedAtTime(activityB);
+      }
+
+      if (sortValue === "playersLowToHigh") {
+        return getPlayerCountForSort(activityA) - getPlayerCountForSort(activityB);
+      }
+
+      if (sortValue === "playersHighToLow") {
+        return getPlayerCountForSort(activityB) - getPlayerCountForSort(activityA);
+      }
+
+      return 0;
+    });
+  }, [filteredActivities, sortValue]);
+
+  const resultsCountText = `Showing ${sortedActivities.length} of ${searchableActivities.length} ${
     searchableActivities.length === 1 ? "activity" : "activities"
   }`;
 
@@ -204,7 +261,7 @@ export default function SearchResultsPanel({
   }, []);
 
   useEffect(() => {
-    if (filteredActivities.length === 0) {
+    if (sortedActivities.length === 0) {
       setSelectedActivity(undefined);
       setDownloadMessage("");
       setActionMessage("");
@@ -212,17 +269,17 @@ export default function SearchResultsPanel({
       return;
     }
 
-    const selectedActivityIsVisible = filteredActivities.some(
+    const selectedActivityIsVisible = sortedActivities.some(
       (activity) => activity.id === selectedActivity?.id
     );
 
     if (!selectedActivityIsVisible) {
-      setSelectedActivity(filteredActivities[0]);
+      setSelectedActivity(sortedActivities[0]);
       setDownloadMessage("");
       setActionMessage("");
       setShowDeleteConfirm(false);
     }
-  }, [filteredActivities, selectedActivity?.id]);
+  }, [sortedActivities, selectedActivity?.id]);
 
   function handleDownload() {
     if (!selectedActivity) {
@@ -372,12 +429,12 @@ export default function SearchResultsPanel({
             <div>Actions</div>
           </div>
 
-          {filteredActivities.length === 0 ? (
+          {sortedActivities.length === 0 ? (
             <div className="px-4 py-6 text-sm text-slate-500">
               No activities match the current filters.
             </div>
           ) : (
-            filteredActivities.map((activity) => {
+            sortedActivities.map((activity) => {
               const isSelected = activity.id === selectedActivity?.id;
 
               return (

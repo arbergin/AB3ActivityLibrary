@@ -5,13 +5,18 @@ import {
   fieldLocationOptions,
   gamePhaseOptions,
 } from "@/lib/activityOptions";
-import type { SearchFilterValues } from "@/components/SearchPageClient";
+import type {
+  SearchFilterValues,
+  SearchSortValue,
+} from "@/components/SearchPageClient";
 
 type SearchFiltersProps = {
   filters: SearchFilterValues;
   onFiltersChange: (filters: SearchFilterValues) => void;
   includeHidden: boolean;
   onIncludeHiddenChange: (includeHidden: boolean) => void;
+  sortValue: SearchSortValue;
+  onSortValueChange: (sortValue: SearchSortValue) => void;
   onClearFilters: () => void;
 };
 
@@ -20,6 +25,8 @@ export default function SearchFilters({
   onFiltersChange,
   includeHidden,
   onIncludeHiddenChange,
+  sortValue,
+  onSortValueChange,
   onClearFilters,
 }: SearchFiltersProps) {
   function updateFilter(field: keyof SearchFilterValues, value: string) {
@@ -163,7 +170,25 @@ export default function SearchFilters({
         />
       </label>
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
+        <label className="grid min-w-64 gap-2">
+          <span className="text-sm font-semibold text-slate-700">Sort By</span>
+          <select
+            value={sortValue}
+            onChange={(event) =>
+              onSortValueChange(event.target.value as SearchSortValue)
+            }
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+          >
+            <option value="activityNameAsc">Activity Name A-Z</option>
+            <option value="activityNameDesc">Activity Name Z-A</option>
+            <option value="newestFirst">Newest First</option>
+            <option value="oldestFirst">Oldest First</option>
+            <option value="playersLowToHigh">Players Low to High</option>
+            <option value="playersHighToLow">Players High to Low</option>
+          </select>
+        </label>
+
         <button
           type="button"
           onClick={onClearFilters}
