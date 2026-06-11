@@ -3,6 +3,9 @@
 import { useRef, useState } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
 
+const MAX_FILE_SIZE_MB = 3;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 export default function ImportFlow() {
   const metadataSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -11,6 +14,14 @@ export default function ImportFlow() {
   const [previewDataUrl, setPreviewDataUrl] = useState("");
   const [fileError, setFileError] = useState("");
   const [showMetadataForm, setShowMetadataForm] = useState(false);
+
+  function resetSelectedFile() {
+    setSelectedFileName("");
+    setSelectedFileType("");
+    setPreviewDataUrl("");
+    setFileError("");
+    setShowMetadataForm(false);
+  }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -31,28 +42,49 @@ export default function ImportFlow() {
     if (!isPng && !isPdf) {
       setSelectedFileName("");
       setFileError("Only PNG and PDF files are accepted.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setSelectedFileName("");
+      setFileError(
+        `File is too large. Please select a PNG or PDF under ${MAX_FILE_SIZE_MB} MB.`
+      );
+      event.target.value = "";
       return;
     }
 
     setSelectedFileName(file.name);
     setSelectedFileType(file.type);
 
-    if (isPng) {
-      const reader = new FileReader();
+    const reader = new FileReader();
 
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          setPreviewDataUrl(reader.result);
-        }
-      };
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setPreviewDataUrl(reader.result);
+      }
+    };
 
-      reader.readAsDataURL(file);
-    }
+    reader.onerror = () => {
+      setSelectedFileName("");
+      setSelectedFileType("");
+      setPreviewDataUrl("");
+      setFileError("The selected file could not be read. Please try again.");
+      event.target.value = "";
+    };
+
+    reader.readAsDataURL(file);
   }
 
   function handleContinue() {
     if (!selectedFileName) {
       setFileError("Select a PNG or PDF file before continuing.");
+      return;
+    }
+
+    if (!previewDataUrl) {
+      setFileError("The selected file is still loading. Please try again.");
       return;
     }
 
@@ -67,11 +99,7 @@ export default function ImportFlow() {
   }
 
   function handleCancel() {
-    setSelectedFileName("");
-    setSelectedFileType("");
-    setPreviewDataUrl("");
-    setFileError("");
-    setShowMetadataForm(false);
+    resetSelectedFile();
   }
 
   return (
@@ -84,6 +112,9 @@ export default function ImportFlow() {
           <p className="mt-1 text-sm text-slate-500">or click to browse</p>
           <p className="mt-4 text-xs text-slate-400">
             Accepted formats: .png, .pdf
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Maximum file size: {MAX_FILE_SIZE_MB} MB
           </p>
 
           <input
@@ -101,7 +132,7 @@ export default function ImportFlow() {
           </div>
         )}
 
-        {previewDataUrl && (
+        {previewDataUrl && selectedFileType === "image/png" && (
           <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
             <div className="mb-3 text-sm font-semibold text-slate-700">
               PNG Preview
@@ -115,9 +146,17 @@ export default function ImportFlow() {
           </div>
         )}
 
-        {selectedFileType === "application/pdf" && (
-          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
-            PDF selected. PDF preview will be added later.
+        {previewDataUrl && selectedFileType === "application/pdf" && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-3 text-sm font-semibold text-slate-700">
+              PDF Preview
+            </div>
+
+            <iframe
+              src={previewDataUrl}
+              title="Selected activity PDF preview"
+              className="h-[520px] w-full rounded-lg border border-slate-200"
+            />
           </div>
         )}
 
@@ -139,7 +178,7 @@ export default function ImportFlow() {
           <button
             type="button"
             onClick={handleContinue}
-            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+            className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
           >
             Continue
           </button>

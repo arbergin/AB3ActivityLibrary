@@ -7,6 +7,7 @@ import {
   getStoredActivities,
   updateStoredActivityHidden,
 } from "@/lib/activityStorage";
+import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 import type {
@@ -334,7 +335,7 @@ export default function SearchResultsPanel({
     }
   }, [hasSearched, sortedActivities, selectedActivity?.id]);
 
-  function handleDownload() {
+  async function handleDownload() {
     if (!selectedActivity) {
       return;
     }
@@ -343,24 +344,16 @@ export default function SearchResultsPanel({
     setShowDeleteConfirm(false);
 
     if (!selectedActivity.previewDataUrl) {
-      if (selectedActivity.fileType === "application/pdf") {
-        setDownloadMessage("PDF download will be added later.");
-        return;
-      }
-
       setDownloadMessage("No imported file is available for this activity.");
       return;
     }
 
-    const downloadLink = document.createElement("a");
-    downloadLink.href = selectedActivity.previewDataUrl;
-    downloadLink.download =
-      selectedActivity.fileName || `${selectedActivity.activityName}.png`;
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-
-    setDownloadMessage("PNG download started.");
+    try {
+      await downloadActivityAsPdf(selectedActivity);
+      setDownloadMessage("PDF export download started.");
+    } catch {
+      setDownloadMessage("The PDF export could not be created.");
+    }
   }
 
   function handleSelectActivity(activity: Activity) {
@@ -567,7 +560,14 @@ export default function SearchResultsPanel({
         ) : (
           <>
             <div className="mt-4 flex min-h-64 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-              {selectedActivity.previewDataUrl ? (
+              {selectedActivity.previewDataUrl &&
+              selectedActivity.fileType === "application/pdf" ? (
+                <iframe
+                  src={selectedActivity.previewDataUrl}
+                  title={`${selectedActivity.activityName} PDF preview`}
+                  className="h-80 w-full rounded-lg border border-slate-200"
+                />
+              ) : selectedActivity.previewDataUrl ? (
                 <img
                   src={selectedActivity.previewDataUrl}
                   alt={`${selectedActivity.activityName} preview`}
@@ -722,7 +722,7 @@ export default function SearchResultsPanel({
               <button
                 type="button"
                 onClick={handleDownload}
-                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+                className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
               >
                 Download
               </button>

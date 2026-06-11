@@ -9,6 +9,7 @@ import {
   getStoredActivityById,
   updateStoredActivityHidden,
 } from "@/lib/activityStorage";
+import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 
@@ -53,7 +54,7 @@ export default function ActivityViewClient({
     setHasLoaded(true);
   }, [activityId]);
 
-  function handleDownload() {
+  async function handleDownload() {
     if (!activity) {
       return;
     }
@@ -62,23 +63,16 @@ export default function ActivityViewClient({
     setShowDeleteConfirm(false);
 
     if (!activity.previewDataUrl) {
-      if (activity.fileType === "application/pdf") {
-        setDownloadMessage("PDF download will be added later.");
-        return;
-      }
-
       setDownloadMessage("No imported file is available for this activity.");
       return;
     }
 
-    const downloadLink = document.createElement("a");
-    downloadLink.href = activity.previewDataUrl;
-    downloadLink.download = activity.fileName || `${activity.activityName}.png`;
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-
-    setDownloadMessage("PNG download started.");
+    try {
+      await downloadActivityAsPdf(activity);
+      setDownloadMessage("PDF export download started.");
+    } catch {
+      setDownloadMessage("The PDF export could not be created.");
+    }
   }
 
   function handleToggleHidden() {
@@ -175,7 +169,7 @@ export default function ActivityViewClient({
 
             <Link
               href="/search"
-              className="mt-6 inline-block rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+              className="mt-6 inline-block rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
             >
               Back to Search Results
             </Link>
@@ -208,7 +202,7 @@ export default function ActivityViewClient({
 
             <Link
               href="/"
-              className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+              className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
             >
               Home
             </Link>
@@ -228,7 +222,14 @@ export default function ActivityViewClient({
             </div>
 
             <div className="mt-6 flex min-h-[520px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-slate-500">
-              {activity.previewDataUrl ? (
+              {activity.previewDataUrl &&
+              activity.fileType === "application/pdf" ? (
+                <iframe
+                  src={activity.previewDataUrl}
+                  title={`${activity.activityName} PDF preview`}
+                  className="h-[620px] w-full rounded-lg border border-slate-200"
+                />
+              ) : activity.previewDataUrl ? (
                 <img
                   src={activity.previewDataUrl}
                   alt={`${activity.activityName} preview`}
@@ -297,7 +298,7 @@ export default function ActivityViewClient({
               <button
                 type="button"
                 onClick={handleDownload}
-                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
+                className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
               >
                 Download
               </button>
