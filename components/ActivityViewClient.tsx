@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import AppHeader from "@/components/AppHeader";
-import { getStoredActivityById } from "@/lib/activityStorage";
+import {
+  getStoredActivityById,
+  updateStoredActivityHidden,
+} from "@/lib/activityStorage";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 
@@ -17,6 +20,7 @@ export default function ActivityViewClient({
   const [activity, setActivity] = useState<Activity | undefined>(undefined);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
 
   useEffect(() => {
     const mockActivity = mockActivities.find((item) => item.id === activityId);
@@ -30,6 +34,8 @@ export default function ActivityViewClient({
     if (!activity) {
       return;
     }
+
+    setActionMessage("");
 
     if (!activity.previewDataUrl) {
       if (activity.fileType === "application/pdf") {
@@ -49,6 +55,34 @@ export default function ActivityViewClient({
     document.body.removeChild(downloadLink);
 
     setDownloadMessage("PNG download started.");
+  }
+
+  function handleToggleHidden() {
+    if (!activity) {
+      return;
+    }
+
+    const updatedActivity = updateStoredActivityHidden(
+      activity.id,
+      !activity.hidden
+    );
+
+    setDownloadMessage("");
+
+    if (!updatedActivity) {
+      setActionMessage(
+        "Only locally imported activities can be hidden for now. Sample activities are read-only."
+      );
+      return;
+    }
+
+    setActivity(updatedActivity);
+
+    setActionMessage(
+      updatedActivity.hidden
+        ? "Activity hidden. Check Include hidden activities on Search to view it again."
+        : "Activity is visible again."
+    );
   }
 
   if (!hasLoaded) {
@@ -162,6 +196,12 @@ export default function ActivityViewClient({
               </div>
             )}
 
+            {actionMessage && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                {actionMessage}
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
@@ -178,8 +218,12 @@ export default function ActivityViewClient({
                 Edit
               </Link>
 
-              <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700">
-                Hide
+              <button
+                type="button"
+                onClick={handleToggleHidden}
+                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+              >
+                {activity.hidden ? "Unhide" : "Hide"}
               </button>
             </div>
           </section>

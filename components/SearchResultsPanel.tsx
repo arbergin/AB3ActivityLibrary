@@ -23,6 +23,21 @@ export default function SearchResultsPanel({
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
 
+  function loadActivitiesFromStorage() {
+    const storedActivities = getStoredActivities();
+    const combinedActivities = [...storedActivities, ...mockActivities];
+
+    setActivities(combinedActivities);
+
+    const firstVisibleActivity =
+      combinedActivities.find((activity) => includeHidden || !activity.hidden) ??
+      combinedActivities[0];
+
+    if (firstVisibleActivity) {
+      setSelectedActivity(firstVisibleActivity);
+    }
+  }
+
   const visibleActivities = useMemo(() => {
     if (includeHidden) {
       return activities;
@@ -32,18 +47,18 @@ export default function SearchResultsPanel({
   }, [activities, includeHidden]);
 
   useEffect(() => {
-    const storedActivities = getStoredActivities();
-    const combinedActivities = [...storedActivities, ...mockActivities];
+    loadActivitiesFromStorage();
 
-    setActivities(combinedActivities);
-
-    const firstVisibleActivity =
-      combinedActivities.find((activity) => !activity.hidden) ??
-      combinedActivities[0];
-
-    if (firstVisibleActivity) {
-      setSelectedActivity(firstVisibleActivity);
+    function handleWindowFocus() {
+      loadActivitiesFromStorage();
     }
+
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -94,6 +109,8 @@ export default function SearchResultsPanel({
       !selectedActivity.hidden
     );
 
+    setDownloadMessage("");
+
     if (!updatedActivity) {
       setActionMessage(
         "Only locally imported activities can be hidden for now. Sample activities are read-only."
@@ -101,14 +118,12 @@ export default function SearchResultsPanel({
       return;
     }
 
-    setActivities((currentActivities) =>
-      currentActivities.map((activity) =>
-        activity.id === updatedActivity.id ? updatedActivity : activity
-      )
-    );
+    const storedActivities = getStoredActivities();
+    const combinedActivities = [...storedActivities, ...mockActivities];
 
+    setActivities(combinedActivities);
     setSelectedActivity(updatedActivity);
-    setDownloadMessage("");
+
     setActionMessage(
       updatedActivity.hidden
         ? "Activity hidden. Check Include hidden activities to view it again."
