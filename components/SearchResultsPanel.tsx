@@ -16,6 +16,100 @@ type SearchResultsPanelProps = {
   filters: SearchFilterValues;
 };
 
+function numberOfPlayersMatchesFilter(
+  activityPlayerCount: number | "",
+  filterValue: string
+) {
+  const cleanedFilter = filterValue.trim().toLowerCase();
+
+  if (!cleanedFilter) {
+    return true;
+  }
+
+  if (activityPlayerCount === "") {
+    return false;
+  }
+
+  const playerCount = Number(activityPlayerCount);
+
+  if (Number.isNaN(playerCount)) {
+    return false;
+  }
+
+  if (cleanedFilter.endsWith("+")) {
+    const minimum = Number(cleanedFilter.replace("+", ""));
+
+    if (Number.isNaN(minimum)) {
+      return false;
+    }
+
+    return playerCount >= minimum;
+  }
+
+  if (cleanedFilter.startsWith(">=")) {
+    const minimum = Number(cleanedFilter.replace(">=", ""));
+
+    if (Number.isNaN(minimum)) {
+      return false;
+    }
+
+    return playerCount >= minimum;
+  }
+
+  if (cleanedFilter.startsWith(">")) {
+    const minimum = Number(cleanedFilter.replace(">", ""));
+
+    if (Number.isNaN(minimum)) {
+      return false;
+    }
+
+    return playerCount > minimum;
+  }
+
+  if (cleanedFilter.startsWith("<=")) {
+    const maximum = Number(cleanedFilter.replace("<=", ""));
+
+    if (Number.isNaN(maximum)) {
+      return false;
+    }
+
+    return playerCount <= maximum;
+  }
+
+  if (cleanedFilter.startsWith("<")) {
+    const maximum = Number(cleanedFilter.replace("<", ""));
+
+    if (Number.isNaN(maximum)) {
+      return false;
+    }
+
+    return playerCount < maximum;
+  }
+
+  const rangeParts = cleanedFilter.includes(" to ")
+    ? cleanedFilter.split(" to ")
+    : cleanedFilter.split("-");
+
+  if (rangeParts.length === 2) {
+    const minimum = Number(rangeParts[0].trim());
+    const maximum = Number(rangeParts[1].trim());
+
+    if (Number.isNaN(minimum) || Number.isNaN(maximum)) {
+      return false;
+    }
+
+    return playerCount >= minimum && playerCount <= maximum;
+  }
+
+  const exactNumber = Number(cleanedFilter);
+
+  if (Number.isNaN(exactNumber)) {
+    return false;
+  }
+
+  return playerCount === exactNumber;
+}
+
 export default function SearchResultsPanel({
   includeHidden,
   filters,
@@ -65,9 +159,10 @@ export default function SearchResultsPanel({
         .toLowerCase()
         .includes(filters.positionsInvolved.toLowerCase().trim());
 
-      const numberOfPlayersMatches =
-        !filters.numberOfPlayers ||
-        String(activity.numberOfPlayers) === filters.numberOfPlayers;
+      const numberOfPlayersMatches = numberOfPlayersMatchesFilter(
+        activity.numberOfPlayers,
+        filters.numberOfPlayers
+      );
 
       const detailsMatch = activity.activityDetails
         .toLowerCase()
@@ -298,9 +393,11 @@ export default function SearchResultsPanel({
                   <div className="text-slate-600">
                     {activity.fieldLocation || "—"}
                   </div>
+
                   <div className="text-slate-600">
                     {activity.gamePhase || "—"}
                   </div>
+
                   <div className="text-slate-600">
                     {activity.category || "—"}
                   </div>
@@ -342,7 +439,9 @@ export default function SearchResultsPanel({
               ) : (
                 <div>
                   Preview pane
-                  <div className="mt-2 text-xs">PNG/PDF viewer placeholder</div>
+                  <div className="mt-2 text-xs">
+                    PNG/PDF viewer placeholder
+                  </div>
                 </div>
               )}
             </div>

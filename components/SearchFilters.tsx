@@ -138,13 +138,12 @@ export default function SearchFilters({
             Number of Players
           </span>
           <input
-            type="number"
-            min="1"
+            type="text"
             value={filters.numberOfPlayers}
             onChange={(event) =>
               updateFilter("numberOfPlayers", event.target.value)
             }
-            placeholder="Example: 8"
+            placeholder="Example: 8, 6-10, 8+, <12"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
           />
         </label>
