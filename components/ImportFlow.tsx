@@ -105,7 +105,7 @@ export default function ImportFlow() {
             {selectedFileName}
           </div>
 
-          <ActivityMetadataForm />
+          <ActivityMetadataForm selectedFileName={selectedFileName} />
         </div>
       )}
     </div>
