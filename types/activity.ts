@@ -1,14 +1,16 @@
 export type Activity = {
   id: string;
   activityName: string;
-  fieldLocation: "First Third" | "Middle Third" | "Final Third";
+  fieldLocation: "" | "First Third" | "Middle Third" | "Final Third";
   gamePhase:
+    | ""
     | "Attacking"
     | "Attacking to Defending Transition"
     | "Defending"
     | "Defending to Attacking Transition"
     | "Set Pieces";
   category:
+    | ""
     | "Ball Mastery"
     | "Game-Realistic Positional Activity"
     | "Passing Activation"

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
 
 export default function ImportFlow() {
+  const metadataSectionRef = useRef<HTMLDivElement | null>(null);
+
   const [selectedFileName, setSelectedFileName] = useState("");
   const [selectedFileType, setSelectedFileType] = useState("");
   const [previewDataUrl, setPreviewDataUrl] = useState("");
@@ -55,6 +57,13 @@ export default function ImportFlow() {
     }
 
     setShowMetadataForm(true);
+
+    window.setTimeout(() => {
+      metadataSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
   }
 
   function handleCancel() {
@@ -138,7 +147,7 @@ export default function ImportFlow() {
       </div>
 
       {showMetadataForm && (
-        <div>
+        <div ref={metadataSectionRef} className="scroll-mt-6">
           <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-sm">
             <span className="font-semibold">Creating activity from:</span>{" "}
             {selectedFileName}

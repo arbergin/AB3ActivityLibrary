@@ -25,11 +25,9 @@ export default function ActivityMetadataForm({
 
   const [activityName, setActivityName] = useState("");
   const [fieldLocation, setFieldLocation] =
-    useState<Activity["fieldLocation"]>("First Third");
-  const [gamePhase, setGamePhase] =
-    useState<Activity["gamePhase"]>("Attacking");
-  const [category, setCategory] =
-    useState<Activity["category"]>("Small-Sided Games");
+    useState<Activity["fieldLocation"]>("");
+  const [gamePhase, setGamePhase] = useState<Activity["gamePhase"]>("");
+  const [category, setCategory] = useState<Activity["category"]>("");
   const [positionsInvolved, setPositionsInvolved] = useState("");
   const [numberOfPlayers, setNumberOfPlayers] = useState("");
   const [activityDetails, setActivityDetails] = useState("");
@@ -67,9 +65,9 @@ export default function ActivityMetadataForm({
 
   function handleCancel() {
     setActivityName("");
-    setFieldLocation("First Third");
-    setGamePhase("Attacking");
-    setCategory("Small-Sided Games");
+    setFieldLocation("");
+    setGamePhase("");
+    setCategory("");
     setPositionsInvolved("");
     setNumberOfPlayers("");
     setActivityDetails("");
@@ -133,6 +131,7 @@ export default function ActivityMetadataForm({
               }
               className="rounded-lg border border-slate-300 px-3 py-2"
             >
+              <option value="">Select field location</option>
               {fieldLocationOptions.map((option) => (
                 <option key={option}>{option}</option>
               ))}
@@ -148,6 +147,7 @@ export default function ActivityMetadataForm({
               }
               className="rounded-lg border border-slate-300 px-3 py-2"
             >
+              <option value="">Select game phase</option>
               {gamePhaseOptions.map((option) => (
                 <option key={option}>{option}</option>
               ))}
@@ -163,6 +163,7 @@ export default function ActivityMetadataForm({
               }
               className="rounded-lg border border-slate-300 px-3 py-2"
             >
+              <option value="">Select category</option>
               {categoryOptions.map((option) => (
                 <option key={option}>{option}</option>
               ))}
