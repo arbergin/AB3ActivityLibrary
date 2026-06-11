@@ -40,9 +40,12 @@ export default function AppHeader() {
           Search
         </Link>
 
-        <button className="rounded-lg border border-slate-500 px-4 py-2 font-semibold text-white">
+        <Link
+          href="/settings-test"
+          className="rounded-lg border border-slate-500 px-4 py-2 font-semibold text-white"
+        >
           Settings
-        </button>
+        </Link>
       </nav>
     </header>
   );
