@@ -8,6 +8,7 @@ import {
   clearStoredActivities,
   getStoredActivitiesSummary,
 } from "@/lib/activityStorage";
+import { supabase } from "@/lib/supabaseClient";
 import {
   getCurrentSessionUser,
   getCurrentUserProfile,
@@ -15,10 +16,7 @@ import {
   type UserProfile,
   type UserRole,
 } from "@/lib/userProfile";
-import {
-  getAllUserProfiles,
-  updateUserRole,
-} from "@/lib/userManagement";
+import { getAllUserProfiles, updateUserRole } from "@/lib/userManagement";
 
 type LocalDataSummary = {
   count: number;
@@ -41,6 +39,11 @@ export default function SettingsPage() {
   const [isUpdatingRoleUserId, setIsUpdatingRoleUserId] = useState<
     string | undefined
   >(undefined);
+
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserRole, setNewUserRole] = useState<UserRole>("user");
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   const [message, setMessage] = useState("");
   const [userManagementMessage, setUserManagementMessage] = useState("");
@@ -71,6 +74,83 @@ export default function SettingsPage() {
       );
     } finally {
       setIsLoadingUsers(false);
+    }
+  }
+
+  async function handleCreateUser(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (isCreatingUser) {
+      return;
+    }
+
+    setUserManagementMessage("");
+
+    const trimmedEmail = newUserEmail.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      setUserManagementMessage("Email is required.");
+      return;
+    }
+
+    if (!newUserPassword) {
+      setUserManagementMessage("Initial password is required.");
+      return;
+    }
+
+    if (newUserPassword.length < 6) {
+      setUserManagementMessage(
+        "Initial password must be at least 6 characters."
+      );
+      return;
+    }
+
+    setIsCreatingUser(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        setUserManagementMessage("You must be logged in to create users.");
+        setIsCreatingUser(false);
+        return;
+      }
+
+      const response = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          email: trimmedEmail,
+          password: newUserPassword,
+          role: newUserRole,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setUserManagementMessage(
+          result.error || "The user could not be created."
+        );
+        setIsCreatingUser(false);
+        return;
+      }
+
+      setNewUserEmail("");
+      setNewUserPassword("");
+      setNewUserRole("user");
+
+      setUserManagementMessage(`${trimmedEmail} was created as ${newUserRole}.`);
+      await loadUserProfiles();
+    } catch (error) {
+      console.error("Unable to create user.", error);
+      setUserManagementMessage("Unexpected error while creating user.");
+    } finally {
+      setIsCreatingUser(false);
     }
   }
 
@@ -178,8 +258,8 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-xl font-bold">User Management</h3>
                   <p className="mt-2 text-sm text-slate-600">
-                    Admins can view users and assign each account as a regular
-                    user or admin.
+                    Admins can create users, set an initial password, and assign
+                    each account as a regular user or admin.
                   </p>
                 </div>
 
@@ -205,6 +285,75 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <>
+                  <form
+                    onSubmit={handleCreateUser}
+                    className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <h4 className="font-bold">Add User</h4>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-[1.2fr_1fr_0.7fr_auto]">
+                      <label className="grid gap-1">
+                        <span className="text-sm font-semibold">Email</span>
+                        <input
+                          type="email"
+                          value={newUserEmail}
+                          onChange={(event) =>
+                            setNewUserEmail(event.target.value)
+                          }
+                          disabled={isCreatingUser}
+                          className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                          placeholder="coach@example.com"
+                        />
+                      </label>
+
+                      <label className="grid gap-1">
+                        <span className="text-sm font-semibold">
+                          Initial Password
+                        </span>
+                        <input
+                          type="text"
+                          value={newUserPassword}
+                          onChange={(event) =>
+                            setNewUserPassword(event.target.value)
+                          }
+                          disabled={isCreatingUser}
+                          className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                          placeholder="Minimum 6 characters"
+                        />
+                      </label>
+
+                      <label className="grid gap-1">
+                        <span className="text-sm font-semibold">Role</span>
+                        <select
+                          value={newUserRole}
+                          onChange={(event) =>
+                            setNewUserRole(event.target.value as UserRole)
+                          }
+                          disabled={isCreatingUser}
+                          className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                        >
+                          <option value="user">user</option>
+                          <option value="admin">admin</option>
+                        </select>
+                      </label>
+
+                      <div className="flex items-end">
+                        <button
+                          type="submit"
+                          disabled={isCreatingUser}
+                          className="w-full rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isCreatingUser ? "Adding..." : "Add User"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="mt-3 text-xs text-slate-500">
+                      The user will log in with this email and initial password.
+                      The admin should share the password directly with the user.
+                    </p>
+                  </form>
+
                   {userManagementMessage && (
                     <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
                       {userManagementMessage}
@@ -380,8 +529,8 @@ export default function SettingsPage() {
                     Authentication / Roles
                   </div>
                   <div className="mt-1">
-                    Email/password login is enabled. Users are assigned either{" "}
-                    <span className="font-semibold">user</span> or{" "}
+                    Email/password login is enabled. Admins create users and
+                    assign either <span className="font-semibold">user</span> or{" "}
                     <span className="font-semibold">admin</span> roles through
                     the Supabase profiles table.
                   </div>
