@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function AppHeader() {
   return (
     <header className="flex items-center justify-between bg-slate-900 px-8 py-4 text-white">
@@ -17,12 +19,17 @@ export default function AppHeader() {
       </div>
 
       <nav className="flex gap-3">
-        <button className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900">
+        <Link
+          href="/import-test"
+          className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900"
+        >
           Import
-        </button>
+        </Link>
+
         <button className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900">
           Search
         </button>
+
         <button className="rounded-lg border border-slate-500 px-4 py-2 font-semibold text-white">
           Settings
         </button>
