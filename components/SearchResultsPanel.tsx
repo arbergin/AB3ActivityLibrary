@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { Activity } from "@/types/activity";
 
@@ -83,6 +84,7 @@ export default function SearchResultsPanel() {
                   <div className="font-semibold text-slate-800">
                     {activity.activityName}
                   </div>
+
                   {activity.hidden && (
                     <div className="mt-1 text-xs font-semibold text-amber-600">
                       Hidden — admin only
@@ -95,16 +97,15 @@ export default function SearchResultsPanel() {
                 <div className="text-slate-600">{activity.category}</div>
 
                 <div className="flex gap-3">
-                  <button
-                    type="button"
+                  <Link
+                    href={`/activity/${activity.id}`}
                     onClick={(event) => {
                       event.stopPropagation();
-                      setSelectedActivity(activity);
                     }}
                     className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
                   >
                     Open
-                  </button>
+                  </Link>
                 </div>
               </div>
             );
@@ -140,7 +141,9 @@ export default function SearchResultsPanel() {
 
             <div>
               <div className="font-semibold text-slate-700">Game Phase</div>
-              <div className="text-slate-600">{selectedActivity.gamePhase}</div>
+              <div className="text-slate-600">
+                {selectedActivity.gamePhase}
+              </div>
             </div>
 
             <div>
@@ -181,9 +184,11 @@ export default function SearchResultsPanel() {
           <button className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">
             Download
           </button>
+
           <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700">
             Edit
           </button>
+
           <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700">
             Hide
           </button>
