@@ -10,6 +10,11 @@ import {
   updateStoredActivityHidden,
 } from "@/lib/activityStorage";
 import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
+import {
+  deleteSupabaseActivity,
+  getSupabaseActivityById,
+  updateSupabaseActivityHidden,
+} from "@/lib/supabaseActivities";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 
@@ -41,17 +46,69 @@ export default function ActivityViewClient({
   const router = useRouter();
 
   const [activity, setActivity] = useState<Activity | undefined>(undefined);
+  const [activitySource, setActivitySource] = useState<
+    "supabase" | "local" | "mock" | undefined
+  >(undefined);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    const mockActivity = mockActivities.find((item) => item.id === activityId);
-    const storedActivity = getStoredActivityById(activityId);
+    let isMounted = true;
 
-    setActivity(storedActivity ?? mockActivity);
-    setHasLoaded(true);
+    async function loadActivity() {
+      setHasLoaded(false);
+      setDownloadMessage("");
+      setActionMessage("");
+      setShowDeleteConfirm(false);
+
+      try {
+        const supabaseActivity = await getSupabaseActivityById(activityId);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (supabaseActivity) {
+          setActivity(supabaseActivity);
+          setActivitySource("supabase");
+          setHasLoaded(true);
+          return;
+        }
+      } catch (error) {
+        console.error("Unable to load activity from Supabase.", error);
+      }
+
+      const storedActivity = getStoredActivityById(activityId);
+
+      if (storedActivity) {
+        if (!isMounted) {
+          return;
+        }
+
+        setActivity(storedActivity);
+        setActivitySource("local");
+        setHasLoaded(true);
+        return;
+      }
+
+      const mockActivity = mockActivities.find((item) => item.id === activityId);
+
+      if (!isMounted) {
+        return;
+      }
+
+      setActivity(mockActivity);
+      setActivitySource(mockActivity ? "mock" : undefined);
+      setHasLoaded(true);
+    }
+
+    loadActivity();
+
+    return () => {
+      isMounted = false;
+    };
   }, [activityId]);
 
   async function handleDownload() {
@@ -70,14 +127,40 @@ export default function ActivityViewClient({
     try {
       await downloadActivityAsPdf(activity);
       setDownloadMessage("PDF export download started.");
-    } catch {
+    } catch (error) {
+      console.error("PDF export failed.", error);
       setDownloadMessage("The PDF export could not be created.");
     }
   }
 
-  function handleToggleHidden() {
+  async function handleToggleHidden() {
     if (!activity) {
       return;
+    }
+
+    setDownloadMessage("");
+    setShowDeleteConfirm(false);
+    setActionMessage("");
+
+    if (activitySource === "supabase") {
+      try {
+        const updatedActivity = await updateSupabaseActivityHidden(
+          activity.id,
+          !activity.hidden
+        );
+
+        setActivity(updatedActivity);
+        setActionMessage(
+          updatedActivity.hidden
+            ? "Activity hidden. Check Include hidden activities on Search to view it again."
+            : "Activity is visible again."
+        );
+        return;
+      } catch (error) {
+        console.error("Supabase hide/unhide failed.", error);
+        setActionMessage("This activity could not be updated in Supabase.");
+        return;
+      }
     }
 
     const updatedActivity = updateStoredActivityHidden(
@@ -85,17 +168,15 @@ export default function ActivityViewClient({
       !activity.hidden
     );
 
-    setDownloadMessage("");
-    setShowDeleteConfirm(false);
-
     if (!updatedActivity) {
       setActionMessage(
-        "Only locally imported activities can be hidden for now. Sample activities are read-only."
+        "Only imported activities can be hidden for now. Sample activities are read-only."
       );
       return;
     }
 
     setActivity(updatedActivity);
+    setActivitySource("local");
 
     setActionMessage(
       updatedActivity.hidden
@@ -106,28 +187,39 @@ export default function ActivityViewClient({
 
   function handleDeleteClick() {
     setDownloadMessage("");
+    setActionMessage("");
 
     if (!activity) {
       return;
     }
 
-    const isLocalActivity = Boolean(getStoredActivityById(activity.id));
-
-    if (!isLocalActivity) {
+    if (activitySource === "mock") {
       setActionMessage(
-        "Only locally imported activities can be deleted for now. Sample activities are read-only."
+        "Only imported activities can be deleted for now. Sample activities are read-only."
       );
       setShowDeleteConfirm(false);
       return;
     }
 
-    setActionMessage("");
     setShowDeleteConfirm(true);
   }
 
-  function handleConfirmDelete() {
+  async function handleConfirmDelete() {
     if (!activity) {
       return;
+    }
+
+    if (activitySource === "supabase") {
+      try {
+        await deleteSupabaseActivity(activity.id);
+        router.push("/search");
+        return;
+      } catch (error) {
+        console.error("Supabase delete failed.", error);
+        setActionMessage("This activity could not be deleted from Supabase.");
+        setShowDeleteConfirm(false);
+        return;
+      }
     }
 
     const deleted = deleteStoredActivity(activity.id);
@@ -190,6 +282,12 @@ export default function ActivityViewClient({
             <p className="mt-2 text-slate-600">
               Open activity view with larger preview and full metadata.
             </p>
+
+            {activitySource && (
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Source: {activitySource}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -271,7 +369,7 @@ export default function ActivityViewClient({
                   Delete this activity permanently?
                 </div>
                 <div className="mt-1">
-                  This removes the locally saved activity from this browser.
+                  This removes the activity and its uploaded file.
                 </div>
 
                 <div className="mt-4 flex flex-wrap justify-end gap-3">

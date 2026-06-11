@@ -17,6 +17,13 @@ type ActivityMetadataFormProps = {
   previewDataUrl?: string;
 };
 
+function createLocalFallbackActivity(activity: Activity): Activity {
+  return {
+    ...activity,
+    previewDataUrl: undefined,
+  };
+}
+
 export default function ActivityMetadataForm({
   selectedFileName,
   selectedFileType,
@@ -72,29 +79,29 @@ export default function ActivityMetadataForm({
     };
 
     setIsSaving(true);
-    setSaveMessage("Saving activity...");
+    setSaveMessage("Saving activity to Supabase...");
 
     try {
       const savedSupabaseActivity = await createSupabaseActivity(newActivity);
 
-      saveStoredActivity({
-        ...newActivity,
-        id: savedSupabaseActivity.id,
-        createdAt: savedSupabaseActivity.createdAt,
-        updatedAt: savedSupabaseActivity.updatedAt,
-      });
-
       router.push(`/activity/${savedSupabaseActivity.id}`);
     } catch (error) {
-      console.error("Supabase save failed. Saving locally instead.", error);
+      console.error("Supabase save failed. Saving metadata locally instead.", error);
 
-      saveStoredActivity(newActivity);
+      const localFallbackActivity = createLocalFallbackActivity(newActivity);
 
-      setSaveMessage(
-        "Supabase save failed, so the activity was saved locally in this browser."
-      );
-
-      router.push(`/activity/${newActivity.id}`);
+      try {
+        saveStoredActivity(localFallbackActivity);
+        setSaveMessage(
+          "Supabase save failed, so the activity metadata was saved locally in this browser."
+        );
+        router.push(`/activity/${localFallbackActivity.id}`);
+      } catch (localError) {
+        console.error("Local fallback save failed.", localError);
+        setFormError(
+          "The activity could not be saved to Supabase or local storage."
+        );
+      }
     } finally {
       setIsSaving(false);
     }
