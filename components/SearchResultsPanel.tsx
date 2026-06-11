@@ -13,7 +13,6 @@ import {
   getSupabaseActivities,
   updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
-import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 import type {
   SearchFilterValues,
@@ -27,7 +26,7 @@ type SearchResultsPanelProps = {
   hasSearched: boolean;
 };
 
-type ActivitySource = "supabase" | "local" | "mock";
+type ActivitySource = "supabase" | "local";
 
 type ActivityWithSource = Activity & {
   source: ActivitySource;
@@ -233,17 +232,9 @@ export default function SearchResultsPanel({
           source: isUuid(activity.id) ? "supabase" : "local",
         }));
 
-      const mockActivitiesWithSource: ActivityWithSource[] = mockActivities.map(
-        (activity) => ({
-          ...activity,
-          source: "mock",
-        })
-      );
-
       const combinedActivities = removeDuplicateActivities([
         ...supabaseActivitiesWithSource,
         ...storedActivitiesWithSource,
-        ...mockActivitiesWithSource,
       ]);
 
       setActivities(combinedActivities);
@@ -257,16 +248,9 @@ export default function SearchResultsPanel({
           source: "local",
         }));
 
-      const mockActivitiesWithSource: ActivityWithSource[] = mockActivities.map(
-        (activity) => ({
-          ...activity,
-          source: "mock",
-        })
-      );
-
-      setActivities([...storedActivitiesWithSource, ...mockActivitiesWithSource]);
+      setActivities(storedActivitiesWithSource);
       setActionMessage(
-        "Supabase activities could not be loaded. Showing local and sample activities only."
+        "Supabase activities could not be loaded. Showing local activities only."
       );
     } finally {
       setIsLoadingActivities(false);
@@ -493,9 +477,7 @@ export default function SearchResultsPanel({
     );
 
     if (!updatedActivity) {
-      setActionMessage(
-        "Only imported activities can be hidden for now. Sample activities are read-only."
-      );
+      setActionMessage("This local activity could not be updated.");
       return;
     }
 
@@ -524,14 +506,6 @@ export default function SearchResultsPanel({
     setActionMessage("");
 
     if (!selectedActivity) {
-      return;
-    }
-
-    if (selectedActivity.source === "mock") {
-      setActionMessage(
-        "Only imported activities can be deleted for now. Sample activities are read-only."
-      );
-      setShowDeleteConfirm(false);
       return;
     }
 
