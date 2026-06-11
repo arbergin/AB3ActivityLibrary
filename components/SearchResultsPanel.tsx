@@ -135,12 +135,16 @@ export default function SearchResultsPanel({
     setSelectedActivity(firstVisibleActivity);
   }
 
-  const filteredActivities = useMemo(() => {
-    return activities.filter((activity) => {
-      if (!includeHidden && activity.hidden) {
-        return false;
-      }
+  const searchableActivities = useMemo(() => {
+    if (includeHidden) {
+      return activities;
+    }
 
+    return activities.filter((activity) => !activity.hidden);
+  }, [activities, includeHidden]);
+
+  const filteredActivities = useMemo(() => {
+    return searchableActivities.filter((activity) => {
       const activityNameMatches = activity.activityName
         .toLowerCase()
         .includes(filters.activityName.toLowerCase().trim());
@@ -178,7 +182,11 @@ export default function SearchResultsPanel({
         detailsMatch
       );
     });
-  }, [activities, includeHidden, filters]);
+  }, [searchableActivities, filters]);
+
+  const resultsCountText = `Showing ${filteredActivities.length} of ${searchableActivities.length} ${
+    searchableActivities.length === 1 ? "activity" : "activities"
+  }`;
 
   useEffect(() => {
     loadActivitiesFromStorage();
@@ -341,11 +349,19 @@ export default function SearchResultsPanel({
   return (
     <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
       <section className="rounded-xl bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-bold">Results</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Click a row to update the preview and metadata. Use Open to view the
-          activity larger.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold">Results</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Click a row to update the preview and metadata. Use Open to view
+              the activity larger.
+            </p>
+          </div>
+
+          <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
+            {resultsCountText}
+          </div>
+        </div>
 
         <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
           <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
