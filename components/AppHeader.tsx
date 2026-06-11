@@ -33,9 +33,12 @@ export default function AppHeader() {
           Import
         </Link>
 
-        <button className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900">
+        <Link
+          href="/search-test"
+          className="rounded-lg bg-white px-4 py-2 font-semibold text-slate-900"
+        >
           Search
-        </button>
+        </Link>
 
         <button className="rounded-lg border border-slate-500 px-4 py-2 font-semibold text-white">
           Settings
