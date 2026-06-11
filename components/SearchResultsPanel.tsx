@@ -1,14 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getStoredActivities } from "@/lib/activityStorage";
 import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 
 export default function SearchResultsPanel() {
+  const [activities, setActivities] = useState<Activity[]>(mockActivities);
   const [selectedActivity, setSelectedActivity] = useState<Activity>(
     mockActivities[0]
   );
+
+  useEffect(() => {
+    const storedActivities = getStoredActivities();
+    const combinedActivities = [...storedActivities, ...mockActivities];
+
+    setActivities(combinedActivities);
+
+    if (combinedActivities.length > 0) {
+      setSelectedActivity(combinedActivities[0]);
+    }
+  }, []);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
@@ -28,7 +41,7 @@ export default function SearchResultsPanel() {
             <div>Actions</div>
           </div>
 
-          {mockActivities.map((activity) => {
+          {activities.map((activity) => {
             const isSelected = activity.id === selectedActivity.id;
 
             return (
@@ -43,6 +56,12 @@ export default function SearchResultsPanel() {
                   <div className="font-semibold text-slate-800">
                     {activity.activityName}
                   </div>
+
+                  {activity.fileName && (
+                    <div className="mt-1 text-xs text-slate-500">
+                      Imported from: {activity.fileName}
+                    </div>
+                  )}
 
                   {activity.hidden && (
                     <div className="mt-1 text-xs font-semibold text-amber-600">
@@ -115,7 +134,7 @@ export default function SearchResultsPanel() {
                 Number of Players
               </div>
               <div className="text-slate-600">
-                {selectedActivity.numberOfPlayers}
+                {selectedActivity.numberOfPlayers || "—"}
               </div>
             </div>
           </div>
@@ -125,7 +144,7 @@ export default function SearchResultsPanel() {
               Positions Involved
             </div>
             <div className="text-slate-600">
-              {selectedActivity.positionsInvolved}
+              {selectedActivity.positionsInvolved || "—"}
             </div>
           </div>
 
@@ -134,9 +153,16 @@ export default function SearchResultsPanel() {
               Activity Details
             </div>
             <div className="text-slate-600">
-              {selectedActivity.activityDetails}
+              {selectedActivity.activityDetails || "—"}
             </div>
           </div>
+
+          {selectedActivity.fileName && (
+            <div>
+              <div className="font-semibold text-slate-700">Imported File</div>
+              <div className="text-slate-600">{selectedActivity.fileName}</div>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex flex-wrap justify-end gap-3">

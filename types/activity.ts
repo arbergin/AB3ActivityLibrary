@@ -20,4 +20,6 @@ export type Activity = {
   activityDetails: string;
   createdBy: string;
   hidden: boolean;
+  fileName?: string;
+  createdAt?: string;
 };
