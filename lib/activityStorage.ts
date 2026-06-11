@@ -42,6 +42,32 @@ export function getStoredActivityById(id: string): Activity | undefined {
   return getStoredActivities().find((activity) => activity.id === id);
 }
 
+export function updateStoredActivity(updatedActivity: Activity):
+  | Activity
+  | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  const existingActivities = getStoredActivities();
+
+  const activityExists = existingActivities.some(
+    (activity) => activity.id === updatedActivity.id
+  );
+
+  if (!activityExists) {
+    return undefined;
+  }
+
+  const updatedActivities = existingActivities.map((activity) =>
+    activity.id === updatedActivity.id ? updatedActivity : activity
+  );
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedActivities));
+
+  return updatedActivity;
+}
+
 export function updateStoredActivityHidden(
   id: string,
   hidden: boolean

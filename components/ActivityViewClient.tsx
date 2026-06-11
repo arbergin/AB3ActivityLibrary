@@ -171,9 +171,12 @@ export default function ActivityViewClient({
                 Download
               </button>
 
-              <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700">
+              <Link
+                href={`/activity/${activity.id}/edit`}
+                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
+              >
                 Edit
-              </button>
+              </Link>
 
               <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700">
                 Hide
