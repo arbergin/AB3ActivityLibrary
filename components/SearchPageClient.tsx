@@ -19,6 +19,8 @@ export type SearchSortValue =
   | "activityNameDesc"
   | "newestFirst"
   | "oldestFirst"
+  | "recentlyUpdated"
+  | "oldestUpdated"
   | "playersLowToHigh"
   | "playersHighToLow";
 

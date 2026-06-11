@@ -128,6 +128,20 @@ function getCreatedAtTime(activity: Activity) {
   return createdAtTime;
 }
 
+function getUpdatedAtTime(activity: Activity) {
+  if (!activity.updatedAt) {
+    return 0;
+  }
+
+  const updatedAtTime = new Date(activity.updatedAt).getTime();
+
+  if (Number.isNaN(updatedAtTime)) {
+    return 0;
+  }
+
+  return updatedAtTime;
+}
+
 function getPlayerCountForSort(activity: Activity) {
   if (activity.numberOfPlayers === "") {
     return 0;
@@ -245,6 +259,14 @@ export default function SearchResultsPanel({
 
       if (sortValue === "oldestFirst") {
         return getCreatedAtTime(activityA) - getCreatedAtTime(activityB);
+      }
+
+      if (sortValue === "recentlyUpdated") {
+        return getUpdatedAtTime(activityB) - getUpdatedAtTime(activityA);
+      }
+
+      if (sortValue === "oldestUpdated") {
+        return getUpdatedAtTime(activityA) - getUpdatedAtTime(activityB);
       }
 
       if (sortValue === "playersLowToHigh") {

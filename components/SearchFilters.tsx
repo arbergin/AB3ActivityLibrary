@@ -184,6 +184,8 @@ export default function SearchFilters({
             <option value="activityNameDesc">Activity Name Z-A</option>
             <option value="newestFirst">Newest First</option>
             <option value="oldestFirst">Oldest First</option>
+            <option value="recentlyUpdated">Recently Updated</option>
+            <option value="oldestUpdated">Oldest Updated</option>
             <option value="playersLowToHigh">Players Low to High</option>
             <option value="playersHighToLow">Players High to Low</option>
           </select>
