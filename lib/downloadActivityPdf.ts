@@ -54,6 +54,20 @@ function dataUrlToArrayBuffer(dataUrl: string) {
   return bytes.buffer;
 }
 
+async function fileSourceToArrayBuffer(fileSource: string) {
+  if (fileSource.startsWith("data:")) {
+    return dataUrlToArrayBuffer(fileSource);
+  }
+
+  const response = await fetch(fileSource);
+
+  if (!response.ok) {
+    throw new Error("The activity file could not be downloaded.");
+  }
+
+  return response.arrayBuffer();
+}
+
 function wrapText(
   text: string,
   font: PDFFont,
@@ -142,7 +156,7 @@ async function addPngPage(pdfDocument: PDFDocument, activity: Activity) {
     throw new Error("No file data available for this activity.");
   }
 
-  const imageBytes = dataUrlToArrayBuffer(activity.previewDataUrl);
+  const imageBytes = await fileSourceToArrayBuffer(activity.previewDataUrl);
   const image = await pdfDocument.embedPng(imageBytes);
 
   const page = pdfDocument.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -174,7 +188,7 @@ async function addOriginalPdfPages(pdfDocument: PDFDocument, activity: Activity)
     throw new Error("No file data available for this activity.");
   }
 
-  const sourcePdfBytes = dataUrlToArrayBuffer(activity.previewDataUrl);
+  const sourcePdfBytes = await fileSourceToArrayBuffer(activity.previewDataUrl);
   const sourcePdf = await PDFDocument.load(sourcePdfBytes);
   const copiedPages = await pdfDocument.copyPages(
     sourcePdf,
