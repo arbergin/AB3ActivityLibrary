@@ -40,8 +40,16 @@ export default function SearchFilters({
     });
   }
 
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSearch();
+  }
+
   return (
-    <section className="rounded-xl bg-white p-6 shadow-sm">
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-xl bg-white p-6 shadow-sm"
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold">Filters</h2>
@@ -206,8 +214,7 @@ export default function SearchFilters({
           </button>
 
           <button
-            type="button"
-            onClick={onSearch}
+            type="submit"
             className="rounded-lg bg-slate-900 px-5 py-2 font-semibold text-white"
           >
             Search
@@ -220,6 +227,6 @@ export default function SearchFilters({
           {searchMessage}
         </div>
       )}
-    </section>
+    </form>
   );
 }
