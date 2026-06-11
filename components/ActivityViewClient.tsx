@@ -105,17 +105,29 @@ export default function ActivityViewClient({
               )}
             </div>
 
-            <div className="mt-6 flex min-h-[520px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-8 text-center text-slate-500">
-              <div>
-                <div className="font-semibold">PNG/PDF viewer placeholder</div>
-                <div className="mt-2 text-sm">Large preview will show here</div>
-
-                {activity.fileName && (
-                  <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                    Imported file: {activity.fileName}
+            <div className="mt-6 flex min-h-[520px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-slate-500">
+              {activity.previewDataUrl ? (
+                <img
+                  src={activity.previewDataUrl}
+                  alt={`${activity.activityName} preview`}
+                  className="max-h-[620px] w-full rounded-lg object-contain"
+                />
+              ) : (
+                <div>
+                  <div className="font-semibold">
+                    PNG/PDF viewer placeholder
                   </div>
-                )}
-              </div>
+                  <div className="mt-2 text-sm">
+                    Large preview will show here
+                  </div>
+
+                  {activity.fileName && (
+                    <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                      Imported file: {activity.fileName}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">

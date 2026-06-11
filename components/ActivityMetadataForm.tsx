@@ -12,10 +12,14 @@ import type { Activity } from "@/types/activity";
 
 type ActivityMetadataFormProps = {
   selectedFileName?: string;
+  selectedFileType?: string;
+  previewDataUrl?: string;
 };
 
 export default function ActivityMetadataForm({
   selectedFileName,
+  selectedFileType,
+  previewDataUrl,
 }: ActivityMetadataFormProps) {
   const router = useRouter();
 
@@ -51,6 +55,8 @@ export default function ActivityMetadataForm({
       createdBy: "Coach User",
       hidden: false,
       fileName: selectedFileName,
+      fileType: selectedFileType,
+      previewDataUrl,
       createdAt: new Date().toISOString(),
     };
 
@@ -86,6 +92,20 @@ export default function ActivityMetadataForm({
         <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
           <span className="font-semibold">Selected file:</span>{" "}
           {selectedFileName}
+        </div>
+      )}
+
+      {previewDataUrl && (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+          <div className="mb-3 text-sm font-semibold text-slate-700">
+            Attached PNG Preview
+          </div>
+
+          <img
+            src={previewDataUrl}
+            alt="Activity preview"
+            className="max-h-80 w-full rounded-lg border border-slate-200 object-contain"
+          />
         </div>
       )}
 

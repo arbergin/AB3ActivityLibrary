@@ -5,6 +5,8 @@ import ActivityMetadataForm from "@/components/ActivityMetadataForm";
 
 export default function ImportFlow() {
   const [selectedFileName, setSelectedFileName] = useState("");
+  const [selectedFileType, setSelectedFileType] = useState("");
+  const [previewDataUrl, setPreviewDataUrl] = useState("");
   const [fileError, setFileError] = useState("");
   const [showMetadataForm, setShowMetadataForm] = useState(false);
 
@@ -13,6 +15,8 @@ export default function ImportFlow() {
 
     setFileError("");
     setShowMetadataForm(false);
+    setPreviewDataUrl("");
+    setSelectedFileType("");
 
     if (!file) {
       setSelectedFileName("");
@@ -29,6 +33,19 @@ export default function ImportFlow() {
     }
 
     setSelectedFileName(file.name);
+    setSelectedFileType(file.type);
+
+    if (isPng) {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          setPreviewDataUrl(reader.result);
+        }
+      };
+
+      reader.readAsDataURL(file);
+    }
   }
 
   function handleContinue() {
@@ -42,6 +59,8 @@ export default function ImportFlow() {
 
   function handleCancel() {
     setSelectedFileName("");
+    setSelectedFileType("");
+    setPreviewDataUrl("");
     setFileError("");
     setShowMetadataForm(false);
   }
@@ -70,6 +89,26 @@ export default function ImportFlow() {
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
             <span className="font-semibold">Selected file:</span>{" "}
             {selectedFileName}
+          </div>
+        )}
+
+        {previewDataUrl && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-3 text-sm font-semibold text-slate-700">
+              PNG Preview
+            </div>
+
+            <img
+              src={previewDataUrl}
+              alt="Selected activity preview"
+              className="max-h-96 w-full rounded-lg border border-slate-200 object-contain"
+            />
+          </div>
+        )}
+
+        {selectedFileType === "application/pdf" && (
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+            PDF selected. PDF preview will be added later.
           </div>
         )}
 
@@ -105,7 +144,11 @@ export default function ImportFlow() {
             {selectedFileName}
           </div>
 
-          <ActivityMetadataForm selectedFileName={selectedFileName} />
+          <ActivityMetadataForm
+            selectedFileName={selectedFileName}
+            selectedFileType={selectedFileType}
+            previewDataUrl={previewDataUrl}
+          />
         </div>
       )}
     </div>

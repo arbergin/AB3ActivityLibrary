@@ -94,9 +94,19 @@ export default function SearchResultsPanel() {
       <section className="rounded-xl bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold">Activity Detail</h2>
 
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-          Preview pane
-          <div className="mt-2 text-xs">PNG/PDF viewer placeholder</div>
+        <div className="mt-4 flex min-h-64 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+          {selectedActivity.previewDataUrl ? (
+            <img
+              src={selectedActivity.previewDataUrl}
+              alt={`${selectedActivity.activityName} preview`}
+              className="max-h-80 w-full rounded-lg object-contain"
+            />
+          ) : (
+            <div>
+              Preview pane
+              <div className="mt-2 text-xs">PNG/PDF viewer placeholder</div>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 grid gap-3 text-sm">

@@ -21,5 +21,7 @@ export type Activity = {
   createdBy: string;
   hidden: boolean;
   fileName?: string;
+  fileType?: string;
+  previewDataUrl?: string;
   createdAt?: string;
 };
