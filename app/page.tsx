@@ -3,9 +3,11 @@ export default function Home() {
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <header className="flex items-center justify-between bg-slate-900 px-8 py-4 text-white">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-sm font-bold text-slate-900">
-            LOGO
-          </div>
+          <img
+            src="/ab3-activity-library-logo.png"
+            alt="AB3 Activity Library Logo"
+            className="h-12 w-12 rounded-lg object-contain"
+          />
           <div>
             <h1 className="text-2xl font-bold">AB3 Activity Library</h1>
             <p className="text-sm text-slate-300">
