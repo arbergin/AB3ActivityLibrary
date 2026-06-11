@@ -16,18 +16,18 @@ type ActivityViewClientProps = {
   activityId: string;
 };
 
-function formatCreatedDate(createdAt?: string) {
-  if (!createdAt) {
+function formatDate(dateValue?: string) {
+  if (!dateValue) {
     return "—";
   }
 
-  const createdDate = new Date(createdAt);
+  const date = new Date(dateValue);
 
-  if (Number.isNaN(createdDate.getTime())) {
+  if (Number.isNaN(date.getTime())) {
     return "—";
   }
 
-  return createdDate.toLocaleDateString(undefined, {
+  return date.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -380,7 +380,16 @@ export default function ActivityViewClient({
                     Created Date
                   </div>
                   <div className="mt-1 text-slate-600">
-                    {formatCreatedDate(activity.createdAt)}
+                    {formatDate(activity.createdAt)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="font-semibold text-slate-700">
+                    Last Updated
+                  </div>
+                  <div className="mt-1 text-slate-600">
+                    {formatDate(activity.updatedAt)}
                   </div>
                 </div>
               </div>

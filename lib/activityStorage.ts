@@ -31,9 +31,17 @@ export function saveStoredActivity(activity: Activity) {
     return;
   }
 
+  const now = new Date().toISOString();
+
+  const activityToSave: Activity = {
+    ...activity,
+    createdAt: activity.createdAt || now,
+    updatedAt: activity.updatedAt || now,
+  };
+
   const existingActivities = getStoredActivities();
 
-  const updatedActivities = [activity, ...existingActivities];
+  const updatedActivities = [activityToSave, ...existingActivities];
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedActivities));
 }
@@ -51,21 +59,29 @@ export function updateStoredActivity(
 
   const existingActivities = getStoredActivities();
 
-  const activityExists = existingActivities.some(
+  const existingActivity = existingActivities.find(
     (activity) => activity.id === updatedActivity.id
   );
 
-  if (!activityExists) {
+  if (!existingActivity) {
     return undefined;
   }
 
+  const now = new Date().toISOString();
+
+  const activityToSave: Activity = {
+    ...updatedActivity,
+    createdAt: existingActivity.createdAt || updatedActivity.createdAt || now,
+    updatedAt: now,
+  };
+
   const updatedActivities = existingActivities.map((activity) =>
-    activity.id === updatedActivity.id ? updatedActivity : activity
+    activity.id === updatedActivity.id ? activityToSave : activity
   );
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedActivities));
 
-  return updatedActivity;
+  return activityToSave;
 }
 
 export function updateStoredActivityHidden(
@@ -87,6 +103,7 @@ export function updateStoredActivityHidden(
   }
 
   let updatedActivity: Activity | undefined;
+  const now = new Date().toISOString();
 
   const updatedActivities = existingActivities.map((activity) => {
     if (activity.id !== id) {
@@ -96,6 +113,7 @@ export function updateStoredActivityHidden(
     updatedActivity = {
       ...activity,
       hidden,
+      updatedAt: now,
     };
 
     return updatedActivity;

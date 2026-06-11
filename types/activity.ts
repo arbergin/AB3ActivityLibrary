@@ -26,4 +26,5 @@ export type Activity = {
   fileType?: string;
   previewDataUrl?: string;
   createdAt?: string;
+  updatedAt?: string;
 };
