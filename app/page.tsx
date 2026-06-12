@@ -40,7 +40,7 @@ function ActivityList({
   isLoading: boolean;
 }) {
   return (
-    <section className="rounded-xl bg-white p-6 shadow-sm">
+    <section className="h-full rounded-xl bg-white p-6 shadow-sm">
       <h3 className="text-lg font-bold">{title}</h3>
 
       <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
@@ -134,44 +134,40 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <div className="grid gap-6">
-              <Link
-                href="/import"
-                className="flex min-h-36 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-              >
-                <div className="text-lg font-bold">Import Activity</div>
-                <p className="mt-2 text-sm text-slate-600">
-                  Upload a PNG or PDF activity file and add searchable metadata.
-                </p>
-              </Link>
+            <Link
+              href="/import"
+              className="flex min-h-40 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+            >
+              <div className="text-lg font-bold">Import Activity</div>
+              <p className="mt-2 text-sm text-slate-600">
+                Upload a PNG or PDF activity file and add searchable metadata.
+              </p>
+            </Link>
 
-              <ActivityList
-                title="Last 5 Activities You Created"
-                emptyMessage="No activities created by you yet."
-                activities={createdActivities}
-                isLoading={isLoadingDashboard}
-              />
-            </div>
+            <Link
+              href="/search"
+              className="flex min-h-40 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+            >
+              <div className="text-lg font-bold">Search Library</div>
+              <p className="mt-2 text-sm text-slate-600">
+                Find activities by name, field location, game phase, category,
+                positions, number of players, or details.
+              </p>
+            </Link>
 
-            <div className="grid gap-6">
-              <Link
-                href="/search"
-                className="flex min-h-36 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-              >
-                <div className="text-lg font-bold">Search Library</div>
-                <p className="mt-2 text-sm text-slate-600">
-                  Find activities by name, field location, game phase, category,
-                  positions, number of players, or details.
-                </p>
-              </Link>
+            <ActivityList
+              title="Last 5 Activities You Created"
+              emptyMessage="No activities created by you yet."
+              activities={createdActivities}
+              isLoading={isLoadingDashboard}
+            />
 
-              <ActivityList
-                title="Last 5 Activities You Opened"
-                emptyMessage="No recently opened activities yet."
-                activities={openedActivities}
-                isLoading={isLoadingDashboard}
-              />
-            </div>
+            <ActivityList
+              title="Last 5 Activities You Opened"
+              emptyMessage="No recently opened activities yet."
+              activities={openedActivities}
+              isLoading={isLoadingDashboard}
+            />
           </div>
         </section>
       </main>
