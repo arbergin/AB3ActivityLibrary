@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createSupabaseActivity } from "@/lib/supabaseActivities";
-import type { Activity } from "@/types/activity";
+import { getDropdownFields } from "@/lib/dropdownService";
 import {
-  categoryOptions,
-  fieldLocationOptions,
-  gamePhaseOptions,
-} from "@/lib/activityOptions";
+  getDropdownAllowedLabels,
+  resolveDropdownValue,
+} from "@/lib/dropdownHelpers";
+import type { DropdownField } from "@/lib/dropdownTypes";
+import type { Activity } from "@/types/activity";
 
 type CsvActivityRow = {
   rowNumber: number;
@@ -24,6 +25,9 @@ type CsvActivityRow = {
 type ValidatedActivityRow = CsvActivityRow & {
   file?: File;
   errors: string[];
+  resolvedFieldLocation: string;
+  resolvedGamePhase: string;
+  resolvedCategory: string;
 };
 
 const expectedHeaders = [
@@ -147,45 +151,61 @@ function isValidNumberOfPlayers(value: string) {
   return Number.isInteger(numericValue) && numericValue > 0;
 }
 
-function validateRows(rows: CsvActivityRow[], selectedFiles: File[]) {
+function validateRows(
+  rows: CsvActivityRow[],
+  selectedFiles: File[],
+  dropdownFields: DropdownField[]
+) {
   const selectedFileMap = new Map<string, File>();
 
   selectedFiles.forEach((file) => {
     selectedFileMap.set(file.name.toLowerCase(), file);
   });
 
+  const fieldLocationLabels = getDropdownAllowedLabels(
+    dropdownFields,
+    "fieldLocation"
+  );
+  const gamePhaseLabels = getDropdownAllowedLabels(dropdownFields, "gamePhase");
+  const categoryLabels = getDropdownAllowedLabels(dropdownFields, "category");
+
   return rows.map((row) => {
     const errors: string[] = [];
+
+    const resolvedFieldLocation = resolveDropdownValue(
+      dropdownFields,
+      "fieldLocation",
+      row.fieldLocation
+    );
+
+    const resolvedGamePhase = resolveDropdownValue(
+      dropdownFields,
+      "gamePhase",
+      row.gamePhase
+    );
+
+    const resolvedCategory = resolveDropdownValue(
+      dropdownFields,
+      "category",
+      row.category
+    );
 
     if (!row.activityName.trim()) {
       errors.push("Activity Name is required.");
     }
 
-    if (
-      row.fieldLocation &&
-      !fieldLocationOptions.includes(
-        row.fieldLocation as (typeof fieldLocationOptions)[number]
-      )
-    ) {
+    if (row.fieldLocation && !resolvedFieldLocation) {
       errors.push(
-        `Field Location must be one of: ${fieldLocationOptions.join(", ")}.`
+        `Field Location must be one of: ${fieldLocationLabels.join(", ")}.`
       );
     }
 
-    if (
-      row.gamePhase &&
-      !gamePhaseOptions.includes(
-        row.gamePhase as (typeof gamePhaseOptions)[number]
-      )
-    ) {
-      errors.push(`Game Phase must be one of: ${gamePhaseOptions.join(", ")}.`);
+    if (row.gamePhase && !resolvedGamePhase) {
+      errors.push(`Game Phase must be one of: ${gamePhaseLabels.join(", ")}.`);
     }
 
-    if (
-      row.category &&
-      !categoryOptions.includes(row.category as (typeof categoryOptions)[number])
-    ) {
-      errors.push(`Category must be one of: ${categoryOptions.join(", ")}.`);
+    if (row.category && !resolvedCategory) {
+      errors.push(`Category must be one of: ${categoryLabels.join(", ")}.`);
     }
 
     if (!isValidNumberOfPlayers(row.numberOfPlayers)) {
@@ -217,6 +237,9 @@ function validateRows(rows: CsvActivityRow[], selectedFiles: File[]) {
       ...row,
       file: matchingFile,
       errors,
+      resolvedFieldLocation,
+      resolvedGamePhase,
+      resolvedCategory,
     };
   });
 }
@@ -228,6 +251,10 @@ export default function BulkImportFlow() {
   const [validatedRows, setValidatedRows] = useState<ValidatedActivityRow[]>(
     []
   );
+
+  const [dropdownFields, setDropdownFields] = useState<DropdownField[]>([]);
+  const [isLoadingDropdowns, setIsLoadingDropdowns] = useState(true);
+  const [dropdownMessage, setDropdownMessage] = useState("");
 
   const [validationMessage, setValidationMessage] = useState("");
   const [uploadMessage, setUploadMessage] = useState("");
@@ -243,6 +270,27 @@ export default function BulkImportFlow() {
   const hasValidationErrors = validatedRows.some(
     (row) => row.errors.length > 0
   );
+
+  useEffect(() => {
+    async function loadDropdowns() {
+      try {
+        setIsLoadingDropdowns(true);
+        setDropdownMessage("");
+
+        const fields = await getDropdownFields();
+        setDropdownFields(fields);
+      } catch (error) {
+        console.error("Unable to load dropdown options.", error);
+        setDropdownMessage(
+          "Dropdown options could not be loaded. Check Supabase dropdown tables and RLS policies."
+        );
+      } finally {
+        setIsLoadingDropdowns(false);
+      }
+    }
+
+    loadDropdowns();
+  }, []);
 
   async function handleValidate() {
     setValidationMessage("");
@@ -261,12 +309,28 @@ export default function BulkImportFlow() {
       return;
     }
 
+    if (isLoadingDropdowns) {
+      setValidationMessage("Dropdown options are still loading. Try again.");
+      return;
+    }
+
+    if (dropdownFields.length === 0) {
+      setValidationMessage(
+        "No dropdown settings were found. Add dropdown fields and options in Settings first."
+      );
+      return;
+    }
+
     setIsValidating(true);
 
     try {
       const csvText = await csvFile.text();
       const rows = parseCsvText(csvText);
-      const validationResults = validateRows(rows, selectedFiles);
+      const validationResults = validateRows(
+        rows,
+        selectedFiles,
+        dropdownFields
+      );
 
       setParsedRows(rows);
       setValidatedRows(validationResults);
@@ -277,7 +341,9 @@ export default function BulkImportFlow() {
 
       if (errorCount > 0) {
         setValidationMessage(
-          `${errorCount} row${errorCount === 1 ? "" : "s"} need correction before upload.`
+          `${errorCount} row${
+            errorCount === 1 ? "" : "s"
+          } need correction before upload.`
         );
         return;
       }
@@ -321,9 +387,9 @@ export default function BulkImportFlow() {
         const activity: Activity = {
           id: crypto.randomUUID(),
           activityName: row.activityName.trim(),
-          fieldLocation: row.fieldLocation as Activity["fieldLocation"],
-          gamePhase: row.gamePhase as Activity["gamePhase"],
-          category: row.category as Activity["category"],
+          fieldLocation: row.resolvedFieldLocation,
+          gamePhase: row.resolvedGamePhase,
+          category: row.resolvedCategory,
           positionsInvolved: row.positionsInvolved.trim(),
           numberOfPlayers: Number(row.numberOfPlayers),
           activityDetails: row.activityDetails.trim(),
@@ -371,6 +437,12 @@ export default function BulkImportFlow() {
           Browsers cannot open local paths directly, so you must select the
           activity files here too.
         </p>
+
+        {dropdownMessage && (
+          <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {dropdownMessage}
+          </div>
+        )}
 
         <div className="mt-6 grid gap-5 md:grid-cols-2">
           <label className="grid gap-2">
@@ -421,10 +493,14 @@ export default function BulkImportFlow() {
           <button
             type="button"
             onClick={handleValidate}
-            disabled={isValidating || isUploading}
+            disabled={isValidating || isUploading || isLoadingDropdowns}
             className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isValidating ? "Validating..." : "Validate"}
+            {isValidating
+              ? "Validating..."
+              : isLoadingDropdowns
+                ? "Loading Dropdowns..."
+                : "Validate"}
           </button>
 
           <button

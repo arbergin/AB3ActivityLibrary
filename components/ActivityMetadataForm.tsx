@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  categoryOptions,
-  fieldLocationOptions,
-  gamePhaseOptions,
-} from "@/lib/activityOptions";
 import { saveStoredActivity } from "@/lib/activityStorage";
 import { createSupabaseActivity } from "@/lib/supabaseActivities";
+import { getDropdownFields } from "@/lib/dropdownService";
+import {
+  getActiveDropdownOptions,
+  getDropdownField,
+} from "@/lib/dropdownHelpers";
+import type { DropdownField } from "@/lib/dropdownTypes";
 import type { Activity } from "@/types/activity";
 
 type ActivityMetadataFormProps = {
@@ -31,17 +32,50 @@ export default function ActivityMetadataForm({
 }: ActivityMetadataFormProps) {
   const router = useRouter();
 
+  const [dropdownFields, setDropdownFields] = useState<DropdownField[]>([]);
+  const [isLoadingDropdowns, setIsLoadingDropdowns] = useState(true);
+  const [dropdownError, setDropdownError] = useState("");
+
   const [activityName, setActivityName] = useState("");
-  const [fieldLocation, setFieldLocation] =
-    useState<Activity["fieldLocation"]>("");
-  const [gamePhase, setGamePhase] = useState<Activity["gamePhase"]>("");
-  const [category, setCategory] = useState<Activity["category"]>("");
+  const [fieldLocation, setFieldLocation] = useState("");
+  const [gamePhase, setGamePhase] = useState("");
+  const [category, setCategory] = useState("");
   const [positionsInvolved, setPositionsInvolved] = useState("");
   const [numberOfPlayers, setNumberOfPlayers] = useState("");
   const [activityDetails, setActivityDetails] = useState("");
   const [formError, setFormError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const fieldLocationOptions = getActiveDropdownOptions(
+    dropdownFields,
+    "fieldLocation"
+  );
+
+  const gamePhaseOptions = getActiveDropdownOptions(dropdownFields, "gamePhase");
+
+  const categoryOptions = getActiveDropdownOptions(dropdownFields, "category");
+
+  useEffect(() => {
+    async function loadDropdowns() {
+      try {
+        setIsLoadingDropdowns(true);
+        setDropdownError("");
+
+        const fields = await getDropdownFields();
+        setDropdownFields(fields);
+      } catch (error) {
+        console.error("Unable to load dropdown options.", error);
+        setDropdownError(
+          "Dropdown options could not be loaded. Check Supabase dropdown tables and RLS policies."
+        );
+      } finally {
+        setIsLoadingDropdowns(false);
+      }
+    }
+
+    loadDropdowns();
+  }, []);
 
   async function handleSaveActivity(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,6 +89,21 @@ export default function ActivityMetadataForm({
 
     if (!activityName.trim()) {
       setFormError("Activity Name is required.");
+      return;
+    }
+
+    if (!getDropdownField(dropdownFields, "fieldLocation")) {
+      setFormError("Field Location dropdown is missing from Settings.");
+      return;
+    }
+
+    if (!getDropdownField(dropdownFields, "gamePhase")) {
+      setFormError("Game Phase dropdown is missing from Settings.");
+      return;
+    }
+
+    if (!getDropdownField(dropdownFields, "category")) {
+      setFormError("Category dropdown is missing from Settings.");
       return;
     }
 
@@ -86,7 +135,10 @@ export default function ActivityMetadataForm({
 
       router.push(`/activity/${savedSupabaseActivity.id}`);
     } catch (error) {
-      console.error("Supabase save failed. Saving metadata locally instead.", error);
+      console.error(
+        "Supabase save failed. Saving metadata locally instead.",
+        error
+      );
 
       const localFallbackActivity = createLocalFallbackActivity(newActivity);
 
@@ -166,6 +218,12 @@ export default function ActivityMetadataForm({
         </div>
       )}
 
+      {dropdownError && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {dropdownError}
+        </div>
+      )}
+
       <div className="mt-6 grid gap-4">
         <label className="grid gap-1">
           <span className="text-sm font-semibold">
@@ -185,14 +243,20 @@ export default function ActivityMetadataForm({
             <span className="text-sm font-semibold">Field Location</span>
             <select
               value={fieldLocation}
-              onChange={(event) =>
-                setFieldLocation(event.target.value as Activity["fieldLocation"])
-              }
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              onChange={(event) => setFieldLocation(event.target.value)}
+              disabled={isLoadingDropdowns}
+              className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
             >
-              <option value="">Select field location</option>
+              <option value="">
+                {isLoadingDropdowns
+                  ? "Loading field locations..."
+                  : "Select field location"}
+              </option>
+
               {fieldLocationOptions.map((option) => (
-                <option key={option}>{option}</option>
+                <option key={option.id} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </label>
@@ -201,14 +265,20 @@ export default function ActivityMetadataForm({
             <span className="text-sm font-semibold">Game Phase</span>
             <select
               value={gamePhase}
-              onChange={(event) =>
-                setGamePhase(event.target.value as Activity["gamePhase"])
-              }
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              onChange={(event) => setGamePhase(event.target.value)}
+              disabled={isLoadingDropdowns}
+              className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
             >
-              <option value="">Select game phase</option>
+              <option value="">
+                {isLoadingDropdowns
+                  ? "Loading game phases..."
+                  : "Select game phase"}
+              </option>
+
               {gamePhaseOptions.map((option) => (
-                <option key={option}>{option}</option>
+                <option key={option.id} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </label>
@@ -217,14 +287,20 @@ export default function ActivityMetadataForm({
             <span className="text-sm font-semibold">Category</span>
             <select
               value={category}
-              onChange={(event) =>
-                setCategory(event.target.value as Activity["category"])
-              }
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              onChange={(event) => setCategory(event.target.value)}
+              disabled={isLoadingDropdowns}
+              className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
             >
-              <option value="">Select category</option>
+              <option value="">
+                {isLoadingDropdowns
+                  ? "Loading categories..."
+                  : "Select category"}
+              </option>
+
               {categoryOptions.map((option) => (
-                <option key={option}>{option}</option>
+                <option key={option.id} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </label>
@@ -250,6 +326,7 @@ export default function ActivityMetadataForm({
               onChange={(event) => setNumberOfPlayers(event.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-2"
               placeholder="Example: 8"
+              min="1"
             />
           </label>
         </div>
@@ -288,7 +365,7 @@ export default function ActivityMetadataForm({
 
           <button
             type="submit"
-            disabled={isSaving}
+            disabled={isSaving || isLoadingDropdowns}
             className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSaving ? "Saving..." : "Save Activity"}

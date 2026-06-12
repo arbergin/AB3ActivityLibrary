@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import ProtectedPage from "@/components/ProtectedPage";
 import RoleBadge from "@/components/RoleBadge";
@@ -17,6 +17,16 @@ import {
   type UserRole,
 } from "@/lib/userProfile";
 import { getAllUserProfiles, updateUserRole } from "@/lib/userManagement";
+import {
+  addDropdownOption,
+  deactivateDropdownOption,
+  getDropdownFields,
+  restoreDropdownOption,
+  updateDropdownFieldLabel,
+  updateDropdownOptionLabel,
+} from "@/lib/dropdownService";
+import { makeDropdownValue } from "@/lib/dropdownHelpers";
+import type { DropdownField, DropdownOption } from "@/lib/dropdownTypes";
 
 type LocalDataSummary = {
   count: number;
@@ -62,7 +72,26 @@ export default function SettingsPage() {
   const [message, setMessage] = useState("");
   const [userManagementMessage, setUserManagementMessage] = useState("");
 
+  const [dropdownFields, setDropdownFields] = useState<DropdownField[]>([]);
+  const [isLoadingDropdowns, setIsLoadingDropdowns] = useState(false);
+  const [dropdownMessage, setDropdownMessage] = useState("");
+  const [dropdownSavingId, setDropdownSavingId] = useState<
+    string | undefined
+  >(undefined);
+  const [newDropdownOptionLabels, setNewDropdownOptionLabels] = useState<
+    Record<string, string>
+  >({});
+  const [editingDropdownFieldLabels, setEditingDropdownFieldLabels] = useState<
+    Record<string, string>
+  >({});
+  const [editingDropdownOptionLabels, setEditingDropdownOptionLabels] =
+    useState<Record<string, string>>({});
+
   const isAdmin = isAdminProfile(profile);
+
+  const sortedDropdownFields = useMemo(() => {
+    return [...dropdownFields].sort((a, b) => a.sort_order - b.sort_order);
+  }, [dropdownFields]);
 
   function refreshLocalDataSummary() {
     setLocalDataSummary(getStoredActivitiesSummary());
@@ -93,6 +122,257 @@ export default function SettingsPage() {
       );
     } finally {
       setIsLoadingUsers(false);
+    }
+  }
+
+  async function loadDropdownFields() {
+    setIsLoadingDropdowns(true);
+    setDropdownMessage("");
+
+    try {
+      const fields = await getDropdownFields();
+
+      setDropdownFields(fields);
+
+      const fieldLabelState: Record<string, string> = {};
+      const optionLabelState: Record<string, string> = {};
+
+      fields.forEach((field) => {
+        fieldLabelState[field.id] = field.label;
+
+        field.dropdown_options.forEach((option) => {
+          optionLabelState[option.id] = option.label;
+        });
+      });
+
+      setEditingDropdownFieldLabels(fieldLabelState);
+      setEditingDropdownOptionLabels(optionLabelState);
+    } catch (error) {
+      console.error("Unable to load dropdown settings.", error);
+      setDropdownMessage(
+        "Unable to load dropdown settings. Confirm your account is an admin and the dropdown RLS policies are correct."
+      );
+    } finally {
+      setIsLoadingDropdowns(false);
+    }
+  }
+
+  async function handleSaveDropdownFieldLabel(field: DropdownField) {
+    const nextLabel = editingDropdownFieldLabels[field.id]?.trim();
+
+    if (!nextLabel) {
+      setDropdownMessage("Dropdown field label cannot be blank.");
+      return;
+    }
+
+    setDropdownSavingId(field.id);
+    setDropdownMessage("");
+
+    try {
+      await updateDropdownFieldLabel({
+        fieldId: field.id,
+        label: nextLabel,
+      });
+
+      setDropdownFields((currentFields) =>
+        currentFields.map((currentField) =>
+          currentField.id === field.id
+            ? { ...currentField, label: nextLabel }
+            : currentField
+        )
+      );
+
+      setDropdownMessage("Dropdown field label updated.");
+    } catch (error) {
+      console.error("Unable to update dropdown field label.", error);
+      setDropdownMessage("Unable to update dropdown field label.");
+    } finally {
+      setDropdownSavingId(undefined);
+    }
+  }
+
+  async function handleAddDropdownOption(field: DropdownField) {
+    const nextLabel = newDropdownOptionLabels[field.id]?.trim();
+
+    if (!nextLabel) {
+      setDropdownMessage("Enter an option name first.");
+      return;
+    }
+
+    const nextValue = makeDropdownValue(nextLabel);
+
+    if (!nextValue) {
+      setDropdownMessage("Enter a valid option name.");
+      return;
+    }
+
+    const options = field.dropdown_options ?? [];
+
+    const existingOption = options.find(
+      (option) => option.value === nextValue
+    );
+
+    if (existingOption?.active) {
+      setDropdownMessage("That option already exists.");
+      return;
+    }
+
+    if (existingOption && !existingOption.active) {
+      setDropdownMessage(
+        "That option already exists as inactive. Use Restore instead."
+      );
+      return;
+    }
+
+    const nextSortOrder =
+      options.length === 0
+        ? 1
+        : Math.max(...options.map((option) => option.sort_order)) + 1;
+
+    setDropdownSavingId(field.id);
+    setDropdownMessage("");
+
+    try {
+      await addDropdownOption({
+        fieldId: field.id,
+        label: nextLabel,
+        value: nextValue,
+        sortOrder: nextSortOrder,
+      });
+
+      setNewDropdownOptionLabels((current) => ({
+        ...current,
+        [field.id]: "",
+      }));
+
+      await loadDropdownFields();
+
+      setDropdownMessage("Dropdown option added.");
+    } catch (error) {
+      console.error("Unable to add dropdown option.", error);
+      setDropdownMessage("Unable to add dropdown option.");
+    } finally {
+      setDropdownSavingId(undefined);
+    }
+  }
+
+  async function handleSaveDropdownOptionLabel(
+    fieldId: string,
+    option: DropdownOption
+  ) {
+    const nextLabel = editingDropdownOptionLabels[option.id]?.trim();
+
+    if (!nextLabel) {
+      setDropdownMessage("Dropdown option label cannot be blank.");
+      return;
+    }
+
+    setDropdownSavingId(option.id);
+    setDropdownMessage("");
+
+    try {
+      await updateDropdownOptionLabel({
+        optionId: option.id,
+        label: nextLabel,
+      });
+
+      setDropdownFields((currentFields) =>
+        currentFields.map((field) => {
+          if (field.id !== fieldId) {
+            return field;
+          }
+
+          return {
+            ...field,
+            dropdown_options: field.dropdown_options.map((currentOption) =>
+              currentOption.id === option.id
+                ? { ...currentOption, label: nextLabel }
+                : currentOption
+            ),
+          };
+        })
+      );
+
+      setDropdownMessage("Dropdown option updated.");
+    } catch (error) {
+      console.error("Unable to update dropdown option.", error);
+      setDropdownMessage("Unable to update dropdown option.");
+    } finally {
+      setDropdownSavingId(undefined);
+    }
+  }
+
+  async function handleRemoveDropdownOption(
+    fieldId: string,
+    option: DropdownOption
+  ) {
+    setDropdownSavingId(option.id);
+    setDropdownMessage("");
+
+    try {
+      await deactivateDropdownOption(option.id);
+
+      setDropdownFields((currentFields) =>
+        currentFields.map((field) => {
+          if (field.id !== fieldId) {
+            return field;
+          }
+
+          return {
+            ...field,
+            dropdown_options: field.dropdown_options.map((currentOption) =>
+              currentOption.id === option.id
+                ? { ...currentOption, active: false }
+                : currentOption
+            ),
+          };
+        })
+      );
+
+      setDropdownMessage(
+        "Dropdown option removed from new selections. Existing saved activities will still keep this value."
+      );
+    } catch (error) {
+      console.error("Unable to remove dropdown option.", error);
+      setDropdownMessage("Unable to remove dropdown option.");
+    } finally {
+      setDropdownSavingId(undefined);
+    }
+  }
+
+  async function handleRestoreDropdownOption(
+    fieldId: string,
+    option: DropdownOption
+  ) {
+    setDropdownSavingId(option.id);
+    setDropdownMessage("");
+
+    try {
+      await restoreDropdownOption(option.id);
+
+      setDropdownFields((currentFields) =>
+        currentFields.map((field) => {
+          if (field.id !== fieldId) {
+            return field;
+          }
+
+          return {
+            ...field,
+            dropdown_options: field.dropdown_options.map((currentOption) =>
+              currentOption.id === option.id
+                ? { ...currentOption, active: true }
+                : currentOption
+            ),
+          };
+        })
+      );
+
+      setDropdownMessage("Dropdown option restored.");
+    } catch (error) {
+      console.error("Unable to restore dropdown option.", error);
+      setDropdownMessage("Unable to restore dropdown option.");
+    } finally {
+      setDropdownSavingId(undefined);
     }
   }
 
@@ -373,8 +653,8 @@ export default function SettingsPage() {
         setProfile(currentProfile);
 
         if (currentProfile?.role === "admin") {
-          const profiles = await getAllUserProfiles();
-          setUserProfiles(profiles);
+          await loadUserProfiles();
+          await loadDropdownFields();
         }
       } catch (error) {
         console.error("Unable to load current user profile.", error);
@@ -401,7 +681,8 @@ export default function SettingsPage() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold">Settings</h2>
             <p className="mt-2 text-slate-600">
-              Manage your account, users, and temporary browser data.
+              Manage your account, users, dropdown fields, and temporary browser
+              data.
             </p>
           </div>
 
@@ -781,6 +1062,279 @@ export default function SettingsPage() {
                       })
                     )}
                   </div>
+                </>
+              )}
+            </section>
+
+            <section className="rounded-xl bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold">Dropdown Fields</h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Manage the dropdown values used for importing, searching,
+                    and organizing activities. Removing an option makes it
+                    inactive instead of deleting it, so older saved activities
+                    keep their original metadata.
+                  </p>
+                </div>
+
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={loadDropdownFields}
+                    disabled={isLoadingDropdowns}
+                    className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isLoadingDropdowns
+                      ? "Refreshing..."
+                      : "Refresh Dropdowns"}
+                  </button>
+                )}
+              </div>
+
+              {!profile ? (
+                <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                  Loading user access...
+                </div>
+              ) : !isAdmin ? (
+                <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  Dropdown field management is available to admins only.
+                </div>
+              ) : (
+                <>
+                  {dropdownMessage && (
+                    <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                      {dropdownMessage}
+                    </div>
+                  )}
+
+                  {isLoadingDropdowns ? (
+                    <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                      Loading dropdown fields...
+                    </div>
+                  ) : sortedDropdownFields.length === 0 ? (
+                    <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                      No dropdown fields found. Add the starter dropdown fields
+                      in Supabase first.
+                    </div>
+                  ) : (
+                    <div className="mt-5 grid gap-5">
+                      {sortedDropdownFields.map((field) => {
+                        const activeOptions = field.dropdown_options
+                          .filter((option) => option.active)
+                          .sort((a, b) => a.sort_order - b.sort_order);
+
+                        const inactiveOptions = field.dropdown_options
+                          .filter((option) => !option.active)
+                          .sort((a, b) => a.sort_order - b.sort_order);
+
+                        return (
+                          <div
+                            key={field.id}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                          >
+                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                              <div className="grid flex-1 gap-1">
+                                <span className="text-sm font-semibold text-slate-700">
+                                  Dropdown Field Label
+                                </span>
+                                <input
+                                  value={
+                                    editingDropdownFieldLabels[field.id] ??
+                                    field.label
+                                  }
+                                  onChange={(event) =>
+                                    setEditingDropdownFieldLabels((current) => ({
+                                      ...current,
+                                      [field.id]: event.target.value,
+                                    }))
+                                  }
+                                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
+                                />
+                                <span className="text-xs text-slate-500">
+                                  Field key: {field.field_key}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleSaveDropdownFieldLabel(field)
+                                }
+                                disabled={dropdownSavingId === field.id}
+                                className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {dropdownSavingId === field.id
+                                  ? "Saving..."
+                                  : "Save Field"}
+                              </button>
+                            </div>
+
+                            <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4">
+                              <h4 className="font-bold">Add Option</h4>
+
+                              <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                                <input
+                                  value={newDropdownOptionLabels[field.id] ?? ""}
+                                  onChange={(event) =>
+                                    setNewDropdownOptionLabels((current) => ({
+                                      ...current,
+                                      [field.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder={`Add option for ${field.label}`}
+                                  className="rounded-lg border border-slate-300 px-3 py-2"
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAddDropdownOption(field)
+                                  }
+                                  disabled={dropdownSavingId === field.id}
+                                  className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {dropdownSavingId === field.id
+                                    ? "Adding..."
+                                    : "Add Option"}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-5">
+                              <h4 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                                Active Options
+                              </h4>
+
+                              {activeOptions.length === 0 ? (
+                                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-500">
+                                  No active options.
+                                </div>
+                              ) : (
+                                <div className="mt-3 grid gap-3">
+                                  {activeOptions.map((option) => (
+                                    <div
+                                      key={option.id}
+                                      className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[1fr_auto]"
+                                    >
+                                      <div>
+                                        <input
+                                          value={
+                                            editingDropdownOptionLabels[
+                                              option.id
+                                            ] ?? option.label
+                                          }
+                                          onChange={(event) =>
+                                            setEditingDropdownOptionLabels(
+                                              (current) => ({
+                                                ...current,
+                                                [option.id]:
+                                                  event.target.value,
+                                              })
+                                            )
+                                          }
+                                          className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                                        />
+                                        <div className="mt-1 text-xs text-slate-500">
+                                          Saved value: {option.value}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex flex-wrap items-start gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSaveDropdownOptionLabel(
+                                              field.id,
+                                              option
+                                            )
+                                          }
+                                          disabled={
+                                            dropdownSavingId === option.id
+                                          }
+                                          className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          {dropdownSavingId === option.id
+                                            ? "Saving..."
+                                            : "Save"}
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleRemoveDropdownOption(
+                                              field.id,
+                                              option
+                                            )
+                                          }
+                                          disabled={
+                                            dropdownSavingId === option.id
+                                          }
+                                          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="mt-5">
+                              <h4 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                                Inactive Options
+                              </h4>
+
+                              {inactiveOptions.length === 0 ? (
+                                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-500">
+                                  No inactive options.
+                                </div>
+                              ) : (
+                                <div className="mt-3 grid gap-3">
+                                  {inactiveOptions.map((option) => (
+                                    <div
+                                      key={option.id}
+                                      className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[1fr_auto]"
+                                    >
+                                      <div>
+                                        <div className="font-semibold text-slate-800">
+                                          {option.label}
+                                        </div>
+                                        <div className="mt-1 text-xs text-slate-500">
+                                          Saved value: {option.value}
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleRestoreDropdownOption(
+                                              field.id,
+                                              option
+                                            )
+                                          }
+                                          disabled={
+                                            dropdownSavingId === option.id
+                                          }
+                                          className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          {dropdownSavingId === option.id
+                                            ? "Restoring..."
+                                            : "Restore"}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </>
               )}
             </section>
