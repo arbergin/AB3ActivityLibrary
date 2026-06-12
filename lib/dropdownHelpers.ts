@@ -1,5 +1,11 @@
 import type { DropdownField, DropdownOption } from "@/lib/dropdownTypes";
 
+export type SelectDropdownOption = {
+  value: string;
+  label: string;
+  active: boolean;
+};
+
 export function makeDropdownValue(label: string) {
   return label.trim().replace(/\s+/g, " ");
 }
@@ -62,4 +68,58 @@ export function resolveDropdownValue(
   );
 
   return matchingOption?.value ?? "";
+}
+
+export function getOptionsForSavedValue(
+  options: DropdownOption[],
+  savedValue?: string | null
+): SelectDropdownOption[] {
+  const activeOptions = options
+    .filter((option) => option.active)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((option) => ({
+      value: option.value,
+      label: option.label,
+      active: true,
+    }));
+
+  if (!savedValue) {
+    return activeOptions;
+  }
+
+  const savedOption = options.find(
+    (option) => option.value === savedValue || option.label === savedValue
+  );
+
+  if (!savedOption) {
+    return [
+      ...activeOptions,
+      {
+        value: savedValue,
+        label: `${savedValue} (saved value - no longer in settings)`,
+        active: false,
+      },
+    ];
+  }
+
+  if (!savedOption.active) {
+    const alreadyIncluded = activeOptions.some(
+      (option) => option.value === savedOption.value
+    );
+
+    if (alreadyIncluded) {
+      return activeOptions;
+    }
+
+    return [
+      ...activeOptions,
+      {
+        value: savedOption.value,
+        label: `${savedOption.label} (inactive)`,
+        active: false,
+      },
+    ];
+  }
+
+  return activeOptions;
 }
