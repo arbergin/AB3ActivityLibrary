@@ -75,25 +75,29 @@ export default function SearchPageClient() {
   }
 
   return (
-    <div className="grid gap-8">
-      <SearchFilters
-        filters={filters}
-        onFiltersChange={setFilters}
-        includeHidden={includeHidden}
-        onIncludeHiddenChange={setIncludeHidden}
-        sortValue={sortValue}
-        onSortValueChange={setSortValue}
-        onSearch={handleSearch}
-        onClearFilters={handleClearFilters}
-        searchMessage={searchMessage}
-      />
+    <div className="grid min-w-0 gap-8 overflow-hidden">
+      <div className="min-w-0">
+        <SearchFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          includeHidden={includeHidden}
+          onIncludeHiddenChange={setIncludeHidden}
+          sortValue={sortValue}
+          onSortValueChange={setSortValue}
+          onSearch={handleSearch}
+          onClearFilters={handleClearFilters}
+          searchMessage={searchMessage}
+        />
+      </div>
 
-      <SearchResultsPanel
-        includeHidden={appliedIncludeHidden}
-        filters={appliedFilters}
-        sortValue={sortValue}
-        hasSearched={hasSearched}
-      />
+      <div className="min-w-0">
+        <SearchResultsPanel
+          includeHidden={appliedIncludeHidden}
+          filters={appliedFilters}
+          sortValue={sortValue}
+          hasSearched={hasSearched}
+        />
+      </div>
     </div>
   );
 }

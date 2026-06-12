@@ -45,67 +45,40 @@ function numberOfPlayersMatchesFilter(
 ) {
   const cleanedFilter = filterValue.trim().toLowerCase();
 
-  if (!cleanedFilter) {
-    return true;
-  }
-
-  if (activityPlayerCount === "") {
-    return false;
-  }
+  if (!cleanedFilter) return true;
+  if (activityPlayerCount === "") return false;
 
   const playerCount = Number(activityPlayerCount);
 
-  if (Number.isNaN(playerCount)) {
-    return false;
-  }
+  if (Number.isNaN(playerCount)) return false;
 
   if (cleanedFilter.endsWith("+")) {
     const minimum = Number(cleanedFilter.replace("+", ""));
-
-    if (Number.isNaN(minimum)) {
-      return false;
-    }
-
+    if (Number.isNaN(minimum)) return false;
     return playerCount >= minimum;
   }
 
   if (cleanedFilter.startsWith(">=")) {
     const minimum = Number(cleanedFilter.replace(">=", ""));
-
-    if (Number.isNaN(minimum)) {
-      return false;
-    }
-
+    if (Number.isNaN(minimum)) return false;
     return playerCount >= minimum;
   }
 
   if (cleanedFilter.startsWith(">")) {
     const minimum = Number(cleanedFilter.replace(">", ""));
-
-    if (Number.isNaN(minimum)) {
-      return false;
-    }
-
+    if (Number.isNaN(minimum)) return false;
     return playerCount > minimum;
   }
 
   if (cleanedFilter.startsWith("<=")) {
     const maximum = Number(cleanedFilter.replace("<=", ""));
-
-    if (Number.isNaN(maximum)) {
-      return false;
-    }
-
+    if (Number.isNaN(maximum)) return false;
     return playerCount <= maximum;
   }
 
   if (cleanedFilter.startsWith("<")) {
     const maximum = Number(cleanedFilter.replace("<", ""));
-
-    if (Number.isNaN(maximum)) {
-      return false;
-    }
-
+    if (Number.isNaN(maximum)) return false;
     return playerCount < maximum;
   }
 
@@ -117,68 +90,49 @@ function numberOfPlayersMatchesFilter(
     const minimum = Number(rangeParts[0].trim());
     const maximum = Number(rangeParts[1].trim());
 
-    if (Number.isNaN(minimum) || Number.isNaN(maximum)) {
-      return false;
-    }
+    if (Number.isNaN(minimum) || Number.isNaN(maximum)) return false;
 
     return playerCount >= minimum && playerCount <= maximum;
   }
 
   const exactNumber = Number(cleanedFilter);
 
-  if (Number.isNaN(exactNumber)) {
-    return false;
-  }
+  if (Number.isNaN(exactNumber)) return false;
 
   return playerCount === exactNumber;
 }
 
 function getCreatedAtTime(activity: Activity) {
-  if (!activity.createdAt) {
-    return 0;
-  }
+  if (!activity.createdAt) return 0;
 
   const createdAtTime = new Date(activity.createdAt).getTime();
 
-  if (Number.isNaN(createdAtTime)) {
-    return 0;
-  }
+  if (Number.isNaN(createdAtTime)) return 0;
 
   return createdAtTime;
 }
 
 function getUpdatedAtTime(activity: Activity) {
-  if (!activity.updatedAt) {
-    return 0;
-  }
+  if (!activity.updatedAt) return 0;
 
   const updatedAtTime = new Date(activity.updatedAt).getTime();
 
-  if (Number.isNaN(updatedAtTime)) {
-    return 0;
-  }
+  if (Number.isNaN(updatedAtTime)) return 0;
 
   return updatedAtTime;
 }
 
 function getPlayerCountForSort(activity: Activity) {
-  if (activity.numberOfPlayers === "") {
-    return 0;
-  }
-
+  if (activity.numberOfPlayers === "") return 0;
   return Number(activity.numberOfPlayers);
 }
 
 function formatDate(dateValue?: string) {
-  if (!dateValue) {
-    return "—";
-  }
+  if (!dateValue) return "—";
 
   const date = new Date(dateValue);
 
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
+  if (Number.isNaN(date.getTime())) return "—";
 
   return date.toLocaleDateString(undefined, {
     year: "numeric",
@@ -258,17 +212,12 @@ export default function SearchResultsPanel({
   }
 
   const searchableActivities = useMemo(() => {
-    if (includeHidden) {
-      return activities;
-    }
-
+    if (includeHidden) return activities;
     return activities.filter((activity) => !activity.hidden);
   }, [activities, includeHidden]);
 
   const filteredActivities = useMemo(() => {
-    if (!hasSearched) {
-      return [];
-    }
+    if (!hasSearched) return [];
 
     return searchableActivities.filter((activity) => {
       const activityNameMatches = activity.activityName
@@ -399,9 +348,7 @@ export default function SearchResultsPanel({
   }, [hasSearched, sortedActivities, selectedActivity?.id]);
 
   async function handleDownload() {
-    if (!selectedActivity) {
-      return;
-    }
+    if (!selectedActivity) return;
 
     setActionMessage("");
     setShowDeleteConfirm(false);
@@ -428,9 +375,7 @@ export default function SearchResultsPanel({
   }
 
   async function handleToggleHidden() {
-    if (!selectedActivity) {
-      return;
-    }
+    if (!selectedActivity) return;
 
     setDownloadMessage("");
     setShowDeleteConfirm(false);
@@ -505,17 +450,13 @@ export default function SearchResultsPanel({
     setDownloadMessage("");
     setActionMessage("");
 
-    if (!selectedActivity) {
-      return;
-    }
+    if (!selectedActivity) return;
 
     setShowDeleteConfirm(true);
   }
 
   async function handleConfirmDelete() {
-    if (!selectedActivity) {
-      return;
-    }
+    if (!selectedActivity) return;
 
     if (selectedActivity.source === "supabase") {
       try {
@@ -559,10 +500,10 @@ export default function SearchResultsPanel({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-      <section className="rounded-xl bg-white p-6 shadow-sm">
+    <div className="grid min-w-0 gap-6 overflow-hidden lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-xl font-bold">Results</h2>
             <p className="mt-2 text-sm text-slate-600">
               Enter search criteria above, then click Search to view matching
@@ -581,8 +522,8 @@ export default function SearchResultsPanel({
           </div>
         )}
 
-        <div className="mt-6 overflow-hidden rounded-lg border border-slate-200">
-          <div className="grid grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+        <div className="mt-6 min-w-0 overflow-hidden rounded-lg border border-slate-200">
+          <div className="hidden grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 lg:grid">
             <div>Activity</div>
             <div>Location</div>
             <div>Phase</div>
@@ -612,17 +553,17 @@ export default function SearchResultsPanel({
                 <div
                   key={activity.id}
                   onClick={() => handleSelectActivity(activity)}
-                  className={`grid cursor-pointer grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] items-center border-t border-slate-200 px-4 py-4 text-sm ${
+                  className={`cursor-pointer border-t border-slate-200 px-4 py-4 text-sm lg:grid lg:grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] lg:items-center ${
                     isSelected ? "bg-slate-100" : "bg-white hover:bg-slate-50"
                   }`}
                 >
-                  <div>
-                    <div className="font-semibold text-slate-800">
+                  <div className="min-w-0">
+                    <div className="break-words font-semibold text-slate-800">
                       {activity.activityName}
                     </div>
 
                     {activity.fileName && (
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="mt-1 break-words text-xs text-slate-500">
                         Imported from: {activity.fileName}
                       </div>
                     )}
@@ -634,23 +575,41 @@ export default function SearchResultsPanel({
                     )}
                   </div>
 
-                  <div className="text-slate-600">
-                    {activity.fieldLocation || "—"}
+                  <div className="mt-3 grid gap-2 text-slate-600 sm:grid-cols-2 lg:mt-0 lg:block">
+                    <div>
+                      <span className="font-semibold text-slate-700 lg:hidden">
+                        Location:{" "}
+                      </span>
+                      {activity.fieldLocation || "—"}
+                    </div>
+
+                    <div className="lg:hidden">
+                      <span className="font-semibold text-slate-700">
+                        Phase:{" "}
+                      </span>
+                      {activity.gamePhase || "—"}
+                    </div>
                   </div>
 
-                  <div className="text-slate-600">
+                  <div className="hidden text-slate-600 lg:block">
                     {activity.gamePhase || "—"}
                   </div>
 
-                  <div className="text-slate-600">
+                  <div className="mt-2 text-slate-600 lg:mt-0">
+                    <span className="font-semibold text-slate-700 lg:hidden">
+                      Category:{" "}
+                    </span>
                     {activity.category || "—"}
                   </div>
 
-                  <div className="text-slate-600">
+                  <div className="mt-2 text-slate-600 lg:mt-0">
+                    <span className="font-semibold text-slate-700 lg:hidden">
+                      Created:{" "}
+                    </span>
                     {formatDate(activity.createdAt)}
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="mt-4 flex gap-3 lg:mt-0">
                     <Link
                       href={`/activity/${activity.id}`}
                       onClick={(event) => {
@@ -668,7 +627,7 @@ export default function SearchResultsPanel({
         </div>
       </section>
 
-      <section className="rounded-xl bg-white p-6 shadow-sm">
+      <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6">
         <h2 className="text-xl font-bold">Activity Detail</h2>
 
         {!selectedActivity ? (
@@ -678,7 +637,7 @@ export default function SearchResultsPanel({
           </div>
         ) : (
           <>
-            <div className="mt-4 flex min-h-64 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+            <div className="mt-4 flex min-h-64 min-w-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
               {selectedActivity.previewDataUrl &&
               selectedActivity.fileType === "application/pdf" ? (
                 <iframe
@@ -702,17 +661,17 @@ export default function SearchResultsPanel({
               )}
             </div>
 
-            <div className="mt-6 grid gap-3 text-sm">
-              <div>
+            <div className="mt-6 grid min-w-0 gap-3 text-sm">
+              <div className="min-w-0">
                 <div className="font-semibold text-slate-700">
                   Activity Name
                 </div>
-                <div className="text-slate-600">
+                <div className="break-words text-slate-600">
                   {selectedActivity.activityName}
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                 <div>
                   <div className="font-semibold text-slate-700">
                     Field Location
@@ -770,7 +729,7 @@ export default function SearchResultsPanel({
                 <div className="font-semibold text-slate-700">
                   Positions Involved
                 </div>
-                <div className="text-slate-600">
+                <div className="break-words text-slate-600">
                   {selectedActivity.positionsInvolved || "—"}
                 </div>
               </div>
@@ -779,7 +738,7 @@ export default function SearchResultsPanel({
                 <div className="font-semibold text-slate-700">
                   Activity Details
                 </div>
-                <div className="text-slate-600">
+                <div className="break-words text-slate-600">
                   {selectedActivity.activityDetails || "—"}
                 </div>
               </div>
@@ -789,13 +748,11 @@ export default function SearchResultsPanel({
                   <div className="font-semibold text-slate-700">
                     Imported File
                   </div>
-                  <div className="text-slate-600">
+                  <div className="break-words text-slate-600">
                     {selectedActivity.fileName}
                   </div>
                 </div>
               )}
-
-
             </div>
 
             {downloadMessage && (
