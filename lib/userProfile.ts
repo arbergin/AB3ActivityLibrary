@@ -7,6 +7,7 @@ export type UserProfile = {
   id: string;
   email: string;
   role: UserRole;
+  must_change_password: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -55,6 +56,7 @@ export async function ensureUserProfile(user: User) {
       id: user.id,
       email: user.email || "",
       role: "user",
+      must_change_password: false,
     })
     .select("*")
     .single();
@@ -81,6 +83,37 @@ export async function getCurrentUserProfile() {
   }
 
   return ensureUserProfile(user);
+}
+
+export async function markCurrentUserPasswordChanged() {
+  const user = await getCurrentSessionUser();
+
+  if (!user) {
+    throw new Error("No logged-in user found.");
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      must_change_password: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Unable to mark password as changed.", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+
+    throw error;
+  }
+
+  return data as UserProfile;
 }
 
 export function isAdminProfile(profile?: UserProfile | null) {

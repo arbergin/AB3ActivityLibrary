@@ -6,6 +6,7 @@ type CreateUserRequestBody = {
   email?: string;
   password?: string;
   role?: UserRole;
+  mustChangePassword?: boolean;
 };
 
 function getBearerToken(request: NextRequest) {
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
     const email = body.email?.trim().toLowerCase() || "";
     const password = body.password || "";
     const role = isValidRole(body.role) ? body.role : "user";
+    const mustChangePassword = Boolean(body.mustChangePassword);
 
     if (!email) {
       return NextResponse.json(
@@ -113,6 +115,7 @@ export async function POST(request: NextRequest) {
           id: createdUser.id,
           email,
           role,
+          must_change_password: mustChangePassword,
           updated_at: new Date().toISOString(),
         },
         {

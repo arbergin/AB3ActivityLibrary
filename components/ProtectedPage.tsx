@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
+import { ensureUserProfile } from "@/lib/userProfile";
 
 type ProtectedPageProps = {
   children: React.ReactNode;
@@ -11,6 +12,7 @@ type ProtectedPageProps = {
 
 export default function ProtectedPage({ children }: ProtectedPageProps) {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [user, setUser] = useState<User | null>(null);
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
@@ -25,12 +27,25 @@ export default function ProtectedPage({ children }: ProtectedPageProps) {
         return;
       }
 
-      if (!data.session?.user) {
+      const sessionUser = data.session?.user ?? null;
+
+      if (!sessionUser) {
         router.replace("/login");
         return;
       }
 
-      setUser(data.session.user);
+      try {
+        const profile = await ensureUserProfile(sessionUser);
+
+        if (profile.must_change_password && pathname !== "/reset-password") {
+          router.replace("/reset-password");
+          return;
+        }
+      } catch (error) {
+        console.error("Unable to check profile access.", error);
+      }
+
+      setUser(sessionUser);
       setHasCheckedAuth(true);
     }
 
@@ -38,13 +53,26 @@ export default function ProtectedPage({ children }: ProtectedPageProps) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session?.user) {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const sessionUser = session?.user ?? null;
+
+      if (!sessionUser) {
         router.replace("/login");
         return;
       }
 
-      setUser(session.user);
+      try {
+        const profile = await ensureUserProfile(sessionUser);
+
+        if (profile.must_change_password && pathname !== "/reset-password") {
+          router.replace("/reset-password");
+          return;
+        }
+      } catch (error) {
+        console.error("Unable to check profile access.", error);
+      }
+
+      setUser(sessionUser);
       setHasCheckedAuth(true);
     });
 
@@ -52,7 +80,7 @@ export default function ProtectedPage({ children }: ProtectedPageProps) {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, [pathname, router]);
 
   if (!hasCheckedAuth || !user) {
     return (

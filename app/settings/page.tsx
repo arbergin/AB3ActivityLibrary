@@ -43,6 +43,8 @@ export default function SettingsPage() {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState<UserRole>("user");
+  const [newUserMustChangePassword, setNewUserMustChangePassword] =
+    useState(true);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   const [message, setMessage] = useState("");
@@ -127,6 +129,7 @@ export default function SettingsPage() {
           email: trimmedEmail,
           password: newUserPassword,
           role: newUserRole,
+          mustChangePassword: newUserMustChangePassword,
         }),
       });
 
@@ -143,8 +146,11 @@ export default function SettingsPage() {
       setNewUserEmail("");
       setNewUserPassword("");
       setNewUserRole("user");
+      setNewUserMustChangePassword(true);
 
-      setUserManagementMessage(`${trimmedEmail} was created as ${newUserRole}.`);
+      setUserManagementMessage(
+        `${trimmedEmail} was created as ${newUserRole}.`
+      );
       await loadUserProfiles();
     } catch (error) {
       console.error("Unable to create user.", error);
@@ -258,8 +264,8 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-xl font-bold">User Management</h3>
                   <p className="mt-2 text-sm text-slate-600">
-                    Admins can create users, set an initial password, and assign
-                    each account as a regular user or admin.
+                    Admins can create users, set an initial password, require a
+                    password reset, and assign roles.
                   </p>
                 </div>
 
@@ -348,10 +354,28 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <p className="mt-3 text-xs text-slate-500">
-                      The user will log in with this email and initial password.
-                      The admin should share the password directly with the user.
-                    </p>
+                    <label className="mt-4 flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={newUserMustChangePassword}
+                        onChange={(event) =>
+                          setNewUserMustChangePassword(event.target.checked)
+                        }
+                        disabled={isCreatingUser}
+                        className="mt-1"
+                      />
+
+                      <span>
+                        <span className="font-semibold">
+                          Require password reset on next login
+                        </span>
+                        <span className="block text-slate-500">
+                          The user must create a new password before accessing
+                          the app. This will become unchecked after the password
+                          is reset.
+                        </span>
+                      </span>
+                    </label>
                   </form>
 
                   {userManagementMessage && (
@@ -361,10 +385,11 @@ export default function SettingsPage() {
                   )}
 
                   <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
-                    <div className="grid grid-cols-[1.4fr_0.6fr_0.8fr_0.9fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+                    <div className="grid grid-cols-[1.3fr_0.55fr_0.7fr_0.75fr_0.8fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
                       <div>Email</div>
-                      <div>Current Role</div>
+                      <div>Role</div>
                       <div>Change Role</div>
+                      <div>Password Reset</div>
                       <div>Updated</div>
                     </div>
 
@@ -385,7 +410,7 @@ export default function SettingsPage() {
                         return (
                           <div
                             key={userProfile.id}
-                            className="grid grid-cols-[1.4fr_0.6fr_0.8fr_0.9fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
+                            className="grid grid-cols-[1.3fr_0.55fr_0.7fr_0.75fr_0.8fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
                           >
                             <div>
                               <div className="font-semibold text-slate-800">
@@ -423,6 +448,18 @@ export default function SettingsPage() {
                                 <div className="mt-1 text-xs text-slate-500">
                                   Self-change disabled
                                 </div>
+                              )}
+                            </div>
+
+                            <div>
+                              {userProfile.must_change_password ? (
+                                <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-red-700">
+                                  Required
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+                                  Complete
+                                </span>
                               )}
                             </div>
 
@@ -529,10 +566,8 @@ export default function SettingsPage() {
                     Authentication / Roles
                   </div>
                   <div className="mt-1">
-                    Email/password login is enabled. Admins create users and
-                    assign either <span className="font-semibold">user</span> or{" "}
-                    <span className="font-semibold">admin</span> roles through
-                    the Supabase profiles table.
+                    Admins create users, assign roles, and can require password
+                    resets on next login.
                   </div>
                 </div>
               </div>
