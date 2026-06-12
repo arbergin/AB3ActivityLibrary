@@ -28,6 +28,26 @@ function formatDate(dateValue?: string) {
   });
 }
 
+function DashboardActionCard({
+  href,
+  title,
+  description,
+}: {
+  href: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex h-40 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+    >
+      <div className="text-lg font-bold">{title}</div>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+    </Link>
+  );
+}
+
 function ActivityList({
   title,
   emptyMessage,
@@ -40,7 +60,7 @@ function ActivityList({
   isLoading: boolean;
 }) {
   return (
-    <section className="h-full rounded-xl bg-white p-6 shadow-sm">
+    <section className="rounded-xl bg-white p-6 shadow-sm">
       <h3 className="text-lg font-bold">{title}</h3>
 
       <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
@@ -134,40 +154,35 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Link
-              href="/import"
-              className="flex min-h-40 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-            >
-              <div className="text-lg font-bold">Import Activity</div>
-              <p className="mt-2 text-sm text-slate-600">
-                Upload a PNG or PDF activity file and add searchable metadata.
-              </p>
-            </Link>
+            <div className="grid grid-rows-[160px_auto] gap-6">
+              <DashboardActionCard
+                href="/import"
+                title="Import Activity"
+                description="Upload a PNG or PDF activity file and add searchable metadata."
+              />
 
-            <Link
-              href="/search"
-              className="flex min-h-40 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-            >
-              <div className="text-lg font-bold">Search Library</div>
-              <p className="mt-2 text-sm text-slate-600">
-                Find activities by name, field location, game phase, category,
-                positions, number of players, or details.
-              </p>
-            </Link>
+              <ActivityList
+                title="My Activities"
+                emptyMessage="No activities created by you yet."
+                activities={createdActivities}
+                isLoading={isLoadingDashboard}
+              />
+            </div>
 
-            <ActivityList
-              title="Last 5 Activities You Created"
-              emptyMessage="No activities created by you yet."
-              activities={createdActivities}
-              isLoading={isLoadingDashboard}
-            />
+            <div className="grid grid-rows-[160px_auto] gap-6">
+              <DashboardActionCard
+                href="/search"
+                title="Search Library"
+                description="Find activities by name, field location, game phase, category, positions, number of players, or details."
+              />
 
-            <ActivityList
-              title="Last 5 Activities You Opened"
-              emptyMessage="No recently opened activities yet."
-              activities={openedActivities}
-              isLoading={isLoadingDashboard}
-            />
+              <ActivityList
+                title="Recent Activities"
+                emptyMessage="No recently opened activities yet."
+                activities={openedActivities}
+                isLoading={isLoadingDashboard}
+              />
+            </div>
           </div>
         </section>
       </main>
