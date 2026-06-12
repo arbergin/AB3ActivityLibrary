@@ -8,6 +8,7 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 export default function ImportFlow() {
   const metadataSectionRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [selectedFileName, setSelectedFileName] = useState("");
   const [selectedFileType, setSelectedFileType] = useState("");
@@ -21,6 +22,15 @@ export default function ImportFlow() {
     setPreviewDataUrl("");
     setFileError("");
     setShowMetadataForm(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -118,6 +128,7 @@ export default function ImportFlow() {
           </p>
 
           <input
+            ref={fileInputRef}
             type="file"
             accept=".png,.pdf,image/png,application/pdf"
             onChange={handleFileChange}
@@ -196,6 +207,7 @@ export default function ImportFlow() {
             selectedFileName={selectedFileName}
             selectedFileType={selectedFileType}
             previewDataUrl={previewDataUrl}
+            onCancel={resetSelectedFile}
           />
         </div>
       )}

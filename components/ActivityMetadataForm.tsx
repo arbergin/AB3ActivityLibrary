@@ -16,6 +16,7 @@ type ActivityMetadataFormProps = {
   selectedFileName?: string;
   selectedFileType?: string;
   previewDataUrl?: string;
+  onCancel?: () => void;
 };
 
 function createLocalFallbackActivity(activity: Activity): Activity {
@@ -29,6 +30,7 @@ export default function ActivityMetadataForm({
   selectedFileName,
   selectedFileType,
   previewDataUrl,
+  onCancel,
 }: ActivityMetadataFormProps) {
   const router = useRouter();
 
@@ -159,7 +161,7 @@ export default function ActivityMetadataForm({
     }
   }
 
-  function handleCancel() {
+  function resetMetadataFields() {
     setActivityName("");
     setFieldLocation("");
     setGamePhase("");
@@ -169,6 +171,17 @@ export default function ActivityMetadataForm({
     setActivityDetails("");
     setFormError("");
     setSaveMessage("");
+  }
+
+  function handleCancel() {
+    resetMetadataFields();
+
+    if (onCancel) {
+      onCancel();
+      return;
+    }
+
+    router.push("/import");
   }
 
   return (
