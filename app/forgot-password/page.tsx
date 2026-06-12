@@ -2,17 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
-import { signInWithEmailPassword } from "@/lib/supabaseAuth";
+import { supabase } from "@/lib/supabaseClient";
 
-export default function LoginPage() {
-  const router = useRouter();
-
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
   const [formError, setFormError] = useState("");
+  const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -23,33 +19,40 @@ export default function LoginPage() {
     }
 
     setFormError("");
+    setMessage("");
 
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
     if (!trimmedEmail) {
       setFormError("Email is required.");
       return;
     }
 
-    if (!password) {
-      setFormError("Password is required.");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      await signInWithEmailPassword(trimmedEmail, password);
-      router.push("/");
-      router.refresh();
-    } catch (error) {
-      console.error("Login error.", error);
+      const redirectTo = `${window.location.origin}/update-password`;
 
-      if (error instanceof Error) {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        trimmedEmail,
+        {
+          redirectTo,
+        }
+      );
+
+      if (error) {
         setFormError(error.message);
-      } else {
-        setFormError("Something went wrong. Please try again.");
+        setIsSubmitting(false);
+        return;
       }
+
+      setMessage(
+        "Password reset email sent. Check your inbox and follow the link to create a new password."
+      );
+      setEmail("");
+    } catch (error) {
+      console.error("Forgot password error.", error);
+      setFormError("Unexpected error while sending password reset email.");
     } finally {
       setIsSubmitting(false);
     }
@@ -62,10 +65,10 @@ export default function LoginPage() {
       <section className="mx-auto max-w-xl px-8 py-10">
         <div className="rounded-xl bg-white p-6 shadow-sm">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold">Login</h2>
+            <h2 className="text-2xl font-bold">Forgot Password</h2>
 
             <p className="mt-2 text-sm text-slate-600">
-              Use the email and password provided by an admin.
+              Enter your email address and we’ll send a password reset link.
             </p>
           </div>
 
@@ -82,31 +85,15 @@ export default function LoginPage() {
               />
             </label>
 
-            <label className="grid gap-1">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm font-semibold">Password</span>
-
-                <Link
-                  href="/forgot-password"
-                  className="text-sm font-semibold text-[#0d2140]"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                placeholder="Enter your password"
-                autoComplete="current-password"
-              />
-            </label>
-
             {formError && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {formError}
+              </div>
+            )}
+
+            {message && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                {message}
               </div>
             )}
 
@@ -115,17 +102,13 @@ export default function LoginPage() {
               disabled={isSubmitting}
               className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting ? "Logging in..." : "Login"}
+              {isSubmitting ? "Sending..." : "Send Reset Email"}
             </button>
           </form>
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            Need access? Ask an admin to create your account.
-          </div>
-
           <div className="mt-6 text-center text-sm text-slate-600">
-            <Link href="/" className="font-semibold text-[#0d2140]">
-              Back to Dashboard
+            <Link href="/login" className="font-semibold text-[#0d2140]">
+              Back to Login
             </Link>
           </div>
         </div>
