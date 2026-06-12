@@ -167,6 +167,7 @@ export default function SettingsPage() {
       setUserManagementMessage(
         `${trimmedEmail} was created as ${newUserRole}.`
       );
+
       await loadUserProfiles();
     } catch (error) {
       console.error("Unable to create user.", error);
@@ -339,7 +340,9 @@ export default function SettingsPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        setUserManagementMessage(result.error || "The user could not be deleted.");
+        setUserManagementMessage(
+          result.error || "The user could not be deleted."
+        );
         setIsDeletingUser(false);
         return;
       }
@@ -398,8 +401,7 @@ export default function SettingsPage() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold">Settings</h2>
             <p className="mt-2 text-slate-600">
-              Manage your account, users, temporary browser data, and app setup
-              options.
+              Manage your account, users, and temporary browser data.
             </p>
           </div>
 
@@ -744,7 +746,9 @@ export default function SettingsPage() {
                             <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
-                                onClick={() => openResetPassword(userProfile.id)}
+                                onClick={() =>
+                                  openResetPassword(userProfile.id)
+                                }
                                 disabled={isCurrentUser}
                                 className="rounded-md border border-amber-300 px-2.5 py-1.5 text-xs font-semibold text-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
                               >
@@ -831,43 +835,6 @@ export default function SettingsPage() {
                 >
                   Clear Local Data
                 </button>
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-bold">Current Storage Setup</h3>
-
-              <div className="mt-4 grid gap-3 text-sm text-slate-600">
-                <div className="rounded-lg border border-slate-200 p-4">
-                  <div className="font-semibold text-slate-800">
-                    Supabase Database
-                  </div>
-                  <div className="mt-1">
-                    Activity metadata is saved in the Supabase{" "}
-                    <span className="font-semibold">activities</span> table.
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-slate-200 p-4">
-                  <div className="font-semibold text-slate-800">
-                    Supabase Storage
-                  </div>
-                  <div className="mt-1">
-                    PNG and PDF files are saved in the{" "}
-                    <span className="font-semibold">activity-files</span>{" "}
-                    bucket.
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-slate-200 p-4">
-                  <div className="font-semibold text-slate-800">
-                    Authentication / Roles
-                  </div>
-                  <div className="mt-1">
-                    Admins create users, reset passwords, delete users, assign
-                    roles, and can require password resets on next login.
-                  </div>
-                </div>
               </div>
             </section>
           </div>
