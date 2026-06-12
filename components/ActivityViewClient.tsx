@@ -303,11 +303,7 @@ export default function ActivityViewClient({
                 Open activity view with larger preview and full metadata.
               </p>
 
-              {activitySource && (
-                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Source: {activitySource}
-                </p>
-              )}
+
             </div>
 
             <div className="flex flex-wrap gap-3">

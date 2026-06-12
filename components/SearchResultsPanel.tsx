@@ -621,10 +621,6 @@ export default function SearchResultsPanel({
                       {activity.activityName}
                     </div>
 
-                    <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Source: {activity.source}
-                    </div>
-
                     {activity.fileName && (
                       <div className="mt-1 text-xs text-slate-500">
                         Imported from: {activity.fileName}
@@ -799,10 +795,7 @@ export default function SearchResultsPanel({
                 </div>
               )}
 
-              <div>
-                <div className="font-semibold text-slate-700">Source</div>
-                <div className="text-slate-600">{selectedActivity.source}</div>
-              </div>
+
             </div>
 
             {downloadMessage && (
