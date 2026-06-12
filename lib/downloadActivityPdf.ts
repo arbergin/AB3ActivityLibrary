@@ -101,13 +101,74 @@ function wrapText(
   return lines;
 }
 
-function drawWrappedText({
+function drawSectionLabel({
+  page,
+  label,
+  x,
+  y,
+  font,
+}: {
+  page: PDFPage;
+  label: string;
+  x: number;
+  y: number;
+  font: PDFFont;
+}) {
+  page.drawText(label, {
+    x,
+    y,
+    size: 10,
+    font,
+    color: rgb(0.36, 0.42, 0.5),
+  });
+}
+
+function drawSectionValue({
+  page,
+  value,
+  x,
+  y,
+  font,
+  maxWidth,
+  fontSize = 12,
+  lineHeight = 16,
+}: {
+  page: PDFPage;
+  value: string;
+  x: number;
+  y: number;
+  font: PDFFont;
+  maxWidth: number;
+  fontSize?: number;
+  lineHeight?: number;
+}) {
+  const lines = wrapText(value || "—", font, fontSize, maxWidth);
+
+  let nextY = y;
+
+  lines.forEach((line) => {
+    page.drawText(line, {
+      x,
+      y: nextY,
+      size: fontSize,
+      font,
+      color: rgb(0.1, 0.15, 0.22),
+    });
+
+    nextY -= lineHeight;
+  });
+
+  return nextY;
+}
+
+function drawMetadataBox({
   page,
   label,
   value,
   x,
   y,
-  maxWidth,
+  width,
+  height,
   labelFont,
   valueFont,
 }: {
@@ -116,39 +177,39 @@ function drawWrappedText({
   value: string;
   x: number;
   y: number;
-  maxWidth: number;
+  width: number;
+  height: number;
   labelFont: PDFFont;
   valueFont: PDFFont;
 }) {
-  const labelSize = 11;
-  const valueSize = 11;
-  const lineHeight = 16;
-
-  page.drawText(label, {
+  page.drawRectangle({
     x,
     y,
-    size: labelSize,
+    width,
+    height,
+    borderColor: rgb(0.86, 0.88, 0.91),
+    borderWidth: 1,
+    color: rgb(0.98, 0.99, 1),
+  });
+
+  drawSectionLabel({
+    page,
+    label,
+    x: x + 12,
+    y: y + height - 18,
     font: labelFont,
-    color: rgb(0.05, 0.13, 0.25),
   });
 
-  const valueLines = wrapText(value || "—", valueFont, valueSize, maxWidth);
-
-  let nextY = y - lineHeight;
-
-  valueLines.forEach((line) => {
-    page.drawText(line, {
-      x,
-      y: nextY,
-      size: valueSize,
-      font: valueFont,
-      color: rgb(0.2, 0.25, 0.33),
-    });
-
-    nextY -= lineHeight;
+  drawSectionValue({
+    page,
+    value,
+    x: x + 12,
+    y: y + height - 38,
+    font: valueFont,
+    maxWidth: width - 24,
+    fontSize: 12,
+    lineHeight: 15,
   });
-
-  return nextY - 8;
 }
 
 async function addPngPage(pdfDocument: PDFDocument, activity: Activity) {
@@ -207,10 +268,10 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
   const labelFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
   const valueFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
 
-  const maxWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
+  const contentWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
   let y = PAGE_HEIGHT - PAGE_MARGIN;
 
-  page.drawText("Activity Metadata", {
+  page.drawText(activity.activityName || "Untitled Activity", {
     x: PAGE_MARGIN,
     y,
     size: 22,
@@ -218,125 +279,108 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
     color: rgb(0.05, 0.13, 0.25),
   });
 
-  y -= 38;
+  y -= 42;
 
-  y = drawWrappedText({
-    page,
-    label: "Activity Name",
-    value: activity.activityName,
-    x: PAGE_MARGIN,
-    y,
-    maxWidth,
-    labelFont,
-    valueFont,
-  });
+  const columnGap = 12;
+  const threeColumnWidth = (contentWidth - columnGap * 2) / 3;
+  const threeColumnHeight = 74;
 
-  y = drawWrappedText({
+  drawMetadataBox({
     page,
-    label: "Field Location",
-    value: activity.fieldLocation || "—",
-    x: PAGE_MARGIN,
-    y,
-    maxWidth,
-    labelFont,
-    valueFont,
-  });
-
-  y = drawWrappedText({
-    page,
-    label: "Game Phase",
+    label: "Phase",
     value: activity.gamePhase || "—",
     x: PAGE_MARGIN,
-    y,
-    maxWidth,
+    y: y - threeColumnHeight,
+    width: threeColumnWidth,
+    height: threeColumnHeight,
     labelFont,
     valueFont,
   });
 
-  y = drawWrappedText({
+  drawMetadataBox({
     page,
     label: "Category",
     value: activity.category || "—",
-    x: PAGE_MARGIN,
-    y,
-    maxWidth,
+    x: PAGE_MARGIN + threeColumnWidth + columnGap,
+    y: y - threeColumnHeight,
+    width: threeColumnWidth,
+    height: threeColumnHeight,
     labelFont,
     valueFont,
   });
 
-  y = drawWrappedText({
+  drawMetadataBox({
     page,
     label: "Number of Players",
-    value: activity.numberOfPlayers ? String(activity.numberOfPlayers) : "—",
-    x: PAGE_MARGIN,
-    y,
-    maxWidth,
+    value:
+      activity.numberOfPlayers === ""
+        ? "—"
+        : String(activity.numberOfPlayers),
+    x: PAGE_MARGIN + threeColumnWidth * 2 + columnGap * 2,
+    y: y - threeColumnHeight,
+    width: threeColumnWidth,
+    height: threeColumnHeight,
     labelFont,
     valueFont,
   });
 
-  y = drawWrappedText({
+  y -= threeColumnHeight + 32;
+
+  drawSectionLabel({
     page,
-    label: "Positions Involved",
-    value: activity.positionsInvolved || "—",
+    label: "Details",
     x: PAGE_MARGIN,
     y,
-    maxWidth,
-    labelFont,
-    valueFont,
+    font: labelFont,
   });
 
-  y = drawWrappedText({
-    page,
-    label: "Created Date",
-    value: formatDate(activity.createdAt),
-    x: PAGE_MARGIN,
-    y,
-    maxWidth,
-    labelFont,
-    valueFont,
+  y -= 20;
+
+  const detailsText = activity.activityDetails || "—";
+  const detailsLines = wrapText(detailsText, valueFont, 12, contentWidth);
+  const detailsLineHeight = 16;
+
+  detailsLines.forEach((line) => {
+    if (y < 120) {
+      return;
+    }
+
+    page.drawText(line, {
+      x: PAGE_MARGIN,
+      y,
+      size: 12,
+      font: valueFont,
+      color: rgb(0.1, 0.15, 0.22),
+    });
+
+    y -= detailsLineHeight;
   });
 
-  y = drawWrappedText({
-    page,
-    label: "Last Updated",
-    value: formatDate(activity.updatedAt),
-    x: PAGE_MARGIN,
-    y,
-    maxWidth,
-    labelFont,
-    valueFont,
-  });
+  y -= 20;
 
-  y = drawWrappedText({
+  const twoColumnWidth = (contentWidth - columnGap) / 2;
+  const twoColumnHeight = 64;
+
+  drawMetadataBox({
     page,
     label: "Created By",
     value: activity.createdBy || "—",
     x: PAGE_MARGIN,
-    y,
-    maxWidth,
+    y: y - twoColumnHeight,
+    width: twoColumnWidth,
+    height: twoColumnHeight,
     labelFont,
     valueFont,
   });
 
-  y = drawWrappedText({
+  drawMetadataBox({
     page,
-    label: "Imported File",
-    value: activity.fileName || "—",
-    x: PAGE_MARGIN,
-    y,
-    maxWidth,
-    labelFont,
-    valueFont,
-  });
-
-  drawWrappedText({
-    page,
-    label: "Activity Details",
-    value: activity.activityDetails || "—",
-    x: PAGE_MARGIN,
-    y,
-    maxWidth,
+    label: "Last Updated",
+    value: formatDate(activity.updatedAt),
+    x: PAGE_MARGIN + twoColumnWidth + columnGap,
+    y: y - twoColumnHeight,
+    width: twoColumnWidth,
+    height: twoColumnHeight,
     labelFont,
     valueFont,
   });
