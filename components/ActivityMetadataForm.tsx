@@ -1,21 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import {
+  categoryOptions,
+  fieldLocationOptions,
+  gamePhaseOptions,
+} from "@/lib/activityOptions";
 import { saveStoredActivity } from "@/lib/activityStorage";
 import { createSupabaseActivity } from "@/lib/supabaseActivities";
-import { getDropdownFields } from "@/lib/dropdownService";
-import {
-  getActiveDropdownOptions,
-  getDropdownField,
-} from "@/lib/dropdownHelpers";
-import type { DropdownField } from "@/lib/dropdownTypes";
 import type { Activity } from "@/types/activity";
 
 type ActivityMetadataFormProps = {
   selectedFileName?: string;
   selectedFileType?: string;
   previewDataUrl?: string;
+  layout?: "standard" | "panel";
   onCancel?: () => void;
 };
 
@@ -30,18 +31,16 @@ export default function ActivityMetadataForm({
   selectedFileName,
   selectedFileType,
   previewDataUrl,
+  layout = "standard",
   onCancel,
 }: ActivityMetadataFormProps) {
   const router = useRouter();
 
-  const [dropdownFields, setDropdownFields] = useState<DropdownField[]>([]);
-  const [isLoadingDropdowns, setIsLoadingDropdowns] = useState(true);
-  const [dropdownError, setDropdownError] = useState("");
-
   const [activityName, setActivityName] = useState("");
-  const [fieldLocation, setFieldLocation] = useState("");
-  const [gamePhase, setGamePhase] = useState("");
-  const [category, setCategory] = useState("");
+  const [fieldLocation, setFieldLocation] =
+    useState<Activity["fieldLocation"]>("");
+  const [gamePhase, setGamePhase] = useState<Activity["gamePhase"]>("");
+  const [category, setCategory] = useState<Activity["category"]>("");
   const [positionsInvolved, setPositionsInvolved] = useState("");
   const [numberOfPlayers, setNumberOfPlayers] = useState("");
   const [activityDetails, setActivityDetails] = useState("");
@@ -49,37 +48,17 @@ export default function ActivityMetadataForm({
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  const fieldLocationOptions = getActiveDropdownOptions(
-    dropdownFields,
-    "fieldLocation"
-  );
+  const fieldAndPhaseGridClass =
+    layout === "panel"
+      ? "grid gap-4 sm:grid-cols-2"
+      : "grid gap-4 md:grid-cols-2";
 
-  const gamePhaseOptions = getActiveDropdownOptions(dropdownFields, "gamePhase");
+  const twoColumnGridClass =
+    layout === "panel"
+      ? "grid gap-4 sm:grid-cols-2"
+      : "grid gap-4 md:grid-cols-2";
 
-  const categoryOptions = getActiveDropdownOptions(dropdownFields, "category");
-
-  useEffect(() => {
-    async function loadDropdowns() {
-      try {
-        setIsLoadingDropdowns(true);
-        setDropdownError("");
-
-        const fields = await getDropdownFields();
-        setDropdownFields(fields);
-      } catch (error) {
-        console.error("Unable to load dropdown options.", error);
-        setDropdownError(
-          "Dropdown options could not be loaded. Check Supabase dropdown tables and RLS policies."
-        );
-      } finally {
-        setIsLoadingDropdowns(false);
-      }
-    }
-
-    loadDropdowns();
-  }, []);
-
-  async function handleSaveActivity(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSaveActivity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (isSaving) {
@@ -91,21 +70,6 @@ export default function ActivityMetadataForm({
 
     if (!activityName.trim()) {
       setFormError("Activity Name is required.");
-      return;
-    }
-
-    if (!getDropdownField(dropdownFields, "fieldLocation")) {
-      setFormError("Field Location dropdown is missing from Settings.");
-      return;
-    }
-
-    if (!getDropdownField(dropdownFields, "gamePhase")) {
-      setFormError("Game Phase dropdown is missing from Settings.");
-      return;
-    }
-
-    if (!getDropdownField(dropdownFields, "category")) {
-      setFormError("Category dropdown is missing from Settings.");
       return;
     }
 
@@ -161,7 +125,7 @@ export default function ActivityMetadataForm({
     }
   }
 
-  function resetMetadataFields() {
+  function resetForm() {
     setActivityName("");
     setFieldLocation("");
     setGamePhase("");
@@ -174,14 +138,11 @@ export default function ActivityMetadataForm({
   }
 
   function handleCancel() {
-    resetMetadataFields();
+    resetForm();
 
     if (onCancel) {
       onCancel();
-      return;
     }
-
-    router.push("/import");
   }
 
   return (
@@ -231,125 +192,109 @@ export default function ActivityMetadataForm({
         </div>
       )}
 
-      {dropdownError && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {dropdownError}
-        </div>
-      )}
-
       <div className="mt-6 grid gap-4">
-        <label className="grid gap-1">
+        <label className="grid min-w-0 gap-1">
           <span className="text-sm font-semibold">
             Activity Name <span className="text-red-600">*</span>
           </span>
+
           <input
             type="text"
             value={activityName}
             onChange={(event) => setActivityName(event.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
             placeholder="Example: 3v2 to Counter"
           />
         </label>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="grid gap-1">
+        <div className={fieldAndPhaseGridClass}>
+          <label className="grid min-w-0 gap-1">
             <span className="text-sm font-semibold">Field Location</span>
+
             <select
               value={fieldLocation}
-              onChange={(event) => setFieldLocation(event.target.value)}
-              disabled={isLoadingDropdowns}
-              className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+              onChange={(event) =>
+                setFieldLocation(
+                  event.target.value as Activity["fieldLocation"]
+                )
+              }
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
             >
-              <option value="">
-                {isLoadingDropdowns
-                  ? "Loading field locations..."
-                  : "Select field location"}
-              </option>
-
+              <option value="">Select field location</option>
               {fieldLocationOptions.map((option) => (
-                <option key={option.id} value={option.value}>
-                  {option.label}
-                </option>
+                <option key={option}>{option}</option>
               ))}
             </select>
           </label>
 
-          <label className="grid gap-1">
+          <label className="grid min-w-0 gap-1">
             <span className="text-sm font-semibold">Game Phase</span>
+
             <select
               value={gamePhase}
-              onChange={(event) => setGamePhase(event.target.value)}
-              disabled={isLoadingDropdowns}
-              className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+              onChange={(event) =>
+                setGamePhase(event.target.value as Activity["gamePhase"])
+              }
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
             >
-              <option value="">
-                {isLoadingDropdowns
-                  ? "Loading game phases..."
-                  : "Select game phase"}
-              </option>
-
+              <option value="">Select game phase</option>
               {gamePhaseOptions.map((option) => (
-                <option key={option.id} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold">Category</span>
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              disabled={isLoadingDropdowns}
-              className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
-            >
-              <option value="">
-                {isLoadingDropdowns
-                  ? "Loading categories..."
-                  : "Select category"}
-              </option>
-
-              {categoryOptions.map((option) => (
-                <option key={option.id} value={option.value}>
-                  {option.label}
-                </option>
+                <option key={option}>{option}</option>
               ))}
             </select>
           </label>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-1">
+        <label className="grid min-w-0 gap-1">
+          <span className="text-sm font-semibold">Category</span>
+
+          <select
+            value={category}
+            onChange={(event) =>
+              setCategory(event.target.value as Activity["category"])
+            }
+            className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
+          >
+            <option value="">Select category</option>
+            {categoryOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+
+        <div className={twoColumnGridClass}>
+          <label className="grid min-w-0 gap-1">
             <span className="text-sm font-semibold">Positions Involved</span>
+
             <input
               type="text"
               value={positionsInvolved}
               onChange={(event) => setPositionsInvolved(event.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
               placeholder="Example: 9, 10, Wingers"
             />
           </label>
 
-          <label className="grid gap-1">
+          <label className="grid min-w-0 gap-1">
             <span className="text-sm font-semibold">Number of Players</span>
+
             <input
               type="number"
               value={numberOfPlayers}
               onChange={(event) => setNumberOfPlayers(event.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
               placeholder="Example: 8"
-              min="1"
             />
           </label>
         </div>
 
-        <label className="grid gap-1">
+        <label className="grid min-w-0 gap-1">
           <span className="text-sm font-semibold">Activity Details</span>
+
           <textarea
             value={activityDetails}
             onChange={(event) => setActivityDetails(event.target.value)}
-            className="min-h-32 rounded-lg border border-slate-300 px-3 py-2"
+            className="min-h-32 w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
             placeholder="Describe setup, rules, coaching points, progressions, or constraints."
           />
         </label>
@@ -373,12 +318,12 @@ export default function ActivityMetadataForm({
             disabled={isSaving}
             className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Cancel
+            Clear Form
           </button>
 
           <button
             type="submit"
-            disabled={isSaving || isLoadingDropdowns}
+            disabled={isSaving}
             className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSaving ? "Saving..." : "Save Activity"}
