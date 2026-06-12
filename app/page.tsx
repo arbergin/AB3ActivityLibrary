@@ -1,8 +1,124 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import ProtectedPage from "@/components/ProtectedPage";
+import {
+  getRecentCreatedActivitiesForCurrentUser,
+  getRecentOpenedActivitiesForCurrentUser,
+} from "@/lib/dashboardActivities";
+import type { Activity } from "@/types/activity";
+
+function formatDate(dateValue?: string) {
+  if (!dateValue) {
+    return "—";
+  }
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function ActivityList({
+  title,
+  emptyMessage,
+  activities,
+  isLoading,
+}: {
+  title: string;
+  emptyMessage: string;
+  activities: Activity[];
+  isLoading: boolean;
+}) {
+  return (
+    <section className="rounded-xl bg-white p-6 shadow-sm">
+      <h3 className="text-lg font-bold">{title}</h3>
+
+      <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+        {isLoading ? (
+          <div className="px-4 py-6 text-sm text-slate-500">
+            Loading activities...
+          </div>
+        ) : activities.length === 0 ? (
+          <div className="px-4 py-6 text-sm text-slate-500">
+            {emptyMessage}
+          </div>
+        ) : (
+          activities.map((activity) => (
+            <Link
+              key={activity.id}
+              href={`/activity/${activity.id}`}
+              className="block border-t border-slate-200 px-4 py-4 first:border-t-0 hover:bg-slate-50"
+            >
+              <div className="font-semibold text-slate-800">
+                {activity.activityName}
+              </div>
+
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                <span>{activity.fieldLocation || "No location"}</span>
+                <span>{activity.gamePhase || "No phase"}</span>
+                <span>{activity.category || "No category"}</span>
+              </div>
+
+              <div className="mt-1 text-xs text-slate-400">
+                Created: {formatDate(activity.createdAt)}
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
 
 export default function HomePage() {
+  const [createdActivities, setCreatedActivities] = useState<Activity[]>([]);
+  const [openedActivities, setOpenedActivities] = useState<Activity[]>([]);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDashboardActivities() {
+      setIsLoadingDashboard(true);
+
+      try {
+        const [recentCreated, recentOpened] = await Promise.all([
+          getRecentCreatedActivitiesForCurrentUser(),
+          getRecentOpenedActivitiesForCurrentUser(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCreatedActivities(recentCreated);
+        setOpenedActivities(recentOpened);
+      } catch (error) {
+        console.error("Unable to load dashboard activities.", error);
+      } finally {
+        if (isMounted) {
+          setIsLoadingDashboard(false);
+        }
+      }
+    }
+
+    loadDashboardActivities();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <ProtectedPage>
       <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -17,37 +133,45 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            <Link
-              href="/import"
-              className="rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-            >
-              <div className="text-lg font-bold">Import Activity</div>
-              <p className="mt-2 text-sm text-slate-600">
-                Upload a PNG or PDF activity file and add searchable metadata.
-              </p>
-            </Link>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6">
+              <Link
+                href="/import"
+                className="flex min-h-36 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="text-lg font-bold">Import Activity</div>
+                <p className="mt-2 text-sm text-slate-600">
+                  Upload a PNG or PDF activity file and add searchable metadata.
+                </p>
+              </Link>
 
-            <Link
-              href="/search"
-              className="rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-            >
-              <div className="text-lg font-bold">Search Library</div>
-              <p className="mt-2 text-sm text-slate-600">
-                Find activities by name, field location, game phase, category,
-                positions, number of players, or details.
-              </p>
-            </Link>
+              <ActivityList
+                title="Last 5 Activities You Created"
+                emptyMessage="No activities created by you yet."
+                activities={createdActivities}
+                isLoading={isLoadingDashboard}
+              />
+            </div>
 
-            <Link
-              href="/settings"
-              className="rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-            >
-              <div className="text-lg font-bold">Settings</div>
-              <p className="mt-2 text-sm text-slate-600">
-                Manage local browser data and review the current storage setup.
-              </p>
-            </Link>
+            <div className="grid gap-6">
+              <Link
+                href="/search"
+                className="flex min-h-36 flex-col justify-center rounded-xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="text-lg font-bold">Search Library</div>
+                <p className="mt-2 text-sm text-slate-600">
+                  Find activities by name, field location, game phase, category,
+                  positions, number of players, or details.
+                </p>
+              </Link>
+
+              <ActivityList
+                title="Last 5 Activities You Opened"
+                emptyMessage="No recently opened activities yet."
+                activities={openedActivities}
+                isLoading={isLoadingDashboard}
+              />
+            </div>
           </div>
         </section>
       </main>

@@ -11,12 +11,14 @@ import {
   updateStoredActivityHidden,
 } from "@/lib/activityStorage";
 import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
+import { mockActivities } from "@/lib/mockActivities";
+import { recordRecentActivityOpen } from "@/lib/recentActivityViews";
+import { supabase } from "@/lib/supabaseClient";
 import {
   deleteSupabaseActivity,
   getSupabaseActivityById,
   updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
-import { mockActivities } from "@/lib/mockActivities";
 import type { Activity } from "@/types/activity";
 
 type ActivityViewClientProps = {
@@ -55,6 +57,17 @@ export default function ActivityViewClient({
   const [actionMessage, setActionMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  async function recordActivityOpen(activityIdToRecord: string) {
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+
+    if (!userId) {
+      return;
+    }
+
+    recordRecentActivityOpen(userId, activityIdToRecord);
+  }
+
   useEffect(() => {
     let isMounted = true;
 
@@ -74,6 +87,7 @@ export default function ActivityViewClient({
         if (supabaseActivity) {
           setActivity(supabaseActivity);
           setActivitySource("supabase");
+          recordActivityOpen(supabaseActivity.id);
           setHasLoaded(true);
           return;
         }

@@ -61,7 +61,16 @@ function createStorageFilePath(activity: Activity) {
 
   const timestamp = Date.now();
 
-  return `activities/${safeActivityName || "activity"}_${timestamp}.${fileExtension}`;
+  return `activities/${
+    safeActivityName || "activity"
+  }_${timestamp}.${fileExtension}`;
+}
+
+function isUuid(value: string) {
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  return uuidPattern.test(value);
 }
 
 export function getPublicActivityFileUrl(filePath?: string) {
@@ -92,6 +101,11 @@ export async function uploadActivityFile(activity: Activity) {
     });
 
   if (error) {
+    console.error("Supabase storage upload failed:", {
+      message: error.message,
+      name: error.name,
+    });
+
     throw error;
   }
 
@@ -105,14 +119,23 @@ export async function getSupabaseActivities(): Promise<Activity[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
+    console.error("Supabase activities list failed:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+
     throw error;
   }
 
   return ((data || []) as SupabaseActivityRow[]).map((row) => {
     const activity = supabaseRowToActivity(row);
+
     activity.previewDataUrl = getPublicActivityFileUrl(
       row.file_path || undefined
     );
+
     return activity;
   });
 }
@@ -120,26 +143,36 @@ export async function getSupabaseActivities(): Promise<Activity[]> {
 export async function getSupabaseActivityById(
   id: string
 ): Promise<Activity | undefined> {
+  if (!isUuid(id)) {
+    return undefined;
+  }
+
   const { data, error } = await supabase
     .from("activities")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") {
-      return undefined;
-    }
+    console.error("Supabase activity lookup failed:", {
+      id,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
 
     throw error;
+  }
+
+  if (!data) {
+    return undefined;
   }
 
   const row = data as SupabaseActivityRow;
   const activity = supabaseRowToActivity(row);
 
-  activity.previewDataUrl = getPublicActivityFileUrl(
-    row.file_path || undefined
-  );
+  activity.previewDataUrl = getPublicActivityFileUrl(row.file_path || undefined);
 
   return activity;
 }
@@ -147,8 +180,17 @@ export async function getSupabaseActivityById(
 export async function createSupabaseActivity(
   activity: Activity
 ): Promise<Activity> {
-  const filePath = await uploadActivityFile(activity);
-  const insertValue = activityToSupabaseInsert(activity, filePath);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const activityWithCreator: Activity = {
+    ...activity,
+    createdBy: user?.email || activity.createdBy || "Coach User",
+  };
+
+  const filePath = await uploadActivityFile(activityWithCreator);
+  const insertValue = activityToSupabaseInsert(activityWithCreator, filePath);
 
   const { data, error } = await supabase
     .from("activities")
@@ -157,6 +199,13 @@ export async function createSupabaseActivity(
     .single();
 
   if (error) {
+    console.error("Supabase activity insert failed:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+
     throw error;
   }
 
@@ -173,6 +222,10 @@ export async function createSupabaseActivity(
 export async function updateSupabaseActivity(
   activity: Activity
 ): Promise<Activity> {
+  if (!isUuid(activity.id)) {
+    throw new Error("Cannot update Supabase activity because the ID is not a UUID.");
+  }
+
   const updateValue = activityToSupabaseUpdate(activity);
 
   const { data, error } = await supabase
@@ -183,6 +236,14 @@ export async function updateSupabaseActivity(
     .single();
 
   if (error) {
+    console.error("Supabase activity update failed:", {
+      id: activity.id,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+
     throw error;
   }
 
@@ -200,6 +261,10 @@ export async function updateSupabaseActivityHidden(
   id: string,
   hidden: boolean
 ): Promise<Activity> {
+  if (!isUuid(id)) {
+    throw new Error("Cannot update Supabase activity because the ID is not a UUID.");
+  }
+
   const { data, error } = await supabase
     .from("activities")
     .update({ hidden })
@@ -208,6 +273,15 @@ export async function updateSupabaseActivityHidden(
     .single();
 
   if (error) {
+    console.error("Supabase activity hidden update failed:", {
+      id,
+      hidden,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+
     throw error;
   }
 
@@ -222,6 +296,10 @@ export async function updateSupabaseActivityHidden(
 }
 
 export async function deleteSupabaseActivity(id: string): Promise<void> {
+  if (!isUuid(id)) {
+    throw new Error("Cannot delete Supabase activity because the ID is not a UUID.");
+  }
+
   const { data, error: lookupError } = await supabase
     .from("activities")
     .select("file_path")
@@ -229,6 +307,14 @@ export async function deleteSupabaseActivity(id: string): Promise<void> {
     .single();
 
   if (lookupError && lookupError.code !== "PGRST116") {
+    console.error("Supabase activity delete lookup failed:", {
+      id,
+      message: lookupError.message,
+      details: lookupError.details,
+      hint: lookupError.hint,
+      code: lookupError.code,
+    });
+
     throw lookupError;
   }
 
@@ -240,6 +326,14 @@ export async function deleteSupabaseActivity(id: string): Promise<void> {
     .eq("id", id);
 
   if (deleteError) {
+    console.error("Supabase activity delete failed:", {
+      id,
+      message: deleteError.message,
+      details: deleteError.details,
+      hint: deleteError.hint,
+      code: deleteError.code,
+    });
+
     throw deleteError;
   }
 
@@ -249,6 +343,12 @@ export async function deleteSupabaseActivity(id: string): Promise<void> {
       .remove([row.file_path]);
 
     if (storageError) {
+      console.error("Supabase storage file delete failed:", {
+        filePath: row.file_path,
+        message: storageError.message,
+        name: storageError.name,
+      });
+
       throw storageError;
     }
   }
