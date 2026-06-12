@@ -47,6 +47,18 @@ export default function SettingsPage() {
     useState(true);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
 
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<
+    string | undefined
+  >(undefined);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetMustChangePassword, setResetMustChangePassword] = useState(true);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  const [deleteUserId, setDeleteUserId] = useState<string | undefined>(
+    undefined
+  );
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+
   const [message, setMessage] = useState("");
   const [userManagementMessage, setUserManagementMessage] = useState("");
 
@@ -60,6 +72,11 @@ export default function SettingsPage() {
     clearStoredActivities();
     refreshLocalDataSummary();
     setMessage("Local browser data cleared.");
+  }
+
+  async function getAccessToken() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    return sessionData.session?.access_token;
   }
 
   async function loadUserProfiles() {
@@ -110,8 +127,7 @@ export default function SettingsPage() {
     setIsCreatingUser(true);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
+      const accessToken = await getAccessToken();
 
       if (!accessToken) {
         setUserManagementMessage("You must be logged in to create users.");
@@ -194,6 +210,154 @@ export default function SettingsPage() {
     }
   }
 
+  function openResetPassword(userId: string) {
+    setDeleteUserId(undefined);
+    setResetPasswordUserId(userId);
+    setResetPasswordValue("");
+    setResetMustChangePassword(true);
+    setUserManagementMessage("");
+  }
+
+  async function handleResetPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!resetPasswordUserId || isResettingPassword) {
+      return;
+    }
+
+    setUserManagementMessage("");
+
+    if (resetPasswordUserId === currentUserId) {
+      setUserManagementMessage("You cannot reset your own password here.");
+      return;
+    }
+
+    if (!resetPasswordValue) {
+      setUserManagementMessage("New password is required.");
+      return;
+    }
+
+    if (resetPasswordValue.length < 6) {
+      setUserManagementMessage("New password must be at least 6 characters.");
+      return;
+    }
+
+    setIsResettingPassword(true);
+
+    try {
+      const accessToken = await getAccessToken();
+
+      if (!accessToken) {
+        setUserManagementMessage("You must be logged in to reset passwords.");
+        setIsResettingPassword(false);
+        return;
+      }
+
+      const response = await fetch("/api/admin/reset-user-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          userId: resetPasswordUserId,
+          password: resetPasswordValue,
+          mustChangePassword: resetMustChangePassword,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setUserManagementMessage(
+          result.error || "The password could not be reset."
+        );
+        setIsResettingPassword(false);
+        return;
+      }
+
+      setUserProfiles((currentProfiles) =>
+        currentProfiles.map((userProfile) =>
+          userProfile.id === resetPasswordUserId
+            ? result.profile
+            : userProfile
+        )
+      );
+
+      setResetPasswordUserId(undefined);
+      setResetPasswordValue("");
+      setResetMustChangePassword(true);
+      setUserManagementMessage("Password was reset.");
+    } catch (error) {
+      console.error("Unable to reset password.", error);
+      setUserManagementMessage("Unexpected error while resetting password.");
+    } finally {
+      setIsResettingPassword(false);
+    }
+  }
+
+  function openDeleteUser(userId: string) {
+    setResetPasswordUserId(undefined);
+    setDeleteUserId(userId);
+    setUserManagementMessage("");
+  }
+
+  async function handleConfirmDeleteUser() {
+    if (!deleteUserId || isDeletingUser) {
+      return;
+    }
+
+    setUserManagementMessage("");
+
+    if (deleteUserId === currentUserId) {
+      setUserManagementMessage("You cannot delete your own account.");
+      return;
+    }
+
+    setIsDeletingUser(true);
+
+    try {
+      const accessToken = await getAccessToken();
+
+      if (!accessToken) {
+        setUserManagementMessage("You must be logged in to delete users.");
+        setIsDeletingUser(false);
+        return;
+      }
+
+      const response = await fetch("/api/admin/delete-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          userId: deleteUserId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setUserManagementMessage(result.error || "The user could not be deleted.");
+        setIsDeletingUser(false);
+        return;
+      }
+
+      setUserProfiles((currentProfiles) =>
+        currentProfiles.filter((userProfile) => userProfile.id !== deleteUserId)
+      );
+
+      setDeleteUserId(undefined);
+      setUserManagementMessage("User deleted.");
+    } catch (error) {
+      console.error("Unable to delete user.", error);
+      setUserManagementMessage("Unexpected error while deleting user.");
+    } finally {
+      setIsDeletingUser(false);
+    }
+  }
+
   useEffect(() => {
     refreshLocalDataSummary();
 
@@ -216,6 +380,14 @@ export default function SettingsPage() {
 
     loadProfile();
   }, []);
+
+  const resetPasswordUser = userProfiles.find(
+    (userProfile) => userProfile.id === resetPasswordUserId
+  );
+
+  const deleteUser = userProfiles.find(
+    (userProfile) => userProfile.id === deleteUserId
+  );
 
   return (
     <ProtectedPage>
@@ -264,8 +436,8 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-xl font-bold">User Management</h3>
                   <p className="mt-2 text-sm text-slate-600">
-                    Admins can create users, set an initial password, require a
-                    password reset, and assign roles.
+                    Admins can create users, reset passwords, delete users, and
+                    assign roles.
                   </p>
                 </div>
 
@@ -371,8 +543,7 @@ export default function SettingsPage() {
                         </span>
                         <span className="block text-slate-500">
                           The user must create a new password before accessing
-                          the app. This will become unchecked after the password
-                          is reset.
+                          the app.
                         </span>
                       </span>
                     </label>
@@ -384,12 +555,119 @@ export default function SettingsPage() {
                     </div>
                   )}
 
+                  {resetPasswordUser && (
+                    <form
+                      onSubmit={handleResetPassword}
+                      className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <h4 className="font-bold text-amber-900">
+                            Reset Password
+                          </h4>
+                          <p className="mt-1 text-sm text-amber-800">
+                            Reset password for {resetPasswordUser.email}.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setResetPasswordUserId(undefined)}
+                          className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
+                        <label className="grid gap-1">
+                          <span className="text-sm font-semibold text-amber-900">
+                            New Temporary Password
+                          </span>
+                          <input
+                            type="text"
+                            value={resetPasswordValue}
+                            onChange={(event) =>
+                              setResetPasswordValue(event.target.value)
+                            }
+                            disabled={isResettingPassword}
+                            className="rounded-lg border border-amber-300 px-3 py-2 disabled:bg-slate-100"
+                            placeholder="Minimum 6 characters"
+                          />
+                        </label>
+
+                        <div className="flex items-end">
+                          <button
+                            type="submit"
+                            disabled={isResettingPassword}
+                            className="w-full rounded-lg bg-amber-700 px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isResettingPassword
+                              ? "Resetting..."
+                              : "Reset Password"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <label className="mt-4 flex items-start gap-3 text-sm text-amber-900">
+                        <input
+                          type="checkbox"
+                          checked={resetMustChangePassword}
+                          onChange={(event) =>
+                            setResetMustChangePassword(event.target.checked)
+                          }
+                          disabled={isResettingPassword}
+                          className="mt-1"
+                        />
+                        <span>
+                          Require this user to reset password on next login
+                        </span>
+                      </label>
+                    </form>
+                  )}
+
+                  {deleteUser && (
+                    <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <h4 className="font-bold text-red-900">
+                            Delete User
+                          </h4>
+                          <p className="mt-1 text-sm text-red-800">
+                            Delete {deleteUser.email}? This removes their Auth
+                            account and profile row.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setDeleteUserId(undefined)}
+                          className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleConfirmDeleteUser}
+                          disabled={isDeletingUser}
+                          className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isDeletingUser ? "Deleting..." : "Delete User"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
-                    <div className="grid grid-cols-[1.3fr_0.55fr_0.7fr_0.75fr_0.8fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+                    <div className="grid grid-cols-[1.25fr_0.45fr_0.65fr_0.7fr_0.85fr_0.8fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
                       <div>Email</div>
                       <div>Role</div>
                       <div>Change Role</div>
                       <div>Password Reset</div>
+                      <div>Actions</div>
                       <div>Updated</div>
                     </div>
 
@@ -410,7 +688,7 @@ export default function SettingsPage() {
                         return (
                           <div
                             key={userProfile.id}
-                            className="grid grid-cols-[1.3fr_0.55fr_0.7fr_0.75fr_0.8fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
+                            className="grid grid-cols-[1.25fr_0.45fr_0.65fr_0.7fr_0.85fr_0.8fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
                           >
                             <div>
                               <div className="font-semibold text-slate-800">
@@ -461,6 +739,26 @@ export default function SettingsPage() {
                                   Complete
                                 </span>
                               )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openResetPassword(userProfile.id)}
+                                disabled={isCurrentUser}
+                                className="rounded-md border border-amber-300 px-2.5 py-1.5 text-xs font-semibold text-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Reset
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => openDeleteUser(userProfile.id)}
+                                disabled={isCurrentUser}
+                                className="rounded-md border border-red-300 px-2.5 py-1.5 text-xs font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Delete
+                              </button>
                             </div>
 
                             <div className="text-slate-600">
@@ -566,8 +864,8 @@ export default function SettingsPage() {
                     Authentication / Roles
                   </div>
                   <div className="mt-1">
-                    Admins create users, assign roles, and can require password
-                    resets on next login.
+                    Admins create users, reset passwords, delete users, assign
+                    roles, and can require password resets on next login.
                   </div>
                 </div>
               </div>
