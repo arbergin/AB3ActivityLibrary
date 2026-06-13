@@ -28,28 +28,52 @@ function formatDate(dateValue?: string) {
   });
 }
 
+function DashboardActionIcon({
+  src,
+  alt,
+}: {
+  src: string;
+  alt: string;
+}) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
+    />
+  );
+}
+
 function ActivityToolsCard() {
   return (
     <section className="grid h-72 grid-rows-2 gap-4 rounded-xl bg-white p-6 shadow-sm">
       <Link
         href="/create"
-        className="flex min-h-0 flex-col justify-center rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+        className="flex min-h-0 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
       >
-        <div className="text-lg font-bold">Create Activity</div>
-        <p className="mt-2 text-sm leading-5 text-slate-600">
-          Build a new editable activity on the pitch.
-        </p>
+        <div className="min-w-0">
+          <div className="text-lg font-bold">Create Activity</div>
+          <p className="mt-2 text-sm leading-5 text-slate-600">
+            Build a new editable activity on the pitch.
+          </p>
+        </div>
+
+        <DashboardActionIcon src="/create.png" alt="Create Activity" />
       </Link>
 
       <Link
         href="/search"
-        className="flex min-h-0 flex-col justify-center rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+        className="flex min-h-0 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
       >
-        <div className="text-lg font-bold">Search Library</div>
-        <p className="mt-2 text-sm leading-5 text-slate-600">
-          Find activities by name, field location, game phase, category,
-          positions, number of players, or details.
-        </p>
+        <div className="min-w-0">
+          <div className="text-lg font-bold">Search Library</div>
+          <p className="mt-2 text-sm leading-5 text-slate-600">
+            Find activities by name, field location, game phase, category,
+            positions, number of players, or details.
+          </p>
+        </div>
+
+        <DashboardActionIcon src="/search.png" alt="Search Library" />
       </Link>
     </section>
   );
@@ -60,22 +84,36 @@ function ImportOptionsCard() {
     <section className="grid h-72 grid-rows-2 gap-4 rounded-xl bg-white p-6 shadow-sm">
       <Link
         href="/import"
-        className="flex min-h-0 flex-col justify-center rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+        className="flex min-h-0 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
       >
-        <div className="text-lg font-bold">Import Single Activity</div>
-        <p className="mt-2 text-sm leading-5 text-slate-600">
-          Upload single PNG or PDF activity file and add searchable metadata.
-        </p>
+        <div className="min-w-0">
+          <div className="text-lg font-bold">Import Single Activity</div>
+          <p className="mt-2 text-sm leading-5 text-slate-600">
+            Upload single PNG or PDF activity file and add searchable metadata.
+          </p>
+        </div>
+
+        <DashboardActionIcon
+          src="/import_single_activity.png"
+          alt="Import Single Activity"
+        />
       </Link>
 
       <Link
         href="/import/bulk"
-        className="flex min-h-0 flex-col justify-center rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+        className="flex min-h-0 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
       >
-        <div className="text-lg font-bold">Import Bulk Activities</div>
-        <p className="mt-2 text-sm leading-5 text-slate-600">
-          Upload multiple PNG or PDF activities with .csv file.
-        </p>
+        <div className="min-w-0">
+          <div className="text-lg font-bold">Import Bulk Activities</div>
+          <p className="mt-2 text-sm leading-5 text-slate-600">
+            Upload multiple PNG or PDF activities with .csv file.
+          </p>
+        </div>
+
+        <DashboardActionIcon
+          src="/import_bulk_activities.png"
+          alt="Import Bulk Activities"
+        />
       </Link>
     </section>
   );
