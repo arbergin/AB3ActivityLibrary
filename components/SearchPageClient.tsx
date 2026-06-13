@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import SearchFilters from "@/components/SearchFilters";
 import SearchResultsPanel from "@/components/SearchResultsPanel";
 
@@ -38,6 +38,11 @@ function hasSearchCriteria(filters: SearchFilterValues) {
   return Object.values(filters).some((value) => value.trim() !== "");
 }
 
+function isMobileBrowser() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 767px)").matches;
+}
+
 export default function SearchPageClient() {
   const [includeHidden, setIncludeHidden] = useState(false);
   const [filters, setFilters] = useState<SearchFilterValues>(emptyFilters);
@@ -48,23 +53,9 @@ export default function SearchPageClient() {
     useState<SearchSortValue>("activityNameAsc");
   const [hasSearched, setHasSearched] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  function handleSearch() {
-    if (!hasSearchCriteria(filters)) {
-      setHasSearched(false);
-      setSearchMessage("Enter at least one search criteria before searching.");
-      setAppliedFilters(emptyFilters);
-      setAppliedIncludeHidden(false);
-      return;
-    }
-
-    setAppliedFilters(filters);
-    setAppliedIncludeHidden(includeHidden);
-    setHasSearched(true);
-    setSearchMessage("");
-  }
-
-  function handleClearFilters() {
+  const resetSearchState = useCallback(() => {
     setFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     setIncludeHidden(false);
@@ -72,7 +63,42 @@ export default function SearchPageClient() {
     setSortValue("activityNameAsc");
     setHasSearched(false);
     setSearchMessage("");
+    setRefreshKey((current) => current + 1);
+  }, []);
+
+  function handleSearch() {
+    if (!hasSearchCriteria(filters)) {
+      setHasSearched(false);
+      setSearchMessage("Enter at least one search criteria before searching.");
+      setAppliedFilters(emptyFilters);
+      setAppliedIncludeHidden(false);
+      setRefreshKey((current) => current + 1);
+      return;
+    }
+
+    setAppliedFilters(filters);
+    setAppliedIncludeHidden(includeHidden);
+    setHasSearched(true);
+    setSearchMessage("");
+    setRefreshKey((current) => current + 1);
   }
+
+  function handleClearFilters() {
+    resetSearchState();
+  }
+
+  useEffect(() => {
+    function handlePageReturn() {
+      if (!isMobileBrowser()) return;
+      resetSearchState();
+    }
+
+    window.addEventListener("pageshow", handlePageReturn);
+
+    return () => {
+      window.removeEventListener("pageshow", handlePageReturn);
+    };
+  }, [resetSearchState]);
 
   return (
     <div className="grid min-w-0 gap-8 overflow-hidden">
@@ -96,6 +122,7 @@ export default function SearchPageClient() {
           filters={appliedFilters}
           sortValue={sortValue}
           hasSearched={hasSearched}
+          refreshKey={refreshKey}
         />
       </div>
     </div>

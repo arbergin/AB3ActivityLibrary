@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   deleteStoredActivity,
   getStoredActivities,
@@ -24,6 +25,7 @@ type SearchResultsPanelProps = {
   filters: SearchFilterValues;
   sortValue: SearchSortValue;
   hasSearched: boolean;
+  refreshKey: number;
 };
 
 type ActivitySource = "supabase" | "local";
@@ -34,9 +36,13 @@ type ActivityWithSource = Activity & {
 
 function isUuid(value: string) {
   const uuidPattern =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
 
   return uuidPattern.test(value);
+}
+
+function safeLower(value?: string | number | null) {
+  return String(value ?? "").toLowerCase();
 }
 
 function numberOfPlayersMatchesFilter(
@@ -153,12 +159,36 @@ function removeDuplicateActivities(activities: ActivityWithSource[]) {
   return Array.from(activityMap.values());
 }
 
+function getFreshLocalActivities() {
+  return getStoredActivities()
+    .filter((activity) => !isUuid(activity.id))
+    .map((activity) => ({
+      ...activity,
+      source: "local" as const,
+    }));
+}
+
+function PreviewFallback() {
+  return (
+    <div className="flex min-h-64 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+      <div>
+        Preview unavailable
+        <div className="mt-2 text-xs">
+          The activity metadata exists, but the preview file could not be loaded.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SearchResultsPanel({
   includeHidden,
   filters,
   sortValue,
   hasSearched,
+  refreshKey,
 }: SearchResultsPanelProps) {
+  const router = useRouter();
   const [activities, setActivities] = useState<ActivityWithSource[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<
     ActivityWithSource | undefined
@@ -167,8 +197,9 @@ export default function SearchResultsPanel({
   const [actionMessage, setActionMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isLoadingActivities, setIsLoadingActivities] = useState(true);
+  const [selectedPreviewFailed, setSelectedPreviewFailed] = useState(false);
 
-  async function loadActivities() {
+  const loadActivities = useCallback(async () => {
     setIsLoadingActivities(true);
 
     try {
@@ -180,15 +211,9 @@ export default function SearchResultsPanel({
           source: "supabase",
         }));
 
-      const storedActivitiesWithSource: ActivityWithSource[] =
-        getStoredActivities().map((activity) => ({
-          ...activity,
-          source: isUuid(activity.id) ? "supabase" : "local",
-        }));
-
       const combinedActivities = removeDuplicateActivities([
         ...supabaseActivitiesWithSource,
-        ...storedActivitiesWithSource,
+        ...getFreshLocalActivities(),
       ]);
 
       setActivities(combinedActivities);
@@ -196,20 +221,14 @@ export default function SearchResultsPanel({
     } catch (error) {
       console.error("Unable to load activities from Supabase.", error);
 
-      const storedActivitiesWithSource: ActivityWithSource[] =
-        getStoredActivities().map((activity) => ({
-          ...activity,
-          source: "local",
-        }));
-
-      setActivities(storedActivitiesWithSource);
+      setActivities(getFreshLocalActivities());
       setActionMessage(
-        "Supabase activities could not be loaded. Showing local activities only."
+        "Supabase activities could not be loaded. Showing local-only activities."
       );
     } finally {
       setIsLoadingActivities(false);
     }
-  }
+  }, []);
 
   const searchableActivities = useMemo(() => {
     if (includeHidden) return activities;
@@ -220,13 +239,12 @@ export default function SearchResultsPanel({
     if (!hasSearched) return [];
 
     return searchableActivities.filter((activity) => {
-      const activityNameMatches = activity.activityName
-        .toLowerCase()
-        .includes(filters.activityName.toLowerCase().trim());
+      const activityNameMatches = safeLower(activity.activityName).includes(
+        filters.activityName.toLowerCase().trim()
+      );
 
       const fieldLocationMatches =
-        !filters.fieldLocation ||
-        activity.fieldLocation === filters.fieldLocation;
+        !filters.fieldLocation || activity.fieldLocation === filters.fieldLocation;
 
       const gamePhaseMatches =
         !filters.gamePhase || activity.gamePhase === filters.gamePhase;
@@ -234,18 +252,18 @@ export default function SearchResultsPanel({
       const categoryMatches =
         !filters.category || activity.category === filters.category;
 
-      const positionsMatch = activity.positionsInvolved
-        .toLowerCase()
-        .includes(filters.positionsInvolved.toLowerCase().trim());
+      const positionsMatch = safeLower(activity.positionsInvolved).includes(
+        filters.positionsInvolved.toLowerCase().trim()
+      );
 
       const numberOfPlayersMatches = numberOfPlayersMatchesFilter(
         activity.numberOfPlayers,
         filters.numberOfPlayers
       );
 
-      const detailsMatch = activity.activityDetails
-        .toLowerCase()
-        .includes(filters.activityDetails.toLowerCase().trim());
+      const detailsMatch = safeLower(activity.activityDetails).includes(
+        filters.activityDetails.toLowerCase().trim()
+      );
 
       return (
         activityNameMatches &&
@@ -259,7 +277,7 @@ export default function SearchResultsPanel({
     });
   }, [hasSearched, searchableActivities, filters]);
 
-  const sortedActivities = useMemo(() => {
+  const visibleActivities = useMemo(() => {
     return [...filteredActivities].sort((activityA, activityB) => {
       if (sortValue === "activityNameAsc") {
         return activityA.activityName.localeCompare(activityB.activityName);
@@ -286,15 +304,11 @@ export default function SearchResultsPanel({
       }
 
       if (sortValue === "playersLowToHigh") {
-        return (
-          getPlayerCountForSort(activityA) - getPlayerCountForSort(activityB)
-        );
+        return getPlayerCountForSort(activityA) - getPlayerCountForSort(activityB);
       }
 
       if (sortValue === "playersHighToLow") {
-        return (
-          getPlayerCountForSort(activityB) - getPlayerCountForSort(activityA)
-        );
+        return getPlayerCountForSort(activityB) - getPlayerCountForSort(activityA);
       }
 
       return 0;
@@ -302,50 +316,65 @@ export default function SearchResultsPanel({
   }, [filteredActivities, sortValue]);
 
   const resultsCountText = hasSearched
-    ? `Showing ${sortedActivities.length} of ${searchableActivities.length} ${
+    ? `Showing ${visibleActivities.length} of ${searchableActivities.length} ${
         searchableActivities.length === 1 ? "activity" : "activities"
       }`
     : "No search run yet";
 
   useEffect(() => {
     loadActivities();
+  }, [loadActivities, refreshKey]);
 
+  useEffect(() => {
     function handleWindowFocus() {
       loadActivities();
     }
 
+    function handlePageShow() {
+      loadActivities();
+    }
+
     window.addEventListener("focus", handleWindowFocus);
+    window.addEventListener("pageshow", handlePageShow);
 
     return () => {
       window.removeEventListener("focus", handleWindowFocus);
+      window.removeEventListener("pageshow", handlePageShow);
     };
-  }, []);
+  }, [loadActivities]);
 
   useEffect(() => {
     if (!hasSearched) {
       setSelectedActivity(undefined);
       setDownloadMessage("");
       setShowDeleteConfirm(false);
+      setSelectedPreviewFailed(false);
       return;
     }
 
-    if (sortedActivities.length === 0) {
+    if (visibleActivities.length === 0) {
       setSelectedActivity(undefined);
       setDownloadMessage("");
       setShowDeleteConfirm(false);
+      setSelectedPreviewFailed(false);
       return;
     }
 
-    const selectedActivityIsVisible = sortedActivities.some(
+    const selectedActivityIsVisible = visibleActivities.some(
       (activity) => activity.id === selectedActivity?.id
     );
 
     if (!selectedActivityIsVisible) {
-      setSelectedActivity(sortedActivities[0]);
+      setSelectedActivity(visibleActivities[0]);
       setDownloadMessage("");
       setShowDeleteConfirm(false);
+      setSelectedPreviewFailed(false);
     }
-  }, [hasSearched, sortedActivities, selectedActivity?.id]);
+  }, [hasSearched, visibleActivities, selectedActivity?.id]);
+
+  useEffect(() => {
+    setSelectedPreviewFailed(false);
+  }, [selectedActivity?.id, selectedActivity?.previewDataUrl]);
 
   async function handleDownload() {
     if (!selectedActivity) return;
@@ -369,6 +398,7 @@ export default function SearchResultsPanel({
 
   function handleSelectActivity(activity: ActivityWithSource) {
     setSelectedActivity(activity);
+    setSelectedPreviewFailed(false);
     setDownloadMessage("");
     setActionMessage("");
     setShowDeleteConfirm(false);
@@ -383,31 +413,18 @@ export default function SearchResultsPanel({
 
     if (selectedActivity.source === "supabase") {
       try {
-        const updatedActivity = await updateSupabaseActivityHidden(
+        await updateSupabaseActivityHidden(
           selectedActivity.id,
           !selectedActivity.hidden
         );
 
-        const updatedActivityWithSource: ActivityWithSource = {
-          ...updatedActivity,
-          source: "supabase",
-        };
-
-        setActivities((currentActivities) =>
-          currentActivities.map((activity) =>
-            activity.id === selectedActivity.id
-              ? updatedActivityWithSource
-              : activity
-          )
-        );
-
-        setSelectedActivity(updatedActivityWithSource);
-
+        await loadActivities();
         setActionMessage(
-          updatedActivity.hidden
+          !selectedActivity.hidden
             ? "Activity hidden. Check Include hidden activities to view it again."
             : "Activity is visible again."
         );
+        router.refresh();
         return;
       } catch (error) {
         console.error("Supabase hide/unhide failed.", error);
@@ -458,19 +475,19 @@ export default function SearchResultsPanel({
   async function handleConfirmDelete() {
     if (!selectedActivity) return;
 
-    if (selectedActivity.source === "supabase") {
+    const activityToDelete = selectedActivity;
+
+    if (activityToDelete.source === "supabase") {
       try {
-        await deleteSupabaseActivity(selectedActivity.id);
+        await deleteSupabaseActivity(activityToDelete.id);
+        deleteStoredActivity(activityToDelete.id);
 
-        const updatedActivities = activities.filter(
-          (activity) => activity.id !== selectedActivity.id
-        );
-
-        setActivities(updatedActivities);
         setSelectedActivity(undefined);
         setShowDeleteConfirm(false);
         setDownloadMessage("");
+        await loadActivities();
         setActionMessage("Activity deleted from Supabase.");
+        router.refresh();
         return;
       } catch (error) {
         console.error("Supabase delete failed.", error);
@@ -480,7 +497,7 @@ export default function SearchResultsPanel({
       }
     }
 
-    const deleted = deleteStoredActivity(selectedActivity.id);
+    const deleted = deleteStoredActivity(activityToDelete.id);
 
     if (!deleted) {
       setActionMessage("This activity could not be deleted.");
@@ -488,14 +505,10 @@ export default function SearchResultsPanel({
       return;
     }
 
-    const updatedActivities = activities.filter(
-      (activity) => activity.id !== selectedActivity.id
-    );
-
-    setActivities(updatedActivities);
     setSelectedActivity(undefined);
     setShowDeleteConfirm(false);
     setDownloadMessage("");
+    await loadActivities();
     setActionMessage("Activity deleted.");
   }
 
@@ -541,12 +554,12 @@ export default function SearchResultsPanel({
               No results yet. Enter at least one search criteria and click
               Search.
             </div>
-          ) : sortedActivities.length === 0 ? (
+          ) : visibleActivities.length === 0 ? (
             <div className="px-4 py-6 text-sm text-slate-500">
               No activities match the current filters.
             </div>
           ) : (
-            sortedActivities.map((activity) => {
+            visibleActivities.map((activity) => {
               const isSelected = activity.id === selectedActivity?.id;
 
               return (
@@ -638,26 +651,22 @@ export default function SearchResultsPanel({
         ) : (
           <>
             <div className="mt-4 flex min-h-64 min-w-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-              {selectedActivity.previewDataUrl &&
-              selectedActivity.fileType === "application/pdf" ? (
+              {!selectedActivity.previewDataUrl || selectedPreviewFailed ? (
+                <PreviewFallback />
+              ) : selectedActivity.fileType === "application/pdf" ? (
                 <iframe
                   src={selectedActivity.previewDataUrl}
                   title={`${selectedActivity.activityName} PDF preview`}
                   className="h-80 w-full rounded-lg border border-slate-200"
+                  onError={() => setSelectedPreviewFailed(true)}
                 />
-              ) : selectedActivity.previewDataUrl ? (
+              ) : (
                 <img
                   src={selectedActivity.previewDataUrl}
                   alt={`${selectedActivity.activityName} preview`}
                   className="max-h-80 w-full rounded-lg object-contain"
+                  onError={() => setSelectedPreviewFailed(true)}
                 />
-              ) : (
-                <div>
-                  Preview pane
-                  <div className="mt-2 text-xs">
-                    PNG/PDF viewer placeholder
-                  </div>
-                </div>
               )}
             </div>
 
