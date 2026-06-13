@@ -221,9 +221,24 @@ async function addPngPage(pdfDocument: PDFDocument, activity: Activity) {
   const image = await pdfDocument.embedPng(imageBytes);
 
   const page = pdfDocument.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  const titleFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
 
+  const title = activity.activityName || "Untitled Activity";
+  const titleX = PAGE_MARGIN;
+  const titleY = PAGE_HEIGHT - PAGE_MARGIN;
+  const titleSize = 16;
+
+  page.drawText(title, {
+    x: titleX,
+    y: titleY,
+    size: titleSize,
+    font: titleFont,
+    color: rgb(0.05, 0.13, 0.25),
+  });
+
+  const imageTopY = titleY - 24;
   const availableWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
-  const availableHeight = PAGE_HEIGHT - PAGE_MARGIN * 2;
+  const availableHeight = imageTopY - PAGE_MARGIN;
 
   const imageScale = Math.min(
     availableWidth / image.width,
@@ -234,7 +249,7 @@ async function addPngPage(pdfDocument: PDFDocument, activity: Activity) {
   const imageHeight = image.height * imageScale;
 
   const x = (PAGE_WIDTH - imageWidth) / 2;
-  const y = (PAGE_HEIGHT - imageHeight) / 2;
+  const y = PAGE_MARGIN + (availableHeight - imageHeight) / 2;
 
   page.drawImage(image, {
     x,
@@ -251,6 +266,7 @@ async function addOriginalPdfPages(pdfDocument: PDFDocument, activity: Activity)
 
   const sourcePdfBytes = await fileSourceToArrayBuffer(activity.previewDataUrl);
   const sourcePdf = await PDFDocument.load(sourcePdfBytes);
+
   const copiedPages = await pdfDocument.copyPages(
     sourcePdf,
     sourcePdf.getPageIndices()
@@ -287,9 +303,21 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
 
   drawMetadataBox({
     page,
-    label: "Phase",
-    value: activity.gamePhase || "—",
+    label: "Field Location",
+    value: activity.fieldLocation || "—",
     x: PAGE_MARGIN,
+    y: y - threeColumnHeight,
+    width: threeColumnWidth,
+    height: threeColumnHeight,
+    labelFont,
+    valueFont,
+  });
+
+  drawMetadataBox({
+    page,
+    label: "Game Phase",
+    value: activity.gamePhase || "—",
+    x: PAGE_MARGIN + threeColumnWidth + columnGap,
     y: y - threeColumnHeight,
     width: threeColumnWidth,
     height: threeColumnHeight,
@@ -301,10 +329,27 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
     page,
     label: "Category",
     value: activity.category || "—",
-    x: PAGE_MARGIN + threeColumnWidth + columnGap,
+    x: PAGE_MARGIN + threeColumnWidth * 2 + columnGap * 2,
     y: y - threeColumnHeight,
     width: threeColumnWidth,
     height: threeColumnHeight,
+    labelFont,
+    valueFont,
+  });
+
+  y -= threeColumnHeight + 32;
+
+  const twoColumnWidth = (contentWidth - columnGap) / 2;
+  const twoColumnHeight = 74;
+
+  drawMetadataBox({
+    page,
+    label: "Positions Involved",
+    value: activity.positionsInvolved || "—",
+    x: PAGE_MARGIN,
+    y: y - twoColumnHeight,
+    width: twoColumnWidth,
+    height: twoColumnHeight,
     labelFont,
     valueFont,
   });
@@ -316,19 +361,19 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
       activity.numberOfPlayers === ""
         ? "—"
         : String(activity.numberOfPlayers),
-    x: PAGE_MARGIN + threeColumnWidth * 2 + columnGap * 2,
-    y: y - threeColumnHeight,
-    width: threeColumnWidth,
-    height: threeColumnHeight,
+    x: PAGE_MARGIN + twoColumnWidth + columnGap,
+    y: y - twoColumnHeight,
+    width: twoColumnWidth,
+    height: twoColumnHeight,
     labelFont,
     valueFont,
   });
 
-  y -= threeColumnHeight + 32;
+  y -= twoColumnHeight + 32;
 
   drawSectionLabel({
     page,
-    label: "Details",
+    label: "Activity Details",
     x: PAGE_MARGIN,
     y,
     font: labelFont,
@@ -358,9 +403,6 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
 
   y -= 20;
 
-  const twoColumnWidth = (contentWidth - columnGap) / 2;
-  const twoColumnHeight = 64;
-
   drawMetadataBox({
     page,
     label: "Created By",
@@ -388,7 +430,7 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
 
 export async function downloadActivityAsPdf(activity: Activity) {
   if (!activity.previewDataUrl) {
-    throw new Error("No imported file is available for this activity.");
+    throw new Error("No activity preview is available for this activity.");
   }
 
   const pdfDocument = await PDFDocument.create();
