@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { PointerEvent, ReactNode, WheelEvent } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
+import type { Activity, ActivityCreatorState } from "@/types/activity";
 
 type ToolType =
   | "team1"
@@ -535,16 +536,59 @@ function ColorSetting({
   );
 }
 
-export default function ActivityCreator() {
+type ActivityCreatorProps = {
+  initialActivity?: Activity;
+};
+
+function getInitialCreatorState(initialActivity?: Activity) {
+  return initialActivity?.creatorState;
+}
+
+function getInitialPitchBackground(
+  initialCreatorState?: ActivityCreatorState
+): PitchBackgroundType {
+  const pitchBackground = initialCreatorState?.selectedPitchBackground;
+
+  if (
+    pitchBackground === "pitchGreen" ||
+    pitchBackground === "pitchWhite" ||
+    pitchBackground === "greenBlank" ||
+    pitchBackground === "whiteBlank"
+  ) {
+    return pitchBackground;
+  }
+
+  return "pitchGreen";
+}
+
+function getInitialPlayerDisplayMode(
+  initialCreatorState?: ActivityCreatorState
+): PlayerDisplayMode {
+  const displayMode = initialCreatorState?.settings?.playerDisplayMode;
+
+  if (
+    displayMode === "number" ||
+    displayMode === "name" ||
+    displayMode === "both" ||
+    displayMode === "none"
+  ) {
+    return displayMode;
+  }
+
+  return "number";
+}
+
+export default function ActivityCreator({ initialActivity }: ActivityCreatorProps) {
+  const initialCreatorState = getInitialCreatorState(initialActivity);
   const pitchRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
   const [mobileToolGroup, setMobileToolGroup] =
     useState<MobileToolGroup>("objects");
   const [selectedPitchBackground, setSelectedPitchBackground] =
-    useState<PitchBackgroundType>("pitchGreen");
-  const [objects, setObjects] = useState<PitchObject[]>([]);
-  const [lines, setLines] = useState<PitchLine[]>([]);
+    useState<PitchBackgroundType>(getInitialPitchBackground(initialCreatorState));
+  const [objects, setObjects] = useState<PitchObject[]>((initialCreatorState?.objects || []) as PitchObject[]);
+  const [lines, setLines] = useState<PitchLine[]>((initialCreatorState?.lines || []) as PitchLine[]);
   const [isDashed, setIsDashed] = useState(false);
   const [isArrow, setIsArrow] = useState(false);
   const [draggingObjectId, setDraggingObjectId] = useState<string | null>(null);
@@ -556,17 +600,17 @@ export default function ActivityCreator() {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
 
-  const [team1Color, setTeam1Color] = useState("#2563eb");
-  const [team2Color, setTeam2Color] = useState("#dc2626");
-  const [coneColor, setConeColor] = useState("#f97316");
-  const [lineColor, setLineColor] = useState("#111827");
+  const [team1Color, setTeam1Color] = useState(initialCreatorState?.settings?.team1Color || "#2563eb");
+  const [team2Color, setTeam2Color] = useState(initialCreatorState?.settings?.team2Color || "#dc2626");
+  const [coneColor, setConeColor] = useState(initialCreatorState?.settings?.coneColor || "#f97316");
+  const [lineColor, setLineColor] = useState(initialCreatorState?.settings?.lineColor || "#111827");
 
-  const [playerDefaultSize, setPlayerDefaultSize] = useState(24);
-  const [coneDefaultSize, setConeDefaultSize] = useState(24);
-  const [mannequinDefaultSize, setMannequinDefaultSize] = useState(12);
-  const [ballDefaultSize, setBallDefaultSize] = useState(14);
+  const [playerDefaultSize, setPlayerDefaultSize] = useState(initialCreatorState?.settings?.playerDefaultSize || 24);
+  const [coneDefaultSize, setConeDefaultSize] = useState(initialCreatorState?.settings?.coneDefaultSize || 24);
+  const [mannequinDefaultSize, setMannequinDefaultSize] = useState(initialCreatorState?.settings?.mannequinDefaultSize || 12);
+  const [ballDefaultSize, setBallDefaultSize] = useState(initialCreatorState?.settings?.ballDefaultSize || 14);
   const [playerDisplayMode, setPlayerDisplayMode] =
-    useState<PlayerDisplayMode>("number");
+    useState<PlayerDisplayMode>(getInitialPlayerDisplayMode(initialCreatorState));
 
   const [isZoomLocked, setIsZoomLocked] = useState(true);
   const [zoom, setZoom] = useState(1);
@@ -595,6 +639,39 @@ export default function ActivityCreator() {
       : mobileToolGroup === "draw"
         ? tools.filter((tool) => drawToolTypes.includes(tool.type))
         : [];
+
+  const creatorState = useMemo<ActivityCreatorState>(
+    () => ({
+      selectedPitchBackground,
+      objects,
+      lines,
+      settings: {
+        team1Color,
+        team2Color,
+        coneColor,
+        lineColor,
+        playerDefaultSize,
+        coneDefaultSize,
+        mannequinDefaultSize,
+        ballDefaultSize,
+        playerDisplayMode,
+      },
+    }),
+    [
+      selectedPitchBackground,
+      objects,
+      lines,
+      team1Color,
+      team2Color,
+      coneColor,
+      lineColor,
+      playerDefaultSize,
+      coneDefaultSize,
+      mannequinDefaultSize,
+      ballDefaultSize,
+      playerDisplayMode,
+    ]
+  );
 
   function createHistorySnapshot(): HistorySnapshot {
     return {
@@ -2116,8 +2193,8 @@ export default function ActivityCreator() {
             <div className="p-5">
               <ActivityMetadataForm
                 mode="create"
-                selectedFileName="Created Activity"
-                selectedFileType="activity-creator"
+                creatorState={creatorState}
+                initialActivity={initialActivity}
               />
             </div>
           </aside>

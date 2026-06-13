@@ -7,16 +7,25 @@ import {
   fieldLocationOptions,
   gamePhaseOptions,
 } from "@/lib/activityOptions";
-import { saveStoredActivity } from "@/lib/activityStorage";
-import { createSupabaseActivity } from "@/lib/supabaseActivities";
-import type { Activity } from "@/types/activity";
+import {
+  saveStoredActivity,
+  updateStoredActivity,
+} from "@/lib/activityStorage";
+import {
+  createSupabaseActivity,
+  updateSupabaseActivity,
+} from "@/lib/supabaseActivities";
+import type { Activity, ActivityCreatorState } from "@/types/activity";
 
 type ActivityMetadataFormProps = {
   mode?: "import" | "create";
   selectedFileName?: string;
   selectedFileType?: string;
   previewDataUrl?: string;
+  creatorState?: ActivityCreatorState;
+  initialActivity?: Activity;
   onCancel?: () => void;
+  onSaved?: (activity: Activity) => void;
 };
 
 export default function ActivityMetadataForm({
@@ -24,21 +33,41 @@ export default function ActivityMetadataForm({
   selectedFileName,
   selectedFileType,
   previewDataUrl,
+  creatorState,
+  initialActivity,
   onCancel,
+  onSaved,
 }: ActivityMetadataFormProps) {
   const router = useRouter();
 
-  const [activityName, setActivityName] = useState("");
+  const [activityName, setActivityName] = useState(
+    initialActivity?.activityName || ""
+  );
   const [fieldLocation, setFieldLocation] =
-    useState<Activity["fieldLocation"]>("");
-  const [gamePhase, setGamePhase] = useState<Activity["gamePhase"]>("");
-  const [category, setCategory] = useState<Activity["category"]>("");
-  const [positionsInvolved, setPositionsInvolved] = useState("");
-  const [numberOfPlayers, setNumberOfPlayers] = useState("");
-  const [activityDetails, setActivityDetails] = useState("");
+    useState<Activity["fieldLocation"]>(initialActivity?.fieldLocation || "");
+  const [gamePhase, setGamePhase] = useState<Activity["gamePhase"]>(
+    initialActivity?.gamePhase || ""
+  );
+  const [category, setCategory] = useState<Activity["category"]>(
+    initialActivity?.category || ""
+  );
+  const [positionsInvolved, setPositionsInvolved] = useState(
+    initialActivity?.positionsInvolved || ""
+  );
+  const [numberOfPlayers, setNumberOfPlayers] = useState(
+    initialActivity?.numberOfPlayers === "" ||
+      initialActivity?.numberOfPlayers === undefined
+      ? ""
+      : String(initialActivity.numberOfPlayers)
+  );
+  const [activityDetails, setActivityDetails] = useState(
+    initialActivity?.activityDetails || ""
+  );
   const [formError, setFormError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const isEditMode = Boolean(initialActivity?.id);
 
   async function handleSaveActivity(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,7 +87,7 @@ export default function ActivityMetadataForm({
     const now = new Date().toISOString();
 
     const newActivity: Activity = {
-      id: `activity-${Date.now()}`,
+      id: initialActivity?.id || `activity-${Date.now()}`,
       activityName: activityName.trim(),
       fieldLocation,
       gamePhase,
@@ -66,31 +95,57 @@ export default function ActivityMetadataForm({
       positionsInvolved: positionsInvolved.trim(),
       numberOfPlayers: numberOfPlayers ? Number(numberOfPlayers) : "",
       activityDetails: activityDetails.trim(),
-      createdBy: "Coach User",
-      hidden: false,
-      fileName: selectedFileName,
-      fileType: selectedFileType,
-      previewDataUrl,
-      createdAt: now,
+      createdBy: initialActivity?.createdBy || "Coach User",
+      hidden: initialActivity?.hidden || false,
+      activitySource: mode,
+      creatorState: mode === "create" ? creatorState : undefined,
+      fileName: mode === "import" ? selectedFileName : undefined,
+      fileType: mode === "import" ? selectedFileType : undefined,
+      previewDataUrl: mode === "import" ? previewDataUrl : undefined,
+      createdAt: initialActivity?.createdAt || now,
       updatedAt: now,
     };
 
     setIsSaving(true);
-    setSaveMessage("Saving activity...");
+    setSaveMessage(isEditMode ? "Updating activity..." : "Saving activity...");
 
     try {
-      const savedSupabaseActivity = await createSupabaseActivity(newActivity);
+      const savedSupabaseActivity =
+        isEditMode && initialActivity
+          ? await updateSupabaseActivity(newActivity)
+          : await createSupabaseActivity(newActivity);
 
-      saveStoredActivity({
+      const savedActivity: Activity = {
         ...newActivity,
         id: savedSupabaseActivity.id,
+        createdBy: savedSupabaseActivity.createdBy,
         createdAt: savedSupabaseActivity.createdAt,
         updatedAt: savedSupabaseActivity.updatedAt,
-      });
+      };
 
+      if (isEditMode) {
+        updateStoredActivity(savedActivity);
+      } else {
+        saveStoredActivity(savedActivity);
+      }
+
+      onSaved?.(savedActivity);
       router.push(`/activity/${savedSupabaseActivity.id}`);
     } catch (error) {
       console.error("Supabase save failed. Saving locally instead.", error);
+
+      if (isEditMode) {
+        const updatedLocalActivity = updateStoredActivity(newActivity);
+        const activityToUse = updatedLocalActivity || newActivity;
+
+        setSaveMessage(
+          "Supabase update failed, so the activity was updated locally in this browser."
+        );
+
+        onSaved?.(activityToUse);
+        router.push(`/activity/${activityToUse.id}`);
+        return;
+      }
 
       saveStoredActivity(newActivity);
 
@@ -98,6 +153,7 @@ export default function ActivityMetadataForm({
         "Supabase save failed, so the activity was saved locally in this browser."
       );
 
+      onSaved?.(newActivity);
       router.push(`/activity/${newActivity.id}`);
     } finally {
       setIsSaving(false);
@@ -205,38 +261,49 @@ export default function ActivityMetadataForm({
         )}
       </div>
 
-      {selectedFileName && (
+      {mode === "import" && selectedFileName && (
         <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
           <span className="font-semibold">Selected file:</span>{" "}
           {selectedFileName}
         </div>
       )}
 
-      {previewDataUrl && selectedFileType === "application/pdf" && (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-          <div className="mb-3 text-sm font-semibold text-slate-700">
-            Attached PDF Preview
+      {mode === "import" &&
+        previewDataUrl &&
+        selectedFileType === "application/pdf" && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-3 text-sm font-semibold text-slate-700">
+              Attached PDF Preview
+            </div>
+
+            <iframe
+              src={previewDataUrl}
+              title="Activity PDF preview"
+              className="h-[520px] w-full rounded-lg border border-slate-200"
+            />
           </div>
+        )}
 
-          <iframe
-            src={previewDataUrl}
-            title="Activity PDF preview"
-            className="h-[520px] w-full rounded-lg border border-slate-200"
-          />
-        </div>
-      )}
+      {mode === "import" &&
+        previewDataUrl &&
+        selectedFileType !== "application/pdf" && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-3 text-sm font-semibold text-slate-700">
+              Attached PNG Preview
+            </div>
 
-      {previewDataUrl && selectedFileType !== "application/pdf" && (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-          <div className="mb-3 text-sm font-semibold text-slate-700">
-            Attached PNG Preview
+            <img
+              src={previewDataUrl}
+              alt="Activity preview"
+              className="max-h-80 w-full rounded-lg border border-slate-200 object-contain"
+            />
           </div>
+        )}
 
-          <img
-            src={previewDataUrl}
-            alt="Activity preview"
-            className="max-h-80 w-full rounded-lg border border-slate-200 object-contain"
-          />
+      {mode === "create" && (
+        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          This will save the editable activity layout, including the pitch,
+          icons, lines, colors, and sizes. It will not save as a PNG or PDF.
         </div>
       )}
 
@@ -332,7 +399,15 @@ export default function ActivityMetadataForm({
             disabled={isSaving}
             className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSaving ? "Saving..." : "Save Activity"}
+            {isSaving
+              ? isEditMode
+                ? "Updating..."
+                : "Saving..."
+              : isEditMode
+                ? "Update Activity"
+                : mode === "create"
+                  ? "Save Editable Activity"
+                  : "Save Activity"}
           </button>
         </div>
       </div>

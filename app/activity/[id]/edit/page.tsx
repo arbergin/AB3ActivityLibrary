@@ -1,14 +1,14 @@
 import ActivityEditClient from "@/components/ActivityEditClient";
 
-type ActivityEditPageProps = {
+type EditActivityPageProps = {
   params: Promise<{
     id: string;
   }>;
 };
 
-export default async function ActivityEditPage({
+export default async function EditActivityPage({
   params,
-}: ActivityEditPageProps) {
+}: EditActivityPageProps) {
   const { id } = await params;
 
   return <ActivityEditClient activityId={id} />;
