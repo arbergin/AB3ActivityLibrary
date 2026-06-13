@@ -913,16 +913,23 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const fillColor = object.fillColor ?? coneColor;
 
     context.save();
-    context.fillStyle = fillColor;
-    context.strokeStyle = "#9a3412";
-    context.lineWidth = Math.max(1.5, canvasWidth * 0.0018);
+
+    // Outer cone circle
     context.beginPath();
-    context.moveTo(x, y - size / 2);
-    context.lineTo(x - size / 2, y + size / 2);
-    context.lineTo(x + size / 2, y + size / 2);
-    context.closePath();
+    context.arc(x, y, size / 2, 0, Math.PI * 2);
+    context.fillStyle = fillColor;
     context.fill();
+
+    context.strokeStyle = "#000000";
+    context.lineWidth = Math.max(2, canvasWidth * 0.0025);
     context.stroke();
+
+    // Inner white circle, matching ConeIcon
+    context.beginPath();
+    context.arc(x, y, size * 0.175, 0, Math.PI * 2);
+    context.fillStyle = "#ffffff";
+    context.fill();
+
     context.restore();
   }
 
