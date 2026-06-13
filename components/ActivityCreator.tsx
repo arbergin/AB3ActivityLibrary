@@ -607,7 +607,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [lineColor, setLineColor] = useState(initialCreatorState?.settings?.lineColor || "#111827");
 
   const [playerDefaultSize, setPlayerDefaultSize] = useState(initialCreatorState?.settings?.playerDefaultSize || 24);
-  const [coneDefaultSize, setConeDefaultSize] = useState(initialCreatorState?.settings?.coneDefaultSize || 24);
+  const [coneDefaultSize, setConeDefaultSize] = useState(initialCreatorState?.settings?.coneDefaultSize || 14);
   const [mannequinDefaultSize, setMannequinDefaultSize] = useState(initialCreatorState?.settings?.mannequinDefaultSize || 12);
   const [ballDefaultSize, setBallDefaultSize] = useState(initialCreatorState?.settings?.ballDefaultSize || 14);
   const [playerDisplayMode, setPlayerDisplayMode] =
