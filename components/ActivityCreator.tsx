@@ -582,7 +582,6 @@ function getInitialPlayerDisplayMode(
 export default function ActivityCreator({ initialActivity }: ActivityCreatorProps) {
   const initialCreatorState = getInitialCreatorState(initialActivity);
   const pitchRef = useRef<HTMLDivElement | null>(null);
-  const previewCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
   const [mobileToolGroup, setMobileToolGroup] =
@@ -682,7 +681,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   }
 
   async function getCreatorPreviewDataUrl() {
-    const captureElement = previewCaptureRef.current;
+    const captureElement = pitchRef.current;
 
     if (!captureElement) {
       return undefined;
@@ -698,7 +697,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       images.map(
         (image) =>
           new Promise<void>((resolve) => {
-            if (image.complete) {
+            if (image.complete && image.naturalWidth > 0) {
               resolve();
               return;
             }
@@ -709,18 +708,33 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       )
     );
 
-    return toPng(captureElement, {
-      backgroundColor: "#ffffff",
-      cacheBust: true,
-      pixelRatio: 2,
-      filter: (node) => {
-        if (node instanceof HTMLElement) {
-          return node.dataset.previewExclude !== "true";
-        }
+    const previousTransform = captureElement.style.transform;
+    const previousTransformOrigin = captureElement.style.transformOrigin;
 
-        return true;
-      },
-    });
+    captureElement.style.transform = "none";
+    captureElement.style.transformOrigin = "top left";
+
+    try {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+
+      return await toPng(captureElement, {
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+        pixelRatio: 2,
+        filter: (node) => {
+          if (node instanceof HTMLElement) {
+            return node.dataset.previewExclude !== "true";
+          }
+
+          return true;
+        },
+      });
+    } finally {
+      captureElement.style.transform = previousTransform;
+      captureElement.style.transformOrigin = previousTransformOrigin;
+    }
   }
 
   function createHistorySnapshot(): HistorySnapshot {
@@ -2217,32 +2231,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
               {objects.map((object) => renderObject(object))}
               {renderSelectedObjectPitchControls()}
-            </div>
-
-            <div
-              ref={previewCaptureRef}
-              className="pointer-events-none fixed left-[-9999px] top-[-9999px] w-[1200px] overflow-hidden rounded-xl bg-white"
-            >
-              <div className="relative inline-block w-full overflow-visible rounded-xl bg-white">
-                <img
-                  src={selectedPitchAsset}
-                  alt="Soccer pitch preview"
-                  draggable={false}
-                  className="block h-auto w-full select-none rounded-xl"
-                />
-
-                <svg
-                  className="absolute inset-0 z-10 h-full w-full"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  {lines.map((line) => renderLine(line))}
-                </svg>
-
-                <div className="absolute inset-0 z-20">
-                  {objects.map((object) => renderObject(object))}
-                </div>
-              </div>
             </div>
           </div>
         </div>
