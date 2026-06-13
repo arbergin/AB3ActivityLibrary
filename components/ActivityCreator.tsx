@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { toPng } from "html-to-image";
 import type { PointerEvent, ReactNode, WheelEvent } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
 import type { Activity, ActivityCreatorState } from "@/types/activity";
@@ -672,6 +673,39 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       playerDisplayMode,
     ]
   );
+
+  function openSavePanel() {
+    setSelectedObjectId(null);
+    setActiveLinePoints([]);
+    setIsSavePanelOpen(true);
+  }
+
+  async function getCreatorPreviewDataUrl() {
+    if (!pitchRef.current) {
+      return undefined;
+    }
+
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+
+    return toPng(pitchRef.current, {
+      backgroundColor: "#ffffff",
+      cacheBust: true,
+      pixelRatio: 2,
+      style: {
+        transform: "none",
+        transformOrigin: "top left",
+      },
+      filter: (node) => {
+        if (node instanceof HTMLElement) {
+          return node.dataset.previewExclude !== "true";
+        }
+
+        return true;
+      },
+    });
+  }
 
   function createHistorySnapshot(): HistorySnapshot {
     return {
@@ -1529,6 +1563,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     return (
       <div
+        data-preview-exclude="true"
         className="absolute z-40 w-44 rounded-xl border border-slate-300 bg-white/95 p-3 text-slate-800 shadow-xl backdrop-blur md:w-52"
         style={{
           left: `${panelX}%`,
@@ -1743,7 +1778,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
               <button
                 type="button"
-                onClick={() => setIsSavePanelOpen(true)}
+                onClick={openSavePanel}
                 className="h-12 rounded-lg border border-green-300 px-4 text-sm font-bold text-green-700 hover:bg-green-50"
               >
                 Save Activity
@@ -1809,7 +1844,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
           <button
             type="button"
-            onClick={() => setIsSavePanelOpen(true)}
+            onClick={openSavePanel}
             className="ml-auto flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border border-green-300 text-xs font-semibold text-green-700 hover:bg-green-50"
           >
             <SaveIcon />
@@ -2195,6 +2230,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 mode="create"
                 creatorState={creatorState}
                 initialActivity={initialActivity}
+                getPreviewDataUrl={getCreatorPreviewDataUrl}
               />
             </div>
           </aside>

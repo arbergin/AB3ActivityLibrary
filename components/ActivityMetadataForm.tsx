@@ -24,6 +24,7 @@ type ActivityMetadataFormProps = {
   previewDataUrl?: string;
   creatorState?: ActivityCreatorState;
   initialActivity?: Activity;
+  getPreviewDataUrl?: () => Promise<string | undefined>;
   onCancel?: () => void;
   onSaved?: (activity: Activity) => void;
 };
@@ -35,6 +36,7 @@ export default function ActivityMetadataForm({
   previewDataUrl,
   creatorState,
   initialActivity,
+  getPreviewDataUrl,
   onCancel,
   onSaved,
 }: ActivityMetadataFormProps) {
@@ -69,6 +71,16 @@ export default function ActivityMetadataForm({
 
   const isEditMode = Boolean(initialActivity?.id);
 
+  function createPreviewFileName(name: string) {
+    const safeName = name
+      .trim()
+      .replace(/[^a-z0-9-_ ]/gi, "")
+      .replace(/\s+/g, "_")
+      .toLowerCase();
+
+    return `${safeName || "created_activity"}.png`;
+  }
+
   async function handleSaveActivity(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -82,6 +94,40 @@ export default function ActivityMetadataForm({
     if (!activityName.trim()) {
       setFormError("Activity Name is required.");
       return;
+    }
+
+    setIsSaving(true);
+
+    let activityPreviewDataUrl = mode === "import" ? previewDataUrl : undefined;
+    let activityFileName = mode === "import" ? selectedFileName : undefined;
+    let activityFileType = mode === "import" ? selectedFileType : undefined;
+
+    if (mode === "create") {
+      setSaveMessage("Creating preview image...");
+
+      try {
+        activityPreviewDataUrl = await getPreviewDataUrl?.();
+      } catch (error) {
+        console.error("Created activity preview generation failed.", error);
+        setFormError(
+          "The activity could not be saved because the preview image could not be created."
+        );
+        setSaveMessage("");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!activityPreviewDataUrl) {
+        setFormError(
+          "The activity could not be saved because the preview image could not be created."
+        );
+        setSaveMessage("");
+        setIsSaving(false);
+        return;
+      }
+
+      activityFileName = createPreviewFileName(activityName);
+      activityFileType = "image/png";
     }
 
     const now = new Date().toISOString();
@@ -99,14 +145,13 @@ export default function ActivityMetadataForm({
       hidden: initialActivity?.hidden || false,
       activitySource: mode,
       creatorState: mode === "create" ? creatorState : undefined,
-      fileName: mode === "import" ? selectedFileName : undefined,
-      fileType: mode === "import" ? selectedFileType : undefined,
-      previewDataUrl: mode === "import" ? previewDataUrl : undefined,
+      fileName: activityFileName,
+      fileType: activityFileType,
+      previewDataUrl: activityPreviewDataUrl,
       createdAt: initialActivity?.createdAt || now,
       updatedAt: now,
     };
 
-    setIsSaving(true);
     setSaveMessage(isEditMode ? "Updating activity..." : "Saving activity...");
 
     try {
@@ -303,7 +348,8 @@ export default function ActivityMetadataForm({
       {mode === "create" && (
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
           This will save the editable activity layout, including the pitch,
-          icons, lines, colors, and sizes. It will not save as a PNG or PDF.
+          icons, lines, colors, and sizes. A PNG preview will also be created
+          for the activity detail and search result screens.
         </div>
       )}
 

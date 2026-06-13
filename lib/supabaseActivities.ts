@@ -85,12 +85,16 @@ export function getPublicActivityFileUrl(filePath?: string) {
   return data.publicUrl;
 }
 
+function isDataUrl(value?: string) {
+  return Boolean(value && value.startsWith("data:"));
+}
+
 export async function uploadActivityFile(activity: Activity) {
-  if (!activity.previewDataUrl) {
+  if (!isDataUrl(activity.previewDataUrl)) {
     return null;
   }
 
-  const fileBlob = dataUrlToBlob(activity.previewDataUrl);
+  const fileBlob = dataUrlToBlob(activity.previewDataUrl as string);
   const filePath = createStorageFilePath(activity);
 
   const { error } = await supabase.storage
@@ -226,7 +230,11 @@ export async function updateSupabaseActivity(
     throw new Error("Cannot update Supabase activity because the ID is not a UUID.");
   }
 
-  const updateValue = activityToSupabaseUpdate(activity);
+  const filePath = isDataUrl(activity.previewDataUrl)
+    ? await uploadActivityFile(activity)
+    : undefined;
+
+  const updateValue = activityToSupabaseUpdate(activity, filePath);
 
   const { data, error } = await supabase
     .from("activities")
