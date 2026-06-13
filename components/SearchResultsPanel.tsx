@@ -31,6 +31,36 @@ function safeLower(value?: string | number | null) {
   return String(value ?? "").toLowerCase();
 }
 
+function activityNameMatches(value: string, searchText: string) {
+  const cleanSearchText = searchText.trim().toLowerCase();
+
+  if (!cleanSearchText) {
+    return true;
+  }
+
+  const cleanValue = value.toLowerCase();
+
+  // Normal search behavior stays the same when there is no wildcard.
+  // Example: "passing" matches "Short Passing Pattern".
+  if (!cleanSearchText.includes("*")) {
+    return cleanValue.includes(cleanSearchText);
+  }
+
+  // Wildcard behavior.
+  // Examples:
+  // "passing*" matches names that start with passing.
+  // "*passing*" matches names containing passing.
+  // "1v1*wide" matches names that start with 1v1 and later contain wide.
+  const escapedPattern = cleanSearchText
+    .split("*")
+    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
+
+  const regex = new RegExp(`^${escapedPattern}$`, "i");
+
+  return regex.test(cleanValue);
+}
+
 function numberOfPlayersMatchesFilter(
   activityPlayerCount: number | "",
   filterValue: string
@@ -198,12 +228,14 @@ export default function SearchResultsPanel({
     if (!hasSearched) return [];
 
     return searchableActivities.filter((activity) => {
-      const activityNameMatches = safeLower(activity.activityName).includes(
-        filters.activityName.toLowerCase().trim()
+      const activityNameMatchesFilter = activityNameMatches(
+        activity.activityName ?? "",
+        filters.activityName
       );
 
       const fieldLocationMatches =
-        !filters.fieldLocation || activity.fieldLocation === filters.fieldLocation;
+        !filters.fieldLocation ||
+        activity.fieldLocation === filters.fieldLocation;
 
       const gamePhaseMatches =
         !filters.gamePhase || activity.gamePhase === filters.gamePhase;
@@ -225,7 +257,7 @@ export default function SearchResultsPanel({
       );
 
       return (
-        activityNameMatches &&
+        activityNameMatchesFilter &&
         fieldLocationMatches &&
         gamePhaseMatches &&
         categoryMatches &&
@@ -263,11 +295,15 @@ export default function SearchResultsPanel({
       }
 
       if (sortValue === "playersLowToHigh") {
-        return getPlayerCountForSort(activityA) - getPlayerCountForSort(activityB);
+        return (
+          getPlayerCountForSort(activityA) - getPlayerCountForSort(activityB)
+        );
       }
 
       if (sortValue === "playersHighToLow") {
-        return getPlayerCountForSort(activityB) - getPlayerCountForSort(activityA);
+        return (
+          getPlayerCountForSort(activityB) - getPlayerCountForSort(activityA)
+        );
       }
 
       return 0;
