@@ -680,6 +680,37 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     setIsSavePanelOpen(true);
   }
 
+  async function waitForNextPaint() {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+
+  async function waitForImagesToLoad(element: HTMLElement) {
+    const images = Array.from(element.querySelectorAll("img"));
+
+    await Promise.all(
+      images.map(async (image) => {
+        if (!image.complete || image.naturalWidth === 0) {
+          await new Promise<void>((resolve) => {
+            image.onload = () => resolve();
+            image.onerror = () => resolve();
+          });
+        }
+
+        if (typeof image.decode === "function") {
+          try {
+            await image.decode();
+          } catch {
+            // If decode fails, continue and let html-to-image attempt capture.
+          }
+        }
+      })
+    );
+  }
+
   async function getCreatorPreviewDataUrl() {
     const captureElement = pitchRef.current;
 
@@ -687,41 +718,21 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return undefined;
     }
 
-    await new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => resolve());
-    });
-
-    const images = Array.from(captureElement.querySelectorAll("img"));
-
-    await Promise.all(
-      images.map(
-        (image) =>
-          new Promise<void>((resolve) => {
-            if (image.complete && image.naturalWidth > 0) {
-              resolve();
-              return;
-            }
-
-            image.onload = () => resolve();
-            image.onerror = () => resolve();
-          })
-      )
-    );
-
     const previousTransform = captureElement.style.transform;
     const previousTransformOrigin = captureElement.style.transformOrigin;
+    const previousTransition = captureElement.style.transition;
 
+    captureElement.style.transition = "none";
     captureElement.style.transform = "none";
     captureElement.style.transformOrigin = "top left";
 
     try {
-      await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => resolve());
-      });
+      await waitForImagesToLoad(captureElement);
+      await waitForNextPaint();
 
       return await toPng(captureElement, {
         backgroundColor: "#ffffff",
-        cacheBust: true,
+        cacheBust: false,
         pixelRatio: 2,
         filter: (node) => {
           if (node instanceof HTMLElement) {
@@ -734,6 +745,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     } finally {
       captureElement.style.transform = previousTransform;
       captureElement.style.transformOrigin = previousTransformOrigin;
+      captureElement.style.transition = previousTransition;
     }
   }
 
