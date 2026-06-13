@@ -902,7 +902,15 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 : 54;
 
     const similarObjects = objects.filter((object) => object.type === type);
-    const nextX = clamp(10 + similarObjects.length * 7, 5, 95);
+
+    const isPlayerObject = type === "team1" || type === "team2";
+    const isMobileViewport =
+      typeof window !== "undefined" && window.innerWidth < 768;
+
+    const startingX = isMobileViewport && isPlayerObject ? 26 : 10;
+    const spacingX = isMobileViewport && isPlayerObject ? 8 : 7;
+
+    const nextX = clamp(startingX + similarObjects.length * spacingX, 5, 95);
 
     const newObject: PitchObject = {
       id: makeId(),
