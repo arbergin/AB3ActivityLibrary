@@ -754,58 +754,264 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     }
   }
 
-  async function getCreatorPreviewDataUrl() {
-    const captureElement = pitchRef.current;
+  async function loadCanvasImage(source: string) {
+    const image = new Image();
+    const imageSource = source.startsWith("data:")
+      ? source
+      : await assetPathToDataUrl(source);
 
-    if (!captureElement) {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error(`Unable to load image: ${source}`));
+      image.src = imageSource;
+    });
+
+    if (typeof image.decode === "function") {
+      try {
+        await image.decode();
+      } catch {
+        // Continue if decode fails. The image may still be drawable.
+      }
+    }
+
+    return image;
+  }
+
+  function getPreviewObjectSize(object: PitchObject, canvasWidth: number) {
+    return (object.size ?? getDefaultObjectSize(object.type)) * (canvasWidth / 1000);
+  }
+
+  function drawPreviewLine(
+    context: CanvasRenderingContext2D,
+    line: PitchLine,
+    canvasWidth: number,
+    canvasHeight: number
+  ) {
+    if (line.points.length < 2) {
+      return;
+    }
+
+    context.save();
+    context.strokeStyle = line.color || lineColor;
+    context.lineWidth = Math.max(3, canvasWidth * 0.0055);
+    context.lineCap = "round";
+    context.lineJoin = "round";
+
+    if (line.dashed) {
+      context.setLineDash([canvasWidth * 0.018, canvasWidth * 0.014]);
+    }
+
+    context.beginPath();
+
+    line.points.forEach((point, index) => {
+      const x = (point.x / 100) * canvasWidth;
+      const y = (point.y / 100) * canvasHeight;
+
+      if (index === 0) {
+        context.moveTo(x, y);
+        return;
+      }
+
+      context.lineTo(x, y);
+    });
+
+    context.stroke();
+
+    if (line.arrow && line.points.length >= 2) {
+      const endPoint = line.points[line.points.length - 1];
+      const previousPoint = line.points[line.points.length - 2];
+      const endX = (endPoint.x / 100) * canvasWidth;
+      const endY = (endPoint.y / 100) * canvasHeight;
+      const previousX = (previousPoint.x / 100) * canvasWidth;
+      const previousY = (previousPoint.y / 100) * canvasHeight;
+      const angle = Math.atan2(endY - previousY, endX - previousX);
+      const arrowLength = canvasWidth * 0.03;
+      const arrowAngle = Math.PI / 6;
+
+      context.beginPath();
+      context.moveTo(
+        endX - arrowLength * Math.cos(angle - arrowAngle),
+        endY - arrowLength * Math.sin(angle - arrowAngle)
+      );
+      context.lineTo(endX, endY);
+      context.lineTo(
+        endX - arrowLength * Math.cos(angle + arrowAngle),
+        endY - arrowLength * Math.sin(angle + arrowAngle)
+      );
+      context.stroke();
+    }
+
+    context.restore();
+  }
+
+  function drawPreviewPlayerObject(
+    context: CanvasRenderingContext2D,
+    object: PitchObject,
+    canvasWidth: number,
+    canvasHeight: number
+  ) {
+    const size = getPreviewObjectSize(object, canvasWidth);
+    const x = (object.x / 100) * canvasWidth;
+    const y = (object.y / 100) * canvasHeight;
+    const fillColor =
+      object.fillColor ?? (object.type === "team1" ? team1Color : team2Color);
+
+    context.save();
+    context.beginPath();
+    context.arc(x, y, size / 2, 0, Math.PI * 2);
+    context.fillStyle = fillColor;
+    context.fill();
+    context.lineWidth = Math.max(2, canvasWidth * 0.0025);
+    context.strokeStyle = "#000000";
+    context.stroke();
+
+    const shouldShowNumber =
+      playerDisplayMode === "number" || playerDisplayMode === "both";
+    const shouldShowName =
+      playerDisplayMode === "name" || playerDisplayMode === "both";
+
+    if (shouldShowNumber && object.label) {
+      context.fillStyle = "#ffffff";
+      context.font = `700 ${Math.max(10, size * 0.42)}px Arial`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(object.label, x, y + size * 0.02);
+    }
+
+    const displayName = object.playerName?.trim();
+
+    if (shouldShowName && displayName) {
+      const fontSize = Math.max(9, size * 0.3);
+      context.font = `700 ${fontSize}px Arial`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+
+      const textMetrics = context.measureText(displayName);
+      const labelWidth = textMetrics.width + 8;
+      const labelHeight = fontSize + 6;
+      const labelX = x - labelWidth / 2;
+      const labelY = y + size / 2 + 5;
+
+      context.fillStyle = "rgba(255, 255, 255, 0.88)";
+      context.fillRect(labelX, labelY, labelWidth, labelHeight);
+      context.fillStyle = "#0f172a";
+      context.fillText(displayName, x, labelY + labelHeight / 2);
+    }
+
+    context.restore();
+  }
+
+  function drawPreviewConeObject(
+    context: CanvasRenderingContext2D,
+    object: PitchObject,
+    canvasWidth: number,
+    canvasHeight: number
+  ) {
+    const size = getPreviewObjectSize(object, canvasWidth);
+    const x = (object.x / 100) * canvasWidth;
+    const y = (object.y / 100) * canvasHeight;
+    const fillColor = object.fillColor ?? coneColor;
+
+    context.save();
+    context.fillStyle = fillColor;
+    context.strokeStyle = "#9a3412";
+    context.lineWidth = Math.max(1.5, canvasWidth * 0.0018);
+    context.beginPath();
+    context.moveTo(x, y - size / 2);
+    context.lineTo(x - size / 2, y + size / 2);
+    context.lineTo(x + size / 2, y + size / 2);
+    context.closePath();
+    context.fill();
+    context.stroke();
+    context.restore();
+  }
+
+  async function drawPreviewAssetObject(
+    context: CanvasRenderingContext2D,
+    object: PitchObject,
+    canvasWidth: number,
+    canvasHeight: number,
+    imageCache: Map<string, HTMLImageElement>
+  ) {
+    const assetPath = getAssetForObject(object.type);
+
+    if (!assetPath) {
+      return;
+    }
+
+    let image = imageCache.get(assetPath);
+
+    if (!image) {
+      image = await loadCanvasImage(assetPath);
+      imageCache.set(assetPath, image);
+    }
+
+    const width = getPreviewObjectSize(object, canvasWidth);
+    const height =
+      object.type === "mannequin"
+        ? width * 1.6
+        : object.type === "miniGoal"
+          ? width * 0.625
+          : object.type === "fullGoal"
+            ? width * 0.5
+            : width;
+
+    const x = (object.x / 100) * canvasWidth;
+    const y = (object.y / 100) * canvasHeight;
+
+    context.save();
+    context.translate(x, y);
+    context.rotate((object.rotation * Math.PI) / 180);
+    context.drawImage(image, -width / 2, -height / 2, width, height);
+    context.restore();
+  }
+
+  async function getCreatorPreviewDataUrl() {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
       return undefined;
     }
 
-    const pitchImage = captureElement.querySelector<HTMLImageElement>(
-      'img[alt="Soccer pitch"]'
-    );
+    const pitchImage = await loadCanvasImage(selectedPitchAsset);
+    const canvasWidth = 1200;
+    const pitchAspectRatio =
+      pitchImage.naturalWidth > 0
+        ? pitchImage.naturalHeight / pitchImage.naturalWidth
+        : 0.625;
+    const canvasHeight = Math.round(canvasWidth * pitchAspectRatio);
 
-    const previousPitchImageSrc = pitchImage?.getAttribute("src") ?? null;
-    const previousTransform = captureElement.style.transform;
-    const previousTransformOrigin = captureElement.style.transformOrigin;
-    const previousTransition = captureElement.style.transition;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
 
-    captureElement.style.transition = "none";
-    captureElement.style.transform = "none";
-    captureElement.style.transformOrigin = "top left";
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+    context.drawImage(pitchImage, 0, 0, canvasWidth, canvasHeight);
 
-    try {
-      if (pitchImage) {
-        const pitchBackgroundDataUrl = await assetPathToDataUrl(selectedPitchAsset);
-        pitchImage.src = pitchBackgroundDataUrl;
-        await waitForImageElement(pitchImage);
+    lines.forEach((line) => {
+      drawPreviewLine(context, line, canvasWidth, canvasHeight);
+    });
+
+    const imageCache = new Map<string, HTMLImageElement>();
+
+    for (const object of objects) {
+      if (object.type === "team1" || object.type === "team2") {
+        drawPreviewPlayerObject(context, object, canvasWidth, canvasHeight);
+      } else if (object.type === "cone") {
+        drawPreviewConeObject(context, object, canvasWidth, canvasHeight);
+      } else {
+        await drawPreviewAssetObject(
+          context,
+          object,
+          canvasWidth,
+          canvasHeight,
+          imageCache
+        );
       }
-
-      await waitForImagesToLoad(captureElement);
-      await waitForNextPaint();
-      await waitForNextPaint();
-
-      return await toPng(captureElement, {
-        backgroundColor: "#ffffff",
-        cacheBust: false,
-        pixelRatio: 2,
-        filter: (node) => {
-          if (node instanceof HTMLElement) {
-            return node.dataset.previewExclude !== "true";
-          }
-
-          return true;
-        },
-      });
-    } finally {
-      if (pitchImage && previousPitchImageSrc) {
-        pitchImage.src = previousPitchImageSrc;
-      }
-
-      captureElement.style.transform = previousTransform;
-      captureElement.style.transformOrigin = previousTransformOrigin;
-      captureElement.style.transition = previousTransition;
     }
+
+    return canvas.toDataURL("image/png");
   }
 
   function createHistorySnapshot(): HistorySnapshot {
