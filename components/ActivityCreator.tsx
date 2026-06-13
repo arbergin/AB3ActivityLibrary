@@ -1786,13 +1786,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 Toolbar Settings
               </button>
 
-              <button
-                type="button"
-                onClick={openSavePanel}
-                className="h-12 rounded-lg border border-green-300 px-4 text-sm font-bold text-green-700 hover:bg-green-50"
-              >
-                Save Activity
-              </button>
             </div>
           )}
         </div>
@@ -2067,6 +2060,14 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Redo
+          </button>
+
+          <button
+            type="button"
+            onClick={openSavePanel}
+            className="rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-bold text-green-700 hover:bg-green-50"
+          >
+            Save
           </button>
         </div>
 
