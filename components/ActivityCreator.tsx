@@ -903,12 +903,14 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     const similarObjects = objects.filter((object) => object.type === type);
 
-    const isPlayerObject = type === "team1" || type === "team2";
+    const shouldShiftRightOnMobile =
+      type === "team1" || type === "team2" || type === "cone";
+
     const isMobileViewport =
       typeof window !== "undefined" && window.innerWidth < 768;
 
-    const startingX = isMobileViewport && isPlayerObject ? 26 : 10;
-    const spacingX = isMobileViewport && isPlayerObject ? 8 : 7;
+    const startingX = isMobileViewport && shouldShiftRightOnMobile ? 26 : 10;
+    const spacingX = isMobileViewport && shouldShiftRightOnMobile ? 8 : 7;
 
     const nextX = clamp(startingX + similarObjects.length * spacingX, 5, 95);
 
