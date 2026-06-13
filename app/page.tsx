@@ -225,26 +225,32 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <div className="grid grid-rows-[288px_auto] gap-6">
+            <div className="contents lg:grid lg:grid-rows-[288px_auto] lg:gap-6">
               <ActivityToolsCard />
 
-              <ActivityList
-                title="My Activities"
-                emptyMessage="No activities created by you yet."
-                activities={createdActivities}
-                isLoading={isLoadingDashboard}
-              />
+              <div className="order-3 lg:order-none">
+                <ActivityList
+                  title="My Activities"
+                  emptyMessage="No activities created by you yet."
+                  activities={createdActivities}
+                  isLoading={isLoadingDashboard}
+                />
+              </div>
             </div>
 
-            <div className="grid grid-rows-[288px_auto] gap-6">
-              <ImportOptionsCard />
+            <div className="contents lg:grid lg:grid-rows-[288px_auto] lg:gap-6">
+              <div className="order-2 lg:order-none">
+                <ImportOptionsCard />
+              </div>
 
-              <ActivityList
-                title="Recent Activities"
-                emptyMessage="No recently opened activities yet."
-                activities={openedActivities}
-                isLoading={isLoadingDashboard}
-              />
+              <div className="order-4 lg:order-none">
+                <ActivityList
+                  title="Recent Activities"
+                  emptyMessage="No recently opened activities yet."
+                  activities={openedActivities}
+                  isLoading={isLoadingDashboard}
+                />
+              </div>
             </div>
           </div>
         </section>
