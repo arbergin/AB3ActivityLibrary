@@ -711,6 +711,49 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
   }
 
+  async function assetPathToDataUrl(assetPath: string) {
+    const response = await fetch(assetPath, { cache: "force-cache" });
+
+    if (!response.ok) {
+      throw new Error(`Unable to load pitch background: ${assetPath}`);
+    }
+
+    const blob = await response.blob();
+
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+
+        reject(new Error("Unable to convert pitch background to data URL."));
+      };
+
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function waitForImageElement(image: HTMLImageElement) {
+    if (!image.complete || image.naturalWidth === 0) {
+      await new Promise<void>((resolve) => {
+        image.onload = () => resolve();
+        image.onerror = () => resolve();
+      });
+    }
+
+    if (typeof image.decode === "function") {
+      try {
+        await image.decode();
+      } catch {
+        // Continue even if decode fails. html-to-image may still capture it.
+      }
+    }
+  }
+
   async function getCreatorPreviewDataUrl() {
     const captureElement = pitchRef.current;
 
@@ -718,6 +761,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return undefined;
     }
 
+    const pitchImage = captureElement.querySelector<HTMLImageElement>(
+      'img[alt="Soccer pitch"]'
+    );
+
+    const previousPitchImageSrc = pitchImage?.getAttribute("src") ?? null;
     const previousTransform = captureElement.style.transform;
     const previousTransformOrigin = captureElement.style.transformOrigin;
     const previousTransition = captureElement.style.transition;
@@ -727,7 +775,14 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     captureElement.style.transformOrigin = "top left";
 
     try {
+      if (pitchImage) {
+        const pitchBackgroundDataUrl = await assetPathToDataUrl(selectedPitchAsset);
+        pitchImage.src = pitchBackgroundDataUrl;
+        await waitForImageElement(pitchImage);
+      }
+
       await waitForImagesToLoad(captureElement);
+      await waitForNextPaint();
       await waitForNextPaint();
 
       return await toPng(captureElement, {
@@ -743,6 +798,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         },
       });
     } finally {
+      if (pitchImage && previousPitchImageSrc) {
+        pitchImage.src = previousPitchImageSrc;
+      }
+
       captureElement.style.transform = previousTransform;
       captureElement.style.transformOrigin = previousTransformOrigin;
       captureElement.style.transition = previousTransition;
