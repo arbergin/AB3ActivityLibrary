@@ -209,6 +209,7 @@ export default function ImportFlow() {
           </div>
 
           <ActivityMetadataForm
+            mode="import"
             selectedFileName={selectedFileName}
             selectedFileType={selectedFileType}
             previewDataUrl={previewDataUrl}

@@ -12,6 +12,7 @@ import { createSupabaseActivity } from "@/lib/supabaseActivities";
 import type { Activity } from "@/types/activity";
 
 type ActivityMetadataFormProps = {
+  mode?: "import" | "create";
   selectedFileName?: string;
   selectedFileType?: string;
   previewDataUrl?: string;
@@ -19,6 +20,7 @@ type ActivityMetadataFormProps = {
 };
 
 export default function ActivityMetadataForm({
+  mode = "import",
   selectedFileName,
   selectedFileType,
   previewDataUrl,
@@ -114,6 +116,66 @@ export default function ActivityMetadataForm({
     setSaveMessage("");
   }
 
+  function renderFieldLocationSelect() {
+    return (
+      <label className="grid gap-1">
+        <span className="text-sm font-semibold">Field Location</span>
+        <select
+          value={fieldLocation}
+          onChange={(event) =>
+            setFieldLocation(event.target.value as Activity["fieldLocation"])
+          }
+          className="rounded-lg border border-slate-300 px-3 py-2"
+        >
+          <option value="">Select field location</option>
+          {fieldLocationOptions.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  function renderGamePhaseSelect() {
+    return (
+      <label className="grid gap-1">
+        <span className="text-sm font-semibold">Game Phase</span>
+        <select
+          value={gamePhase}
+          onChange={(event) =>
+            setGamePhase(event.target.value as Activity["gamePhase"])
+          }
+          className="rounded-lg border border-slate-300 px-3 py-2"
+        >
+          <option value="">Select game phase</option>
+          {gamePhaseOptions.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  function renderCategorySelect() {
+    return (
+      <label className="grid gap-1">
+        <span className="text-sm font-semibold">Category</span>
+        <select
+          value={category}
+          onChange={(event) =>
+            setCategory(event.target.value as Activity["category"])
+          }
+          className="rounded-lg border border-slate-300 px-3 py-2"
+        >
+          <option value="">Select category</option>
+          {categoryOptions.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
   return (
     <form
       onSubmit={handleSaveActivity}
@@ -192,55 +254,22 @@ export default function ActivityMetadataForm({
           />
         </label>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold">Field Location</span>
-            <select
-              value={fieldLocation}
-              onChange={(event) =>
-                setFieldLocation(event.target.value as Activity["fieldLocation"])
-              }
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            >
-              <option value="">Select field location</option>
-              {fieldLocationOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </label>
+        {mode === "create" ? (
+          <div className="grid gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {renderFieldLocationSelect()}
+              {renderGamePhaseSelect()}
+            </div>
 
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold">Game Phase</span>
-            <select
-              value={gamePhase}
-              onChange={(event) =>
-                setGamePhase(event.target.value as Activity["gamePhase"])
-              }
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            >
-              <option value="">Select game phase</option>
-              {gamePhaseOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold">Category</span>
-            <select
-              value={category}
-              onChange={(event) =>
-                setCategory(event.target.value as Activity["category"])
-              }
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            >
-              <option value="">Select category</option>
-              {categoryOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-        </div>
+            {renderCategorySelect()}
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-3">
+            {renderFieldLocationSelect()}
+            {renderGamePhaseSelect()}
+            {renderCategorySelect()}
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-1">

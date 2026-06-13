@@ -2115,9 +2115,9 @@ export default function ActivityCreator() {
 
             <div className="p-5">
               <ActivityMetadataForm
+                mode="create"
                 selectedFileName="Created Activity"
                 selectedFileType="activity-creator"
-                layout="panel"
               />
             </div>
           </aside>
