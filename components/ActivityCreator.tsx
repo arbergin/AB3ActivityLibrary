@@ -582,6 +582,7 @@ function getInitialPlayerDisplayMode(
 export default function ActivityCreator({ initialActivity }: ActivityCreatorProps) {
   const initialCreatorState = getInitialCreatorState(initialActivity);
   const pitchRef = useRef<HTMLDivElement | null>(null);
+  const previewCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
   const [mobileToolGroup, setMobileToolGroup] =
@@ -681,7 +682,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   }
 
   async function getCreatorPreviewDataUrl() {
-    if (!pitchRef.current) {
+    const captureElement = previewCaptureRef.current;
+
+    if (!captureElement) {
       return undefined;
     }
 
@@ -689,14 +692,27 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       window.requestAnimationFrame(() => resolve());
     });
 
-    return toPng(pitchRef.current, {
+    const images = Array.from(captureElement.querySelectorAll("img"));
+
+    await Promise.all(
+      images.map(
+        (image) =>
+          new Promise<void>((resolve) => {
+            if (image.complete) {
+              resolve();
+              return;
+            }
+
+            image.onload = () => resolve();
+            image.onerror = () => resolve();
+          })
+      )
+    );
+
+    return toPng(captureElement, {
       backgroundColor: "#ffffff",
       cacheBust: true,
       pixelRatio: 2,
-      style: {
-        transform: "none",
-        transformOrigin: "top left",
-      },
       filter: (node) => {
         if (node instanceof HTMLElement) {
           return node.dataset.previewExclude !== "true";
@@ -2201,6 +2217,32 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
               {objects.map((object) => renderObject(object))}
               {renderSelectedObjectPitchControls()}
+            </div>
+
+            <div
+              ref={previewCaptureRef}
+              className="pointer-events-none fixed left-[-9999px] top-[-9999px] w-[1200px] overflow-hidden rounded-xl bg-white"
+            >
+              <div className="relative inline-block w-full overflow-visible rounded-xl bg-white">
+                <img
+                  src={selectedPitchAsset}
+                  alt="Soccer pitch preview"
+                  draggable={false}
+                  className="block h-auto w-full select-none rounded-xl"
+                />
+
+                <svg
+                  className="absolute inset-0 z-10 h-full w-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  {lines.map((line) => renderLine(line))}
+                </svg>
+
+                <div className="absolute inset-0 z-20">
+                  {objects.map((object) => renderObject(object))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
