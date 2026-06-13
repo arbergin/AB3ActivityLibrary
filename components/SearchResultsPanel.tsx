@@ -3,11 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  deleteStoredActivity,
-  getStoredActivities,
-  updateStoredActivityHidden,
-} from "@/lib/activityStorage";
 import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
 import {
   deleteSupabaseActivity,
@@ -28,18 +23,9 @@ type SearchResultsPanelProps = {
   refreshKey: number;
 };
 
-type ActivitySource = "supabase" | "local";
-
 type ActivityWithSource = Activity & {
-  source: ActivitySource;
+  source: "supabase";
 };
-
-function isUuid(value: string) {
-  const uuidPattern =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
-
-  return uuidPattern.test(value);
-}
 
 function safeLower(value?: string | number | null) {
   return String(value ?? "").toLowerCase();
@@ -147,34 +133,13 @@ function formatDate(dateValue?: string) {
   });
 }
 
-function removeDuplicateActivities(activities: ActivityWithSource[]) {
-  const activityMap = new Map<string, ActivityWithSource>();
-
-  activities.forEach((activity) => {
-    if (!activityMap.has(activity.id)) {
-      activityMap.set(activity.id, activity);
-    }
-  });
-
-  return Array.from(activityMap.values());
-}
-
-function getFreshLocalActivities() {
-  return getStoredActivities()
-    .filter((activity) => !isUuid(activity.id))
-    .map((activity) => ({
-      ...activity,
-      source: "local" as const,
-    }));
-}
-
 function PreviewFallback() {
   return (
     <div className="flex min-h-64 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
       <div>
         Preview unavailable
         <div className="mt-2 text-xs">
-          The activity metadata exists, but the preview file could not be loaded.
+          The activity record exists, but the preview file could not be loaded.
         </div>
       </div>
     </div>
@@ -211,19 +176,13 @@ export default function SearchResultsPanel({
           source: "supabase",
         }));
 
-      const combinedActivities = removeDuplicateActivities([
-        ...supabaseActivitiesWithSource,
-        ...getFreshLocalActivities(),
-      ]);
-
-      setActivities(combinedActivities);
+      setActivities(supabaseActivitiesWithSource);
       setActionMessage("");
     } catch (error) {
       console.error("Unable to load activities from Supabase.", error);
-
-      setActivities(getFreshLocalActivities());
+      setActivities([]);
       setActionMessage(
-        "Supabase activities could not be loaded. Showing local-only activities."
+        "Supabase activities could not be loaded. Refresh the page and try again."
       );
     } finally {
       setIsLoadingActivities(false);
@@ -411,56 +370,23 @@ export default function SearchResultsPanel({
     setShowDeleteConfirm(false);
     setActionMessage("");
 
-    if (selectedActivity.source === "supabase") {
-      try {
-        await updateSupabaseActivityHidden(
-          selectedActivity.id,
-          !selectedActivity.hidden
-        );
+    try {
+      await updateSupabaseActivityHidden(
+        selectedActivity.id,
+        !selectedActivity.hidden
+      );
 
-        await loadActivities();
-        setActionMessage(
-          !selectedActivity.hidden
-            ? "Activity hidden. Check Include hidden activities to view it again."
-            : "Activity is visible again."
-        );
-        router.refresh();
-        return;
-      } catch (error) {
-        console.error("Supabase hide/unhide failed.", error);
-        setActionMessage("This activity could not be updated in Supabase.");
-        return;
-      }
+      await loadActivities();
+      setActionMessage(
+        !selectedActivity.hidden
+          ? "Activity hidden. Check Include hidden activities to view it again."
+          : "Activity is visible again."
+      );
+      router.refresh();
+    } catch (error) {
+      console.error("Supabase hide/unhide failed.", error);
+      setActionMessage("This activity could not be updated in Supabase.");
     }
-
-    const updatedActivity = updateStoredActivityHidden(
-      selectedActivity.id,
-      !selectedActivity.hidden
-    );
-
-    if (!updatedActivity) {
-      setActionMessage("This local activity could not be updated.");
-      return;
-    }
-
-    const updatedActivityWithSource: ActivityWithSource = {
-      ...updatedActivity,
-      source: "local",
-    };
-
-    setActivities((currentActivities) =>
-      currentActivities.map((activity) =>
-        activity.id === selectedActivity.id ? updatedActivityWithSource : activity
-      )
-    );
-
-    setSelectedActivity(updatedActivityWithSource);
-
-    setActionMessage(
-      updatedActivity.hidden
-        ? "Activity hidden. Check Include hidden activities to view it again."
-        : "Activity is visible again."
-    );
   }
 
   function handleDeleteClick() {
@@ -477,39 +403,20 @@ export default function SearchResultsPanel({
 
     const activityToDelete = selectedActivity;
 
-    if (activityToDelete.source === "supabase") {
-      try {
-        await deleteSupabaseActivity(activityToDelete.id);
-        deleteStoredActivity(activityToDelete.id);
+    try {
+      await deleteSupabaseActivity(activityToDelete.id);
 
-        setSelectedActivity(undefined);
-        setShowDeleteConfirm(false);
-        setDownloadMessage("");
-        await loadActivities();
-        setActionMessage("Activity deleted from Supabase.");
-        router.refresh();
-        return;
-      } catch (error) {
-        console.error("Supabase delete failed.", error);
-        setActionMessage("This activity could not be deleted from Supabase.");
-        setShowDeleteConfirm(false);
-        return;
-      }
-    }
-
-    const deleted = deleteStoredActivity(activityToDelete.id);
-
-    if (!deleted) {
-      setActionMessage("This activity could not be deleted.");
+      setSelectedActivity(undefined);
       setShowDeleteConfirm(false);
-      return;
+      setDownloadMessage("");
+      await loadActivities();
+      setActionMessage("Activity deleted.");
+      router.refresh();
+    } catch (error) {
+      console.error("Supabase delete failed.", error);
+      setActionMessage("This activity could not be deleted from Supabase.");
+      setShowDeleteConfirm(false);
     }
-
-    setSelectedActivity(undefined);
-    setShowDeleteConfirm(false);
-    setDownloadMessage("");
-    await loadActivities();
-    setActionMessage("Activity deleted.");
   }
 
   return (
@@ -651,22 +558,25 @@ export default function SearchResultsPanel({
         ) : (
           <>
             <div className="mt-4 flex min-h-64 min-w-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-              {!selectedActivity.previewDataUrl || selectedPreviewFailed ? (
+              {selectedPreviewFailed ? (
                 <PreviewFallback />
-              ) : selectedActivity.fileType === "application/pdf" ? (
+              ) : selectedActivity.previewDataUrl &&
+                selectedActivity.fileType === "application/pdf" ? (
                 <iframe
                   src={selectedActivity.previewDataUrl}
                   title={`${selectedActivity.activityName} PDF preview`}
                   className="h-80 w-full rounded-lg border border-slate-200"
                   onError={() => setSelectedPreviewFailed(true)}
                 />
-              ) : (
+              ) : selectedActivity.previewDataUrl ? (
                 <img
                   src={selectedActivity.previewDataUrl}
                   alt={`${selectedActivity.activityName} preview`}
                   className="max-h-80 w-full rounded-lg object-contain"
                   onError={() => setSelectedPreviewFailed(true)}
                 />
+              ) : (
+                <PreviewFallback />
               )}
             </div>
 
@@ -776,8 +686,7 @@ export default function SearchResultsPanel({
                   Delete this activity permanently?
                 </div>
                 <div className="mt-1">
-                  This removes the activity and its uploaded file if it came
-                  from Supabase.
+                  This removes the activity and its uploaded file from Supabase.
                 </div>
 
                 <div className="mt-4 flex flex-wrap justify-end gap-3">

@@ -43,6 +43,25 @@ function isMobileBrowser() {
   return window.matchMedia("(max-width: 767px)").matches;
 }
 
+function clearStaleSearchBrowserState() {
+  if (typeof window === "undefined") return;
+
+  // These keys cover old search/filter cache names if any were used previously.
+  const exactKeysToRemove = [
+    "searchFilters",
+    "activitySearchFilters",
+    "searchResults",
+    "activitySearchResults",
+    "recentSearchResults",
+    "selectedSearchActivity",
+  ];
+
+  exactKeysToRemove.forEach((key) => {
+    window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
+  });
+}
+
 export default function SearchPageClient() {
   const [includeHidden, setIncludeHidden] = useState(false);
   const [filters, setFilters] = useState<SearchFilterValues>(emptyFilters);
@@ -56,6 +75,7 @@ export default function SearchPageClient() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const resetSearchState = useCallback(() => {
+    clearStaleSearchBrowserState();
     setFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     setIncludeHidden(false);
@@ -67,6 +87,8 @@ export default function SearchPageClient() {
   }, []);
 
   function handleSearch() {
+    clearStaleSearchBrowserState();
+
     if (!hasSearchCriteria(filters)) {
       setHasSearched(false);
       setSearchMessage("Enter at least one search criteria before searching.");
