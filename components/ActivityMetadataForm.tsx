@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   categoryOptions,
@@ -16,22 +15,13 @@ type ActivityMetadataFormProps = {
   selectedFileName?: string;
   selectedFileType?: string;
   previewDataUrl?: string;
-  layout?: "standard" | "panel";
   onCancel?: () => void;
 };
-
-function createLocalFallbackActivity(activity: Activity): Activity {
-  return {
-    ...activity,
-    previewDataUrl: undefined,
-  };
-}
 
 export default function ActivityMetadataForm({
   selectedFileName,
   selectedFileType,
   previewDataUrl,
-  layout = "standard",
   onCancel,
 }: ActivityMetadataFormProps) {
   const router = useRouter();
@@ -48,17 +38,7 @@ export default function ActivityMetadataForm({
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  const fieldAndPhaseGridClass =
-    layout === "panel"
-      ? "grid gap-4 sm:grid-cols-2"
-      : "grid gap-4 md:grid-cols-2";
-
-  const twoColumnGridClass =
-    layout === "panel"
-      ? "grid gap-4 sm:grid-cols-2"
-      : "grid gap-4 md:grid-cols-2";
-
-  async function handleSaveActivity(event: FormEvent<HTMLFormElement>) {
+  async function handleSaveActivity(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (isSaving) {
@@ -94,38 +74,35 @@ export default function ActivityMetadataForm({
     };
 
     setIsSaving(true);
-    setSaveMessage("Saving activity to Supabase...");
+    setSaveMessage("Saving activity...");
 
     try {
       const savedSupabaseActivity = await createSupabaseActivity(newActivity);
 
+      saveStoredActivity({
+        ...newActivity,
+        id: savedSupabaseActivity.id,
+        createdAt: savedSupabaseActivity.createdAt,
+        updatedAt: savedSupabaseActivity.updatedAt,
+      });
+
       router.push(`/activity/${savedSupabaseActivity.id}`);
     } catch (error) {
-      console.error(
-        "Supabase save failed. Saving metadata locally instead.",
-        error
+      console.error("Supabase save failed. Saving locally instead.", error);
+
+      saveStoredActivity(newActivity);
+
+      setSaveMessage(
+        "Supabase save failed, so the activity was saved locally in this browser."
       );
 
-      const localFallbackActivity = createLocalFallbackActivity(newActivity);
-
-      try {
-        saveStoredActivity(localFallbackActivity);
-        setSaveMessage(
-          "Supabase save failed, so the activity metadata was saved locally in this browser."
-        );
-        router.push(`/activity/${localFallbackActivity.id}`);
-      } catch (localError) {
-        console.error("Local fallback save failed.", localError);
-        setFormError(
-          "The activity could not be saved to Supabase or local storage."
-        );
-      }
+      router.push(`/activity/${newActivity.id}`);
     } finally {
       setIsSaving(false);
     }
   }
 
-  function resetForm() {
+  function handleClearForm() {
     setActivityName("");
     setFieldLocation("");
     setGamePhase("");
@@ -137,25 +114,34 @@ export default function ActivityMetadataForm({
     setSaveMessage("");
   }
 
-  function handleCancel() {
-    resetForm();
-
-    if (onCancel) {
-      onCancel();
-    }
-  }
-
   return (
     <form
       onSubmit={handleSaveActivity}
       className="rounded-xl bg-white p-6 shadow-sm"
     >
-      <h2 className="text-xl font-bold">Activity Metadata</h2>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold">Activity Metadata</h2>
 
-      <p className="mt-2 text-sm text-slate-600">
-        Add searchable details for this activity. These fields will power the
-        library search later.
-      </p>
+          <p className="mt-2 text-sm text-slate-600">
+            Add searchable details for this activity. These fields will power
+            the library search later.
+          </p>
+        </div>
+
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSaving}
+            className="rounded-full px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Close metadata form"
+            title="Close"
+          >
+            ×
+          </button>
+        )}
+      </div>
 
       {selectedFileName && (
         <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
@@ -193,32 +179,28 @@ export default function ActivityMetadataForm({
       )}
 
       <div className="mt-6 grid gap-4">
-        <label className="grid min-w-0 gap-1">
+        <label className="grid gap-1">
           <span className="text-sm font-semibold">
             Activity Name <span className="text-red-600">*</span>
           </span>
-
           <input
             type="text"
             value={activityName}
             onChange={(event) => setActivityName(event.target.value)}
-            className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
+            className="rounded-lg border border-slate-300 px-3 py-2"
             placeholder="Example: 3v2 to Counter"
           />
         </label>
 
-        <div className={fieldAndPhaseGridClass}>
-          <label className="grid min-w-0 gap-1">
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="grid gap-1">
             <span className="text-sm font-semibold">Field Location</span>
-
             <select
               value={fieldLocation}
               onChange={(event) =>
-                setFieldLocation(
-                  event.target.value as Activity["fieldLocation"]
-                )
+                setFieldLocation(event.target.value as Activity["fieldLocation"])
               }
-              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
+              className="rounded-lg border border-slate-300 px-3 py-2"
             >
               <option value="">Select field location</option>
               {fieldLocationOptions.map((option) => (
@@ -227,15 +209,14 @@ export default function ActivityMetadataForm({
             </select>
           </label>
 
-          <label className="grid min-w-0 gap-1">
+          <label className="grid gap-1">
             <span className="text-sm font-semibold">Game Phase</span>
-
             <select
               value={gamePhase}
               onChange={(event) =>
                 setGamePhase(event.target.value as Activity["gamePhase"])
               }
-              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
+              className="rounded-lg border border-slate-300 px-3 py-2"
             >
               <option value="">Select game phase</option>
               {gamePhaseOptions.map((option) => (
@@ -243,58 +224,54 @@ export default function ActivityMetadataForm({
               ))}
             </select>
           </label>
+
+          <label className="grid gap-1">
+            <span className="text-sm font-semibold">Category</span>
+            <select
+              value={category}
+              onChange={(event) =>
+                setCategory(event.target.value as Activity["category"])
+              }
+              className="rounded-lg border border-slate-300 px-3 py-2"
+            >
+              <option value="">Select category</option>
+              {categoryOptions.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
-        <label className="grid min-w-0 gap-1">
-          <span className="text-sm font-semibold">Category</span>
-
-          <select
-            value={category}
-            onChange={(event) =>
-              setCategory(event.target.value as Activity["category"])
-            }
-            className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
-          >
-            <option value="">Select category</option>
-            {categoryOptions.map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-
-        <div className={twoColumnGridClass}>
-          <label className="grid min-w-0 gap-1">
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid gap-1">
             <span className="text-sm font-semibold">Positions Involved</span>
-
             <input
               type="text"
               value={positionsInvolved}
               onChange={(event) => setPositionsInvolved(event.target.value)}
-              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
+              className="rounded-lg border border-slate-300 px-3 py-2"
               placeholder="Example: 9, 10, Wingers"
             />
           </label>
 
-          <label className="grid min-w-0 gap-1">
+          <label className="grid gap-1">
             <span className="text-sm font-semibold">Number of Players</span>
-
             <input
               type="number"
               value={numberOfPlayers}
               onChange={(event) => setNumberOfPlayers(event.target.value)}
-              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
+              className="rounded-lg border border-slate-300 px-3 py-2"
               placeholder="Example: 8"
             />
           </label>
         </div>
 
-        <label className="grid min-w-0 gap-1">
+        <label className="grid gap-1">
           <span className="text-sm font-semibold">Activity Details</span>
-
           <textarea
             value={activityDetails}
             onChange={(event) => setActivityDetails(event.target.value)}
-            className="min-h-32 w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2"
+            className="min-h-32 rounded-lg border border-slate-300 px-3 py-2"
             placeholder="Describe setup, rules, coaching points, progressions, or constraints."
           />
         </label>
@@ -314,7 +291,7 @@ export default function ActivityMetadataForm({
         <div className="flex justify-end gap-3">
           <button
             type="button"
-            onClick={handleCancel}
+            onClick={handleClearForm}
             disabled={isSaving}
             className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
           >

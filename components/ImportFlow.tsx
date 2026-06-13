@@ -10,6 +10,7 @@ export default function ImportFlow() {
   const metadataSectionRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileName, setSelectedFileName] = useState("");
   const [selectedFileType, setSelectedFileType] = useState("");
   const [previewDataUrl, setPreviewDataUrl] = useState("");
@@ -17,6 +18,7 @@ export default function ImportFlow() {
   const [showMetadataForm, setShowMetadataForm] = useState(false);
 
   function resetSelectedFile() {
+    setSelectedFile(null);
     setSelectedFileName("");
     setSelectedFileType("");
     setPreviewDataUrl("");
@@ -40,6 +42,7 @@ export default function ImportFlow() {
     setShowMetadataForm(false);
     setPreviewDataUrl("");
     setSelectedFileType("");
+    setSelectedFile(null);
 
     if (!file) {
       setSelectedFileName("");
@@ -65,6 +68,7 @@ export default function ImportFlow() {
       return;
     }
 
+    setSelectedFile(file);
     setSelectedFileName(file.name);
     setSelectedFileType(file.type);
 
@@ -77,6 +81,7 @@ export default function ImportFlow() {
     };
 
     reader.onerror = () => {
+      setSelectedFile(null);
       setSelectedFileName("");
       setSelectedFileType("");
       setPreviewDataUrl("");
@@ -88,7 +93,7 @@ export default function ImportFlow() {
   }
 
   function handleContinue() {
-    if (!selectedFileName) {
+    if (!selectedFile || !selectedFileName) {
       setFileError("Select a PNG or PDF file before continuing.");
       return;
     }
@@ -196,7 +201,7 @@ export default function ImportFlow() {
         </div>
       </div>
 
-      {showMetadataForm && (
+      {showMetadataForm && selectedFile && (
         <div ref={metadataSectionRef} className="scroll-mt-6">
           <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-sm">
             <span className="font-semibold">Creating activity from:</span>{" "}
