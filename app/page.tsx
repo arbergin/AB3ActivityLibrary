@@ -121,18 +121,40 @@ function ImportOptionsCard() {
 
 function ActivityList({
   title,
+  titleHref,
   emptyMessage,
   activities,
   isLoading,
 }: {
   title: string;
+  titleHref?: string;
   emptyMessage: string;
   activities: Activity[];
   isLoading: boolean;
 }) {
   return (
     <section className="rounded-xl bg-white p-6 shadow-sm">
-      <h3 className="text-lg font-bold">{title}</h3>
+      <div className="flex items-center justify-between gap-4">
+        {titleHref ? (
+          <Link
+            href={titleHref}
+            className="text-lg font-bold text-slate-900 underline-offset-4 hover:underline"
+          >
+            {title}
+          </Link>
+        ) : (
+          <h3 className="text-lg font-bold">{title}</h3>
+        )}
+
+        {titleHref ? (
+          <Link
+            href={titleHref}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            View all
+          </Link>
+        ) : null}
+      </div>
 
       <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
         {isLoading ? (
@@ -161,7 +183,7 @@ function ActivityList({
               </div>
 
               <div className="mt-1 text-xs text-slate-400">
-                Created: {formatDate(activity.createdAt)}
+                Updated: {formatDate(activity.updatedAt || activity.createdAt)}
               </div>
             </Link>
           ))
@@ -231,6 +253,7 @@ export default function HomePage() {
               <div className="order-3 lg:order-none">
                 <ActivityList
                   title="My Activities"
+                  titleHref="/my-activities"
                   emptyMessage="No activities created by you yet."
                   activities={createdActivities}
                   isLoading={isLoadingDashboard}
