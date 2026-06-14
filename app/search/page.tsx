@@ -12,8 +12,7 @@ export default function SearchPage() {
           <div className="mb-6 min-w-0">
             <h2 className="text-2xl font-bold">Search Activities</h2>
             <p className="mt-2 max-w-3xl text-slate-600">
-              Filter activities by name, field location, game phase, category,
-              positions involved, number of players, or activity details.
+              Filter activities by name, field location, game phase, category, positions involved, number of players, or activity details.
             </p>
           </div>
 
