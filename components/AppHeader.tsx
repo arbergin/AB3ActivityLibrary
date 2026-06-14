@@ -1,102 +1,295 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import AuthStatus from "@/components/AuthStatus";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+
+type ProfileRow = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string | null;
+};
+
+const DISPLAY_NAME_STORAGE_KEY = "ab3_user_display_name";
+const USER_ROLE_STORAGE_KEY = "ab3_user_role";
+const IS_LOGGED_IN_STORAGE_KEY = "ab3_is_logged_in";
+
+function HomeIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m3 11 9-8 9 8" />
+      <path d="M5 10v10h14V10" />
+      <path d="M9 20v-6h6v6" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06A2 2 0 1 1 7.03 3.8l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z" />
+    </svg>
+  );
+}
+
+function readStorageValue(key: string) {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(key) || "";
+}
 
 export default function AppHeader() {
+  const router = useRouter();
+
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return readStorageValue(IS_LOGGED_IN_STORAGE_KEY) === "true";
+  });
+
+  const [displayName, setDisplayName] = useState(() => {
+    return readStorageValue(DISPLAY_NAME_STORAGE_KEY);
+  });
+
+  const [userRole, setUserRole] = useState<string | null>(() => {
+    return readStorageValue(USER_ROLE_STORAGE_KEY) || null;
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function refreshUserProfile() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!isMounted) return;
+
+      if (!session?.user) {
+        setIsLoggedIn(false);
+        setDisplayName("");
+        setUserRole(null);
+
+        window.localStorage.removeItem(IS_LOGGED_IN_STORAGE_KEY);
+        window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+        window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
+
+        return;
+      }
+
+      setIsLoggedIn(true);
+      window.localStorage.setItem(IS_LOGGED_IN_STORAGE_KEY, "true");
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, name, email, role")
+        .eq("id", session.user.id)
+        .single<ProfileRow>();
+
+      if (!isMounted) return;
+
+      const latestName = profile?.name?.trim() || "";
+      const latestRole = profile?.role || null;
+
+      setDisplayName(latestName);
+      setUserRole(latestRole);
+
+      if (latestName) {
+        window.localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, latestName);
+      } else {
+        window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+      }
+
+      if (latestRole) {
+        window.localStorage.setItem(USER_ROLE_STORAGE_KEY, latestRole);
+      } else {
+        window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
+      }
+    }
+
+    refreshUserProfile();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        setIsLoggedIn(false);
+        setDisplayName("");
+        setUserRole(null);
+
+        window.localStorage.removeItem(IS_LOGGED_IN_STORAGE_KEY);
+        window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+        window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
+
+        return;
+      }
+
+      setIsLoggedIn(true);
+      window.localStorage.setItem(IS_LOGGED_IN_STORAGE_KEY, "true");
+
+      supabase
+        .from("profiles")
+        .select("id, name, email, role")
+        .eq("id", session.user.id)
+        .single<ProfileRow>()
+        .then(({ data: profile }) => {
+          const latestName = profile?.name?.trim() || "";
+          const latestRole = profile?.role || null;
+
+          setDisplayName(latestName);
+          setUserRole(latestRole);
+
+          if (latestName) {
+            window.localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, latestName);
+          } else {
+            window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+          }
+
+          if (latestRole) {
+            window.localStorage.setItem(USER_ROLE_STORAGE_KEY, latestRole);
+          } else {
+            window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
+          }
+        });
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+
+    setIsLoggedIn(false);
+    setDisplayName("");
+    setUserRole(null);
+
+    window.localStorage.removeItem(IS_LOGGED_IN_STORAGE_KEY);
+    window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+    window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
+
+    router.push("/login");
+    router.refresh();
+  }
+
+  const isAdmin = userRole === "admin";
+
   return (
-    <header className="bg-[#0d2140] text-white shadow-sm">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-5">
-        <Link href="/" className="flex min-w-0 items-center gap-3 sm:gap-4">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0d2140] text-white shadow-sm">
+      <div className="mx-auto flex min-h-[72px] w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <Link href="/" className="flex min-w-0 items-center gap-3">
           <Image
             src="/ab3-activity-library-logo.png"
             alt="AB3 Activity Library"
-            width={52}
-            height={52}
-            className="shrink-0 rounded-lg"
+            width={44}
+            height={44}
             priority
+            className="h-11 w-11 flex-shrink-0 rounded-md object-contain"
           />
 
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold leading-tight sm:text-2xl">
-              AB3 Activity Library
-            </h1>
-            <p className="truncate text-xs text-slate-300 sm:text-sm">
-              Organize, search, and manage soccer training activities
-            </p>
-          </div>
+          <span className="truncate text-lg font-bold tracking-tight sm:text-xl">
+            AB3 Activity Library
+          </span>
         </Link>
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
-          <nav className="grid grid-cols-2 gap-2 text-sm font-semibold sm:flex sm:flex-wrap sm:items-center lg:flex-nowrap">
+        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3">
+          <nav className="flex items-center gap-1 sm:gap-2">
             <Link
               href="/"
               aria-label="Home"
               title="Home"
-              className="inline-flex items-center justify-center rounded-lg bg-white/5 px-3 py-2 text-center text-slate-200 hover:bg-white/10 hover:text-white sm:bg-transparent"
+              className="rounded-md px-2 py-2 text-white/90 transition hover:bg-white/10 hover:text-white"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5"
-                aria-hidden="true"
-              >
-                <path d="M3 10.5 12 3l9 7.5" />
-                <path d="M5 10v10h14V10" />
-                <path d="M9 20v-6h6v6" />
-              </svg>
+              <HomeIcon />
             </Link>
 
             <Link
               href="/create"
-              className="rounded-lg bg-white/5 px-3 py-2 text-center text-slate-200 hover:bg-white/10 hover:text-white sm:bg-transparent"
+              className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
             >
               Create
             </Link>
 
             <Link
               href="/import"
-              className="rounded-lg bg-white/5 px-3 py-2 text-center text-slate-200 hover:bg-white/10 hover:text-white sm:bg-transparent"
+              className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
             >
               Import
             </Link>
 
             <Link
               href="/search"
-              className="rounded-lg bg-white/5 px-3 py-2 text-center text-slate-200 hover:bg-white/10 hover:text-white sm:bg-transparent"
+              className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
             >
               Search
             </Link>
           </nav>
 
-          <div className="flex items-center justify-center gap-3 border-t border-white/10 pt-3 sm:justify-start lg:border-t-0 lg:pt-0">
-            <AuthStatus />
+          <div className="ml-1 flex min-w-[220px] items-center justify-end gap-2 border-l border-white/20 pl-2 sm:ml-2 sm:gap-3 sm:pl-4">
+            {isLoggedIn ? (
+              <>
+                <span className="hidden max-w-[140px] truncate text-sm font-semibold text-white/90 sm:inline">
+                  {displayName}
+                </span>
 
-            <Link
-              href="/settings"
-              aria-label="Settings"
-              title="Settings"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5"
-                aria-hidden="true"
-              >
-                <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.31.49 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-1.02 0-1.37.69-1.51 1Z" />
-              </svg>
-            </Link>
+                {isAdmin ? (
+                  <Link
+                    href="/settings"
+                    aria-label="Settings"
+                    title="Settings"
+                    className="rounded-md px-2 py-2 text-white/90 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <SettingsIcon />
+                  </Link>
+                ) : (
+                  <span className="hidden h-9 w-9 sm:block" aria-hidden="true" />
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="hidden max-w-[140px] truncate text-sm font-semibold text-white/90 sm:inline">
+                  {" "}
+                </span>
+
+                <span className="hidden h-9 w-9 sm:block" aria-hidden="true" />
+
+                <Link
+                  href="/login"
+                  className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100"
+                >
+                  Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -33,6 +33,42 @@ export async function getAllUserProfiles() {
   return (data || []) as UserProfile[];
 }
 
+
+export async function updateUserName(userId: string, name: string) {
+  const trimmedName = name.trim();
+
+  if (!trimmedName) {
+    throw new Error("Name is required.");
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+
+  if (!accessToken) {
+    throw new Error("You must be logged in to update a user name.");
+  }
+
+  const response = await fetch("/api/admin/update-user-name", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      userId,
+      name: trimmedName,
+    }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || "Unable to update user name.");
+  }
+
+  return result.profile as UserProfile;
+}
+
 export async function updateUserRole(userId: string, role: UserRole) {
   const { data, error } = await supabase
     .from("profiles")

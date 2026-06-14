@@ -19,6 +19,7 @@ import {
 import {
   getAllUserProfiles,
   getRecentLoginAudit,
+  updateUserName,
   updateUserRole,
   type LoginAuditEntry,
 } from "@/lib/userManagement";
@@ -52,6 +53,12 @@ export default function SettingsPage() {
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isUpdatingRoleUserId, setIsUpdatingRoleUserId] = useState<
+    string | undefined
+  >(undefined);
+  const [editingUserNames, setEditingUserNames] = useState<Record<string, string>>(
+    {}
+  );
+  const [isUpdatingNameUserId, setIsUpdatingNameUserId] = useState<
     string | undefined
   >(undefined);
 
@@ -124,6 +131,12 @@ export default function SettingsPage() {
     try {
       const profiles = await getAllUserProfiles();
       setUserProfiles(profiles);
+
+      const nextEditingNames: Record<string, string> = {};
+      profiles.forEach((userProfile) => {
+        nextEditingNames[userProfile.id] = userProfile.name || "";
+      });
+      setEditingUserNames(nextEditingNames);
     } catch (error) {
       console.error("Unable to load user management list.", error);
       setUserManagementMessage(
@@ -487,6 +500,58 @@ export default function SettingsPage() {
       setUserManagementMessage("Unexpected error while creating user.");
     } finally {
       setIsCreatingUser(false);
+    }
+  }
+
+
+  function handleUserNameInputChange(userId: string, nextName: string) {
+    setEditingUserNames((currentNames) => ({
+      ...currentNames,
+      [userId]: nextName,
+    }));
+  }
+
+  async function handleSaveUserName(userProfile: UserProfile) {
+    setUserManagementMessage("");
+
+    const trimmedName = (editingUserNames[userProfile.id] || "").trim();
+
+    if (!trimmedName) {
+      setUserManagementMessage("Name is required.");
+      return;
+    }
+
+    if (trimmedName === (userProfile.name || "")) {
+      setUserManagementMessage("Name is already up to date.");
+      return;
+    }
+
+    setIsUpdatingNameUserId(userProfile.id);
+
+    try {
+      const updatedProfile = await updateUserName(userProfile.id, trimmedName);
+
+      setUserProfiles((currentProfiles) =>
+        currentProfiles.map((currentProfile) =>
+          currentProfile.id === userProfile.id ? updatedProfile : currentProfile
+        )
+      );
+
+      setEditingUserNames((currentNames) => ({
+        ...currentNames,
+        [updatedProfile.id]: updatedProfile.name || "",
+      }));
+
+      setUserManagementMessage(`${updatedProfile.email} name was updated.`);
+    } catch (error) {
+      console.error("Unable to update user name.", error);
+      setUserManagementMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to update this user name. Confirm your account is an admin."
+      );
+    } finally {
+      setIsUpdatingNameUserId(undefined);
     }
   }
 
@@ -996,8 +1061,8 @@ export default function SettingsPage() {
                   )}
 
                   <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
-                    <div className="grid grid-cols-[1fr_1.2fr_0.45fr_0.65fr_0.7fr_0.85fr_0.8fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-                      <div>Name</div>
+                    <div className="grid grid-cols-[1.35fr_1.2fr_0.45fr_0.65fr_0.7fr_0.85fr_0.8fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+                      <div>Name / Edit</div>
                       <div>Email</div>
                       <div>Role</div>
                       <div>Change Role</div>
@@ -1023,15 +1088,48 @@ export default function SettingsPage() {
                         return (
                           <div
                             key={userProfile.id}
-                            className="grid grid-cols-[1fr_1.2fr_0.45fr_0.65fr_0.7fr_0.85fr_0.8fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
+                            className="grid grid-cols-[1.35fr_1.2fr_0.45fr_0.65fr_0.7fr_0.85fr_0.8fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
                           >
-                            <div>
-                              <div className="font-semibold text-slate-800">
-                                {userProfile.name || "—"}
+                            <div className="grid gap-2">
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={
+                                    editingUserNames[userProfile.id] ??
+                                    userProfile.name ??
+                                    ""
+                                  }
+                                  onChange={(event) =>
+                                    handleUserNameInputChange(
+                                      userProfile.id,
+                                      event.target.value
+                                    )
+                                  }
+                                  disabled={
+                                    isUpdatingNameUserId === userProfile.id
+                                  }
+                                  className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                                  placeholder="User name"
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveUserName(userProfile)}
+                                  disabled={
+                                    isUpdatingNameUserId === userProfile.id ||
+                                    (editingUserNames[userProfile.id] || "").trim() ===
+                                      (userProfile.name || "")
+                                  }
+                                  className="rounded-md border border-blue-300 px-2.5 py-1.5 text-xs font-semibold text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isUpdatingNameUserId === userProfile.id
+                                    ? "Saving..."
+                                    : "Save"}
+                                </button>
                               </div>
 
                               {isCurrentUser && (
-                                <div className="mt-1 text-xs font-semibold text-slate-500">
+                                <div className="text-xs font-semibold text-slate-500">
                                   Current logged-in user
                                 </div>
                               )}
