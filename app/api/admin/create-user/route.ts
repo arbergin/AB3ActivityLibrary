@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { UserRole } from "@/lib/userProfile";
 
 type CreateUserRequestBody = {
+  name?: string;
   email?: string;
   password?: string;
   role?: UserRole;
@@ -62,10 +63,18 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as CreateUserRequestBody;
 
+    const name = body.name?.trim() || "";
     const email = body.email?.trim().toLowerCase() || "";
     const password = body.password || "";
     const role = isValidRole(body.role) ? body.role : "user";
     const mustChangePassword = Boolean(body.mustChangePassword);
+
+    if (!name) {
+      return NextResponse.json(
+        { error: "Name is required." },
+        { status: 400 }
+      );
+    }
 
     if (!email) {
       return NextResponse.json(
@@ -93,6 +102,9 @@ export async function POST(request: NextRequest) {
         email,
         password,
         email_confirm: true,
+        user_metadata: {
+          name,
+        },
       });
 
     if (createUserError || !createdUserData.user) {
@@ -113,6 +125,7 @@ export async function POST(request: NextRequest) {
       .upsert(
         {
           id: createdUser.id,
+          name,
           email,
           role,
           must_change_password: mustChangePassword,
@@ -138,6 +151,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       user: {
         id: createdUser.id,
+        name,
         email: createdUser.email,
       },
       profile: profileData,

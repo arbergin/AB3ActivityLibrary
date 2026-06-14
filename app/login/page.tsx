@@ -6,6 +6,86 @@ import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import { signInWithEmailPassword } from "@/lib/supabaseAuth";
 
+type PossibleSignInResult =
+  | {
+      session?: {
+        access_token?: string | null;
+      } | null;
+      data?: {
+        session?: {
+          access_token?: string | null;
+        } | null;
+      } | null;
+    }
+  | undefined
+  | null;
+
+function getAccessTokenFromSignInResult(result: PossibleSignInResult) {
+  return (
+    result?.session?.access_token || result?.data?.session?.access_token || null
+  );
+}
+
+function getSupabaseAccessTokenFromLocalStorage() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+
+    if (!key || !key.startsWith("sb-") || !key.endsWith("-auth-token")) {
+      continue;
+    }
+
+    const rawValue = window.localStorage.getItem(key);
+
+    if (!rawValue) {
+      continue;
+    }
+
+    try {
+      const parsedValue = JSON.parse(rawValue) as {
+        access_token?: string;
+        currentSession?: {
+          access_token?: string;
+        };
+      };
+
+      const accessToken =
+        parsedValue.access_token || parsedValue.currentSession?.access_token;
+
+      if (accessToken) {
+        return accessToken;
+      }
+    } catch {
+      // Ignore non-JSON local storage values.
+    }
+  }
+
+  return null;
+}
+
+async function logSuccessfulLogin(accessToken: string) {
+  const response = await fetch("/api/audit/login", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const responseBody = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+
+    console.error(
+      "Login succeeded, but the audit log could not be saved.",
+      responseBody?.error || response.statusText
+    );
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -39,7 +119,23 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      await signInWithEmailPassword(trimmedEmail, password);
+      const signInResult = (await signInWithEmailPassword(
+        trimmedEmail,
+        password
+      )) as PossibleSignInResult;
+
+      const accessToken =
+        getAccessTokenFromSignInResult(signInResult) ||
+        getSupabaseAccessTokenFromLocalStorage();
+
+      if (accessToken) {
+        await logSuccessfulLogin(accessToken);
+      } else {
+        console.error(
+          "Login succeeded, but no Supabase access token was available for audit logging."
+        );
+      }
+
       router.push("/");
       router.refresh();
     } catch (error) {

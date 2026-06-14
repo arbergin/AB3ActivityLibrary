@@ -5,12 +5,23 @@ export type UserRole = "user" | "admin";
 
 export type UserProfile = {
   id: string;
+  name: string;
   email: string;
   role: UserRole;
   must_change_password: boolean;
   created_at: string;
   updated_at: string;
 };
+
+function getUserMetadataName(user: User) {
+  const metadataName = user.user_metadata?.name;
+
+  if (typeof metadataName === "string") {
+    return metadataName.trim();
+  }
+
+  return "";
+}
 
 export async function getCurrentSessionUser() {
   const { data, error } = await supabase.auth.getUser();
@@ -54,6 +65,7 @@ export async function ensureUserProfile(user: User) {
     .from("profiles")
     .insert({
       id: user.id,
+      name: getUserMetadataName(user),
       email: user.email || "",
       role: "user",
       must_change_password: false,
