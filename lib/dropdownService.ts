@@ -1,4 +1,9 @@
 import { supabase } from "@/lib/supabaseClient";
+import {
+  categoryOptions as fallbackCategoryOptions,
+  fieldLocationOptions as fallbackFieldLocationOptions,
+  gamePhaseOptions as fallbackGamePhaseOptions,
+} from "@/lib/activityOptions";
 import { sortDropdownFields } from "@/lib/dropdownHelpers";
 import type { DropdownField } from "@/lib/dropdownTypes";
 
@@ -114,5 +119,95 @@ export async function restoreDropdownOption(optionId: string) {
 
   if (error) {
     throw new Error(error.message);
+  }
+}
+
+export async function updateDropdownOptionSortOrder({
+  optionId,
+  sortOrder,
+}: {
+  optionId: string;
+  sortOrder: number;
+}) {
+  const { error } = await supabase
+    .from("dropdown_options")
+    .update({ sort_order: sortOrder })
+    .eq("id", optionId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+
+export type ActivityFormDropdownOptions = {
+  fieldLocationOptions: string[];
+  gamePhaseOptions: string[];
+  categoryOptions: string[];
+};
+
+const fallbackActivityFormDropdownOptions: ActivityFormDropdownOptions = {
+  fieldLocationOptions: [...fallbackFieldLocationOptions],
+  gamePhaseOptions: [...fallbackGamePhaseOptions],
+  categoryOptions: [...fallbackCategoryOptions],
+};
+
+function normalizeFieldKey(value: string | undefined | null) {
+  return (value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function getFieldValues(
+  fields: DropdownField[],
+  acceptedKeys: string[],
+  fallbackValues: string[]
+) {
+  const normalizedAcceptedKeys = acceptedKeys.map(normalizeFieldKey);
+
+  const matchingField = fields.find((field) =>
+    normalizedAcceptedKeys.includes(normalizeFieldKey(field.field_key))
+  );
+
+  const values = (matchingField?.dropdown_options ?? [])
+    .filter((option) => option.active)
+    .sort((optionA, optionB) => {
+      if (optionA.sort_order !== optionB.sort_order) {
+        return optionA.sort_order - optionB.sort_order;
+      }
+
+      return optionA.label.localeCompare(optionB.label);
+    })
+    .map((option) => option.label?.trim())
+    .filter((label): label is string => Boolean(label));
+
+  return values.length > 0 ? values : fallbackValues;
+}
+
+export async function getActivityFormDropdownOptions(): Promise<ActivityFormDropdownOptions> {
+  try {
+    const fields = await getDropdownFields();
+
+    return {
+      fieldLocationOptions: getFieldValues(
+        fields,
+        ["fieldLocation", "field_location", "Field Location"],
+        fallbackActivityFormDropdownOptions.fieldLocationOptions
+      ),
+      gamePhaseOptions: getFieldValues(
+        fields,
+        ["gamePhase", "game_phase", "Game Phase"],
+        fallbackActivityFormDropdownOptions.gamePhaseOptions
+      ),
+      categoryOptions: getFieldValues(
+        fields,
+        ["category", "Category"],
+        fallbackActivityFormDropdownOptions.categoryOptions
+      ),
+    };
+  } catch (error) {
+    console.error("Unable to load activity form dropdown options.", error);
+    return fallbackActivityFormDropdownOptions;
   }
 }

@@ -29,6 +29,7 @@ import {
   restoreDropdownOption,
   updateDropdownFieldLabel,
   updateDropdownOptionLabel,
+  updateDropdownOptionSortOrder,
 } from "@/lib/dropdownService";
 import { makeDropdownValue } from "@/lib/dropdownHelpers";
 import type { DropdownField, DropdownOption } from "@/lib/dropdownTypes";
@@ -389,6 +390,95 @@ export default function SettingsPage() {
     } catch (error) {
       console.error("Unable to restore dropdown option.", error);
       setDropdownMessage("Unable to restore dropdown option.");
+    } finally {
+      setDropdownSavingId(undefined);
+    }
+  }
+
+  async function handleMoveDropdownOption(
+    fieldId: string,
+    option: DropdownOption,
+    direction: "up" | "down"
+  ) {
+    const field = dropdownFields.find(
+      (currentField) => currentField.id === fieldId
+    );
+
+    if (!field) {
+      setDropdownMessage("Dropdown field could not be found.");
+      return;
+    }
+
+    const activeOptions = field.dropdown_options
+      .filter((currentOption) => currentOption.active)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const currentIndex = activeOptions.findIndex(
+      (currentOption) => currentOption.id === option.id
+    );
+
+    if (currentIndex === -1) {
+      setDropdownMessage("Dropdown option could not be found.");
+      return;
+    }
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+    if (targetIndex < 0 || targetIndex >= activeOptions.length) {
+      return;
+    }
+
+    const targetOption = activeOptions[targetIndex];
+
+    setDropdownSavingId(option.id);
+    setDropdownMessage("");
+
+    try {
+      await updateDropdownOptionSortOrder({
+        optionId: option.id,
+        sortOrder: targetOption.sort_order,
+      });
+
+      await updateDropdownOptionSortOrder({
+        optionId: targetOption.id,
+        sortOrder: option.sort_order,
+      });
+
+      setDropdownFields((currentFields) =>
+        currentFields.map((currentField) => {
+          if (currentField.id !== fieldId) {
+            return currentField;
+          }
+
+          return {
+            ...currentField,
+            dropdown_options: currentField.dropdown_options.map(
+              (currentOption) => {
+                if (currentOption.id === option.id) {
+                  return {
+                    ...currentOption,
+                    sort_order: targetOption.sort_order,
+                  };
+                }
+
+                if (currentOption.id === targetOption.id) {
+                  return {
+                    ...currentOption,
+                    sort_order: option.sort_order,
+                  };
+                }
+
+                return currentOption;
+              }
+            ),
+          };
+        })
+      );
+
+      setDropdownMessage("Dropdown option order updated.");
+    } catch (error) {
+      console.error("Unable to reorder dropdown option.", error);
+      setDropdownMessage("Unable to reorder dropdown option.");
     } finally {
       setDropdownSavingId(undefined);
     }
@@ -1351,7 +1441,7 @@ export default function SettingsPage() {
                                 </div>
                               ) : (
                                 <div className="mt-3 grid gap-3">
-                                  {activeOptions.map((option) => (
+                                  {activeOptions.map((option, optionIndex) => (
                                     <div
                                       key={option.id}
                                       className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[1fr_auto]"
@@ -1380,6 +1470,43 @@ export default function SettingsPage() {
                                       </div>
 
                                       <div className="flex flex-wrap items-start gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleMoveDropdownOption(
+                                              field.id,
+                                              option,
+                                              "up"
+                                            )
+                                          }
+                                          disabled={
+                                            dropdownSavingId === option.id ||
+                                            optionIndex === 0
+                                          }
+                                          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                          ↑ Up
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleMoveDropdownOption(
+                                              field.id,
+                                              option,
+                                              "down"
+                                            )
+                                          }
+                                          disabled={
+                                            dropdownSavingId === option.id ||
+                                            optionIndex ===
+                                              activeOptions.length - 1
+                                          }
+                                          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                          ↓ Down
+                                        </button>
+
                                         <button
                                           type="button"
                                           onClick={() =>

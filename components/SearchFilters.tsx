@@ -1,14 +1,21 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
-  categoryOptions,
-  fieldLocationOptions,
-  gamePhaseOptions,
-} from "@/lib/activityOptions";
+  getActivityFormDropdownOptions,
+  type ActivityFormDropdownOptions,
+} from "@/lib/dropdownService";
 import type {
   SearchFilterValues,
   SearchSortValue,
 } from "@/components/SearchPageClient";
+
+
+const defaultDropdownOptions: ActivityFormDropdownOptions = {
+  fieldLocationOptions: [],
+  gamePhaseOptions: [],
+  categoryOptions: [],
+};
 
 type SearchFiltersProps = {
   filters: SearchFilterValues;
@@ -33,6 +40,31 @@ export default function SearchFilters({
   onClearFilters,
   searchMessage,
 }: SearchFiltersProps) {
+  const [dropdownOptions, setDropdownOptions] = useState<ActivityFormDropdownOptions>(
+    defaultDropdownOptions
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDropdownOptions() {
+      const options = await getActivityFormDropdownOptions();
+
+      if (isMounted) {
+        setDropdownOptions(options);
+      }
+    }
+
+    loadDropdownOptions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const { fieldLocationOptions, gamePhaseOptions, categoryOptions } =
+    dropdownOptions;
+
   function updateFilter(field: keyof SearchFilterValues, value: string) {
     onFiltersChange({
       ...filters,

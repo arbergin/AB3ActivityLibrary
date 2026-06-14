@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  categoryOptions,
-  fieldLocationOptions,
-  gamePhaseOptions,
-} from "@/lib/activityOptions";
+  getActivityFormDropdownOptions,
+  type ActivityFormDropdownOptions,
+} from "@/lib/dropdownService";
 import {
   saveStoredActivity,
   updateStoredActivity,
@@ -16,6 +15,13 @@ import {
   updateSupabaseActivity,
 } from "@/lib/supabaseActivities";
 import type { Activity, ActivityCreatorState } from "@/types/activity";
+
+
+const defaultDropdownOptions: ActivityFormDropdownOptions = {
+  fieldLocationOptions: [],
+  gamePhaseOptions: [],
+  categoryOptions: [],
+};
 
 type ActivityMetadataFormProps = {
   mode?: "import" | "create";
@@ -68,6 +74,30 @@ export default function ActivityMetadataForm({
   const [formError, setFormError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [dropdownOptions, setDropdownOptions] = useState<ActivityFormDropdownOptions>(
+    defaultDropdownOptions
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDropdownOptions() {
+      const options = await getActivityFormDropdownOptions();
+
+      if (isMounted) {
+        setDropdownOptions(options);
+      }
+    }
+
+    loadDropdownOptions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const { fieldLocationOptions, gamePhaseOptions, categoryOptions } =
+    dropdownOptions;
 
   const isEditMode = Boolean(initialActivity?.id);
 
