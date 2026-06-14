@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import ProtectedPage from "@/components/ProtectedPage";
@@ -18,10 +19,8 @@ import {
 } from "@/lib/userProfile";
 import {
   getAllUserProfiles,
-  getRecentLoginAudit,
   updateUserName,
   updateUserRole,
-  type LoginAuditEntry,
 } from "@/lib/userManagement";
 import {
   addDropdownOption,
@@ -69,9 +68,6 @@ export default function SettingsPage() {
   const [newUserMustChangePassword, setNewUserMustChangePassword] =
     useState(true);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
-
-  const [loginAuditEntries, setLoginAuditEntries] = useState<LoginAuditEntry[]>([]);
-  const [isLoadingLoginAudit, setIsLoadingLoginAudit] = useState(false);
 
   const [resetPasswordUserId, setResetPasswordUserId] = useState<
     string | undefined
@@ -144,22 +140,6 @@ export default function SettingsPage() {
       );
     } finally {
       setIsLoadingUsers(false);
-    }
-  }
-
-  async function loadLoginAuditEntries() {
-    setIsLoadingLoginAudit(true);
-
-    try {
-      const entries = await getRecentLoginAudit(50);
-      setLoginAuditEntries(entries);
-    } catch (error) {
-      console.error("Unable to load login audit entries.", error);
-      setUserManagementMessage(
-        "Unable to load login audit entries. Confirm the audit table and RLS policies are correct."
-      );
-    } finally {
-      setIsLoadingLoginAudit(false);
     }
   }
 
@@ -752,7 +732,6 @@ export default function SettingsPage() {
 
         if (currentProfile?.role === "admin") {
           await loadUserProfiles();
-          await loadLoginAuditEntries();
           await loadDropdownFields();
         }
       } catch (error) {
@@ -824,17 +803,23 @@ export default function SettingsPage() {
                 </div>
 
                 {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await loadUserProfiles();
-                      await loadLoginAuditEntries();
-                    }}
-                    disabled={isLoadingUsers}
-                    className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isLoadingUsers ? "Refreshing..." : "Refresh Users"}
-                  </button>
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      href="/settings/login-audit"
+                      className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white transition hover:bg-[#15345f]"
+                    >
+                      Login Audit
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={loadUserProfiles}
+                      disabled={isLoadingUsers}
+                      className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isLoadingUsers ? "Refreshing..." : "Refresh Users"}
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -1217,79 +1202,6 @@ export default function SettingsPage() {
                     )}
                   </div>
                 </>
-              )}
-            </section>
-
-            <section className="rounded-xl bg-white p-6 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-bold">Login Audit</h3>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Recent successful logins captured from the login audit API.
-                  </p>
-                </div>
-
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={loadLoginAuditEntries}
-                    disabled={isLoadingLoginAudit}
-                    className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isLoadingLoginAudit ? "Refreshing..." : "Refresh Audit"}
-                  </button>
-                )}
-              </div>
-
-              {!profile ? (
-                <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                  Loading user access...
-                </div>
-              ) : !isAdmin ? (
-                <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                  Login audit is available to admins only.
-                </div>
-              ) : (
-                <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
-                  <div className="grid grid-cols-[1fr_1.2fr_1fr_1.2fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
-                    <div>Name</div>
-                    <div>Email</div>
-                    <div>Login Time</div>
-                    <div>User Agent</div>
-                  </div>
-
-                  {isLoadingLoginAudit ? (
-                    <div className="px-4 py-6 text-sm text-slate-500">
-                      Loading audit entries...
-                    </div>
-                  ) : loginAuditEntries.length === 0 ? (
-                    <div className="px-4 py-6 text-sm text-slate-500">
-                      No login audit entries found yet.
-                    </div>
-                  ) : (
-                    loginAuditEntries.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="grid grid-cols-[1fr_1.2fr_1fr_1.2fr] items-start border-t border-slate-200 px-4 py-4 text-sm"
-                      >
-                        <div className="font-semibold text-slate-800">
-                          {entry.name || "—"}
-                        </div>
-                        <div className="break-words text-slate-700">
-                          {entry.email || "—"}
-                        </div>
-                        <div className="text-slate-600">
-                          {entry.login_at
-                            ? new Date(entry.login_at).toLocaleString()
-                            : "—"}
-                        </div>
-                        <div className="break-words text-xs text-slate-500">
-                          {entry.user_agent || "—"}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
               )}
             </section>
 
