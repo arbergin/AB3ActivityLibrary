@@ -2159,14 +2159,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             <span>Settings</span>
           </button>
 
-          <button
-            type="button"
-            onClick={openSavePanel}
-            className="ml-auto flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border border-green-300 text-xs font-semibold text-green-700 hover:bg-green-50"
-          >
-            <SaveIcon />
-            <span>Save</span>
-          </button>
         </div>
 
         {showToolbarSettings && (

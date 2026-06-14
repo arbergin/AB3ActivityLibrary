@@ -2,29 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  deleteSupabaseActivity,
+  getSupabaseActivities,
+} from "@/lib/supabaseActivities";
 import { supabase } from "@/lib/supabaseClient";
+import type { Activity } from "@/types/activity";
 
 type SortOption = "updated_desc" | "updated_asc" | "name_asc" | "name_desc";
 type PageSize = 10 | 20 | 30;
-
-type ActivityRow = {
-  id: string;
-  activity_name?: string | null;
-  name?: string | null;
-  title?: string | null;
-  field_location?: string | null;
-  game_phase?: string | null;
-  category?: string | null;
-  positions_involved?: string | null;
-  number_of_players?: string | number | null;
-  activity_details?: string | null;
-  preview_data_url?: string | null;
-  previewDataUrl?: string | null;
-  created_by?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  updatedAt?: string | null;
-};
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "updated_desc", label: "Date Updated: Newest" },
@@ -35,17 +22,18 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 
 const PAGE_SIZE_OPTIONS: PageSize[] = [10, 20, 30];
 
-function getActivityName(activity: ActivityRow) {
-  return (
-    activity.activity_name?.trim() ||
-    activity.name?.trim() ||
-    activity.title?.trim() ||
-    "Untitled Activity"
-  );
+function safeLower(value?: string | null) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
-function getUpdatedDateValue(activity: ActivityRow) {
-  const rawDate = activity.updated_at || activity.updatedAt || activity.created_at || "";
+function getActivityName(activity: Activity) {
+  return activity.activityName?.trim() || "Untitled Activity";
+}
+
+function getUpdatedDateValue(activity: Activity) {
+  const rawDate = activity.updatedAt || activity.createdAt || "";
   const timestamp = new Date(rawDate).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
@@ -65,7 +53,7 @@ function formatDate(value?: string | null) {
   });
 }
 
-function sortActivities(activities: ActivityRow[], sortOption: SortOption) {
+function sortActivities(activities: Activity[], sortOption: SortOption) {
   return [...activities].sort((a, b) => {
     if (sortOption === "name_asc") {
       return getActivityName(a).localeCompare(getActivityName(b));
@@ -83,8 +71,30 @@ function sortActivities(activities: ActivityRow[], sortOption: SortOption) {
   });
 }
 
+function PreviewFallback() {
+  return (
+    <div className="flex min-h-64 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+      <div>
+        Preview unavailable
+        <div className="mt-2 text-xs">
+          The activity record exists, but the preview file could not be loaded.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MyActivitiesClient() {
-  const [activities, setActivities] = useState<ActivityRow[]>([]);
+  const router = useRouter();
+
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [selectedActivity, setSelectedActivity] = useState<
+    Activity | undefined
+  >(undefined);
+  const [selectedPreviewFailed, setSelectedPreviewFailed] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("updated_desc");
@@ -97,6 +107,7 @@ export default function MyActivitiesClient() {
     async function loadActivities() {
       setIsLoading(true);
       setErrorMessage("");
+      setDeleteMessage("");
 
       const {
         data: { user },
@@ -107,37 +118,58 @@ export default function MyActivitiesClient() {
 
       if (userError || !user) {
         setActivities([]);
+        setSelectedActivity(undefined);
         setErrorMessage("You must be logged in to view your activities.");
         setIsLoading(false);
         return;
       }
 
-      const userEmail = user.email?.trim().toLowerCase() || "";
-      const userId = user.id;
+      const userEmail = safeLower(user.email);
+      const userId = safeLower(user.id);
 
-      let query = supabase.from("activities").select("*");
+      try {
+        // Use the same helper as SearchResultsPanel.
+        // This converts file_path from Supabase Storage into previewDataUrl.
+        const allActivities = await getSupabaseActivities();
 
-      // Your current data stores created_by as the user's email.
-      // The user.id fallback keeps this page working if you later change created_by to store auth.users.id.
-      if (userEmail) {
-        query = query.or(`created_by.eq.${userEmail},created_by.eq.${userId}`);
-      } else {
-        query = query.eq("created_by", userId);
-      }
+        if (!isMounted) return;
 
-      const { data, error } = await query;
+        const myActivities = allActivities.filter((activity) => {
+          const createdBy = safeLower(activity.createdBy);
 
-      if (!isMounted) return;
+          return (
+            Boolean(createdBy) &&
+            (createdBy === userEmail || createdBy === userId)
+          );
+        });
 
-      if (error) {
+        setActivities(myActivities);
+        setSelectedActivity((currentSelected) => {
+          if (
+            currentSelected &&
+            myActivities.some((activity) => activity.id === currentSelected.id)
+          ) {
+            return currentSelected;
+          }
+
+          return sortActivities(myActivities, sortOption)[0];
+        });
+      } catch (error) {
+        console.error("Unable to load your activities.", error);
+
+        if (!isMounted) return;
+
         setActivities([]);
-        setErrorMessage(error.message || "Unable to load your activities.");
-        setIsLoading(false);
-        return;
+        setSelectedActivity(undefined);
+        setShowDeleteConfirm(false);
+        setErrorMessage(
+          "Unable to load your activities. Refresh the page and try again.",
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
-
-      setActivities((data || []) as ActivityRow[]);
-      setIsLoading(false);
     }
 
     loadActivities();
@@ -145,7 +177,7 @@ export default function MyActivitiesClient() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [sortOption]);
 
   const sortedActivities = useMemo(() => {
     return sortActivities(activities, sortOption);
@@ -161,13 +193,109 @@ export default function MyActivitiesClient() {
     setCurrentPage(1);
   }, [sortOption, pageSize]);
 
+  useEffect(() => {
+    if (visibleActivities.length === 0) {
+      setSelectedActivity(undefined);
+      setShowDeleteConfirm(false);
+      return;
+    }
+
+    const selectedActivityIsVisible = visibleActivities.some(
+      (activity) => activity.id === selectedActivity?.id,
+    );
+
+    if (!selectedActivityIsVisible) {
+      setSelectedActivity(visibleActivities[0]);
+      setSelectedPreviewFailed(false);
+      setShowDeleteConfirm(false);
+    }
+  }, [visibleActivities, selectedActivity?.id]);
+
+  useEffect(() => {
+    setSelectedPreviewFailed(false);
+  }, [selectedActivity?.id, selectedActivity?.previewDataUrl]);
+
+  function handleSelectActivity(activity: Activity) {
+    setSelectedActivity(activity);
+    setSelectedPreviewFailed(false);
+    setShowDeleteConfirm(false);
+    setDeleteMessage("");
+  }
+
+  function handleDeleteClick() {
+    if (!selectedActivity) return;
+
+    setDeleteMessage("");
+    setShowDeleteConfirm(true);
+  }
+
+  async function handleConfirmDelete() {
+    if (!selectedActivity || isDeleting) return;
+
+    const activityToDelete = selectedActivity;
+
+    try {
+      setIsDeleting(true);
+      setDeleteMessage("");
+
+      await deleteSupabaseActivity(activityToDelete.id);
+
+      const remainingActivities = activities.filter(
+        (activity) => activity.id !== activityToDelete.id,
+      );
+
+      setActivities(remainingActivities);
+      setShowDeleteConfirm(false);
+      setSelectedPreviewFailed(false);
+      setDeleteMessage("Activity deleted.");
+
+      const sortedRemainingActivities = sortActivities(
+        remainingActivities,
+        sortOption,
+      );
+
+      const remainingOnCurrentPage = sortedRemainingActivities.slice(
+        startIndex,
+        endIndex,
+      );
+
+      if (remainingOnCurrentPage.length > 0) {
+        setSelectedActivity(remainingOnCurrentPage[0]);
+      } else if (sortedRemainingActivities.length > 0) {
+        const newTotalPages = Math.max(
+          1,
+          Math.ceil(sortedRemainingActivities.length / pageSize),
+        );
+        const newCurrentPage = Math.min(safeCurrentPage, newTotalPages);
+        setCurrentPage(newCurrentPage);
+        setSelectedActivity(
+          sortedRemainingActivities[(newCurrentPage - 1) * pageSize],
+        );
+      } else {
+        setSelectedActivity(undefined);
+        setCurrentPage(1);
+      }
+
+      router.refresh();
+    } catch (error) {
+      console.error("Unable to delete activity.", error);
+      setDeleteMessage(
+        "This activity could not be deleted. Refresh the page and try again.",
+      );
+      setShowDeleteConfirm(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">My Activities</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Activities you created, sorted by the most recently updated by default.
+            Activities you created, sorted by the most recently updated by
+            default.
           </p>
         </div>
 
@@ -176,7 +304,9 @@ export default function MyActivitiesClient() {
             Sort by
             <select
               value={sortOption}
-              onChange={(event) => setSortOption(event.target.value as SortOption)}
+              onChange={(event) =>
+                setSortOption(event.target.value as SortOption)
+              }
               className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[#0d2140] focus:outline-none focus:ring-2 focus:ring-[#0d2140]/20"
             >
               {SORT_OPTIONS.map((option) => (
@@ -199,7 +329,9 @@ export default function MyActivitiesClient() {
         </div>
       ) : sortedActivities.length === 0 ? (
         <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-          <h2 className="text-lg font-bold text-slate-900">No activities found</h2>
+          <h2 className="text-lg font-bold text-slate-900">
+            No activities found
+          </h2>
           <p className="mt-2 text-sm text-slate-600">
             Activities you create will appear here.
           </p>
@@ -212,70 +344,317 @@ export default function MyActivitiesClient() {
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Activity
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Category
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Game Phase
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Updated
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {visibleActivities.map((activity) => (
-                    <tr key={activity.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-4 align-top">
-                        <div className="font-semibold text-slate-900">
-                          {getActivityName(activity)}
-                        </div>
-                        <div className="mt-1 line-clamp-2 max-w-xl text-sm text-slate-500">
-                          {activity.activity_details || "No activity details provided."}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-700">
-                        {activity.category || "—"}
-                      </td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-700">
-                        {activity.game_phase || "—"}
-                      </td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-700">
-                        {formatDate(activity.updated_at || activity.updatedAt || activity.created_at)}
-                      </td>
-                      <td className="px-4 py-4 text-right align-top">
-                        <Link
-                          href={`/activity/${activity.id}`}
-                          className="inline-flex rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
-                        >
-                          Open
-                        </Link>
-                      </td>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+            <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Activity
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Category
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Game Phase
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Updated
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Action
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {visibleActivities.map((activity) => {
+                      const isSelected = activity.id === selectedActivity?.id;
+
+                      return (
+                        <tr
+                          key={activity.id}
+                          className={
+                            isSelected ? "bg-blue-50" : "hover:bg-slate-50"
+                          }
+                        >
+                          <td className="px-4 py-4 align-top">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectActivity(activity)}
+                              className="block w-full text-left"
+                            >
+                              <div className="font-semibold text-slate-900">
+                                {getActivityName(activity)}
+                              </div>
+                              <div className="mt-1 line-clamp-2 max-w-xl text-sm text-slate-500">
+                                {activity.activityDetails ||
+                                  "No activity details provided."}
+                              </div>
+                            </button>
+                          </td>
+                          <td className="px-4 py-4 align-top text-sm text-slate-700">
+                            {activity.category || "—"}
+                          </td>
+                          <td className="px-4 py-4 align-top text-sm text-slate-700">
+                            {activity.gamePhase || "—"}
+                          </td>
+                          <td className="px-4 py-4 align-top text-sm text-slate-700">
+                            {formatDate(
+                              activity.updatedAt || activity.createdAt,
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-right align-top">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectActivity(activity)}
+                                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                              >
+                                Preview
+                              </button>
+
+                              <Link
+                                href={`/activity/${activity.id}`}
+                                className="inline-flex rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
+                              >
+                                Open
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
+
+            <aside className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Activity Preview
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Select an activity to preview its file and metadata.
+                  </p>
+                </div>
+              </div>
+
+              {!selectedActivity ? (
+                <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                  Select an activity to see activity details.
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 flex min-h-64 min-w-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                    {selectedPreviewFailed ? (
+                      <PreviewFallback />
+                    ) : selectedActivity.previewDataUrl &&
+                      selectedActivity.fileType === "application/pdf" ? (
+                      <iframe
+                        src={selectedActivity.previewDataUrl}
+                        title={`${selectedActivity.activityName} PDF preview`}
+                        className="h-80 w-full rounded-lg border border-slate-200"
+                        onError={() => setSelectedPreviewFailed(true)}
+                      />
+                    ) : selectedActivity.previewDataUrl ? (
+                      <img
+                        src={selectedActivity.previewDataUrl}
+                        alt={`${selectedActivity.activityName} preview`}
+                        className="max-h-80 w-full rounded-lg object-contain"
+                        onError={() => setSelectedPreviewFailed(true)}
+                      />
+                    ) : (
+                      <PreviewFallback />
+                    )}
+                  </div>
+
+                  <div className="mt-6 grid min-w-0 gap-3 text-sm">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-700">
+                        Activity Name
+                      </div>
+                      <div className="break-words text-slate-600">
+                        {selectedActivity.activityName}
+                      </div>
+                    </div>
+
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Field Location
+                        </div>
+                        <div className="text-slate-600">
+                          {selectedActivity.fieldLocation || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Game Phase
+                        </div>
+                        <div className="text-slate-600">
+                          {selectedActivity.gamePhase || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Category
+                        </div>
+                        <div className="text-slate-600">
+                          {selectedActivity.category || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Number of Players
+                        </div>
+                        <div className="text-slate-600">
+                          {selectedActivity.numberOfPlayers || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Created Date
+                        </div>
+                        <div className="text-slate-600">
+                          {formatDate(selectedActivity.createdAt)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Last Updated
+                        </div>
+                        <div className="text-slate-600">
+                          {formatDate(selectedActivity.updatedAt)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="font-semibold text-slate-700">
+                        Positions Involved
+                      </div>
+                      <div className="break-words text-slate-600">
+                        {selectedActivity.positionsInvolved || "—"}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="font-semibold text-slate-700">
+                        Activity Details
+                      </div>
+                      <div className="break-words text-slate-600">
+                        {selectedActivity.activityDetails || "—"}
+                      </div>
+                    </div>
+
+                    {selectedActivity.fileName && (
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Imported File
+                        </div>
+                        <div className="break-words text-slate-600">
+                          {selectedActivity.fileName}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {deleteMessage ? (
+                    <div
+                      className={
+                        deleteMessage === "Activity deleted."
+                          ? "mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-700"
+                          : "mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"
+                      }
+                    >
+                      {deleteMessage}
+                    </div>
+                  ) : null}
+
+                  {showDeleteConfirm ? (
+                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                      <div className="font-semibold">
+                        Delete this activity permanently?
+                      </div>
+                      <div className="mt-1">
+                        This removes the activity and its uploaded file from
+                        Supabase.
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(false)}
+                          disabled={isDeleting}
+                          className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleConfirmDelete}
+                          disabled={isDeleting}
+                          className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isDeleting ? "Deleting..." : "Delete Activity"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-6 flex flex-wrap justify-end gap-3">
+                    <Link
+                      href={`/activity/${selectedActivity.id}/edit`}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Edit
+                    </Link>
+
+                    <Link
+                      href={`/activity/${selectedActivity.id}`}
+                      className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
+                    >
+                      Open
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={handleDeleteClick}
+                      disabled={isDeleting}
+                      className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </aside>
           </div>
 
           <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-slate-600">
-              Showing <span className="font-semibold text-slate-900">{startIndex + 1}</span> to{" "}
+              Showing{" "}
+              <span className="font-semibold text-slate-900">
+                {startIndex + 1}
+              </span>{" "}
+              to{" "}
               <span className="font-semibold text-slate-900">
                 {Math.min(endIndex, sortedActivities.length)}
               </span>{" "}
-              of <span className="font-semibold text-slate-900">{sortedActivities.length}</span> activities
+              of{" "}
+              <span className="font-semibold text-slate-900">
+                {sortedActivities.length}
+              </span>{" "}
+              activities
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -283,7 +662,9 @@ export default function MyActivitiesClient() {
                 Show
                 <select
                   value={pageSize}
-                  onChange={(event) => setPageSize(Number(event.target.value) as PageSize)}
+                  onChange={(event) =>
+                    setPageSize(Number(event.target.value) as PageSize)
+                  }
                   className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[#0d2140] focus:outline-none focus:ring-2 focus:ring-[#0d2140]/20"
                 >
                   {PAGE_SIZE_OPTIONS.map((option) => (
@@ -298,7 +679,9 @@ export default function MyActivitiesClient() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  onClick={() =>
+                    setCurrentPage((page) => Math.max(1, page - 1))
+                  }
                   disabled={safeCurrentPage <= 1}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -311,7 +694,9 @@ export default function MyActivitiesClient() {
 
                 <button
                   type="button"
-                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  onClick={() =>
+                    setCurrentPage((page) => Math.min(totalPages, page + 1))
+                  }
                   disabled={safeCurrentPage >= totalPages}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
