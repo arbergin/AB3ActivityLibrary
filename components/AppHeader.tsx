@@ -253,6 +253,14 @@ export default function AppHeader() {
                   {displayName}
                 </span>
 
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100"
+                >
+                  Logout
+                </button>
+
                 {isAdmin ? (
                   <Link
                     href="/settings"
@@ -265,14 +273,6 @@ export default function AppHeader() {
                 ) : (
                   <span className="hidden h-9 w-9 sm:block" aria-hidden="true" />
                 )}
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100"
-                >
-                  Logout
-                </button>
               </>
             ) : (
               <>
@@ -280,14 +280,14 @@ export default function AppHeader() {
                   {" "}
                 </span>
 
-                <span className="hidden h-9 w-9 sm:block" aria-hidden="true" />
-
                 <Link
                   href="/login"
                   className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100"
                 >
                   Login
                 </Link>
+
+                <span className="hidden h-9 w-9 sm:block" aria-hidden="true" />
               </>
             )}
           </div>
