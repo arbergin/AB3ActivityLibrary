@@ -76,7 +76,11 @@ function parseCsvLine(line: string) {
 }
 
 function parseCsvText(csvText: string) {
-  const normalizedText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const normalizedText = csvText
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+
   const nonEmptyLines = normalizedText
     .split("\n")
     .filter((line) => line.trim() !== "");
@@ -143,8 +147,8 @@ function fileToDataUrl(file: File) {
   });
 }
 
-function isValidNumberOfPlayers(value: string) {
-  if (!value.trim()) return false;
+function isValidOptionalNumberOfPlayers(value: string) {
+  if (!value.trim()) return true;
 
   const numericValue = Number(value);
 
@@ -208,8 +212,10 @@ function validateRows(
       errors.push(`Category must be one of: ${categoryLabels.join(", ")}.`);
     }
 
-    if (!isValidNumberOfPlayers(row.numberOfPlayers)) {
-      errors.push("Number of Players must be a whole number greater than 0.");
+    if (!isValidOptionalNumberOfPlayers(row.numberOfPlayers)) {
+      errors.push(
+        "Number of Players must be blank or a whole number greater than 0."
+      );
     }
 
     if (!row.filePath.trim()) {
@@ -247,7 +253,6 @@ function validateRows(
 export default function BulkImportFlow() {
   const [csvFile, setCsvFile] = useState<File | undefined>(undefined);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [parsedRows, setParsedRows] = useState<CsvActivityRow[]>([]);
   const [validatedRows, setValidatedRows] = useState<ValidatedActivityRow[]>(
     []
   );
@@ -296,7 +301,6 @@ export default function BulkImportFlow() {
     setValidationMessage("");
     setUploadMessage("");
     setValidatedRows([]);
-    setParsedRows([]);
     setSuccessfulUploadCount(0);
 
     if (!csvFile) {
@@ -332,7 +336,6 @@ export default function BulkImportFlow() {
         dropdownFields
       );
 
-      setParsedRows(rows);
       setValidatedRows(validationResults);
 
       const errorCount = validationResults.filter(
@@ -374,6 +377,8 @@ export default function BulkImportFlow() {
     setUploadMessage("");
     setSuccessfulUploadCount(0);
 
+    let completedUploads = 0;
+
     try {
       for (let index = 0; index < validRows.length; index += 1) {
         const row = validRows[index];
@@ -383,6 +388,9 @@ export default function BulkImportFlow() {
         }
 
         const previewDataUrl = await fileToDataUrl(row.file);
+        const parsedNumberOfPlayers = row.numberOfPlayers.trim()
+          ? Number(row.numberOfPlayers)
+          : undefined;
 
         const activity: Activity = {
           id: crypto.randomUUID(),
@@ -391,7 +399,8 @@ export default function BulkImportFlow() {
           gamePhase: row.resolvedGamePhase,
           category: row.resolvedCategory,
           positionsInvolved: row.positionsInvolved.trim(),
-          numberOfPlayers: Number(row.numberOfPlayers),
+          numberOfPlayers:
+            parsedNumberOfPlayers as Activity["numberOfPlayers"],
           activityDetails: row.activityDetails.trim(),
           createdBy: "Coach User",
           hidden: false,
@@ -402,10 +411,10 @@ export default function BulkImportFlow() {
 
         await createSupabaseActivity(activity);
 
-        const nextCount = index + 1;
-        setSuccessfulUploadCount(nextCount);
+        completedUploads = index + 1;
+        setSuccessfulUploadCount(completedUploads);
         setUploadMessage(
-          `${nextCount}/${validRows.length} activities successfully uploaded.`
+          `${completedUploads}/${validRows.length} activities successfully uploaded.`
         );
       }
 
@@ -415,7 +424,7 @@ export default function BulkImportFlow() {
     } catch (error) {
       console.error("Bulk upload failed.", error);
       setUploadMessage(
-        `Upload stopped after ${successfulUploadCount}/${validRows.length} successful uploads.`
+        `Upload stopped after ${completedUploads}/${validRows.length} successful uploads.`
       );
     } finally {
       setIsUploading(false);
@@ -433,9 +442,16 @@ export default function BulkImportFlow() {
         <h3 className="text-xl font-bold">Bulk Upload Files</h3>
 
         <p className="mt-2 text-sm text-slate-600">
-          The CSV path column is used to match against the files you select.
+          Only Activity Name is required as metadata. Field Location, Game
+          Phase, Category, Positions Involved, Number of Players, and Activity
+          Details can be blank. Path to file is still required because it is
+          used to match each CSV row to one of the PNG/PDF files you select.
+        </p>
+
+        <p className="mt-2 text-sm text-slate-600">
           Browsers cannot open local paths directly, so you must select the
-          activity files here too.
+          activity files here too. The CSV path can be a full path or just the
+          file name, but the file name must match the selected PDF/PNG file.
         </p>
 
         {dropdownMessage && (
@@ -486,6 +502,13 @@ export default function BulkImportFlow() {
           <div className="mt-2 break-words">
             Activity Name, Field Location, Game Phase, Category, Positions
             Involved, Number of Players, Activity Details, Path to file
+          </div>
+          <div className="mt-3 font-semibold text-slate-800">
+            Minimum valid row example:
+          </div>
+          <div className="mt-2 break-words font-mono text-xs text-slate-700">
+            "1v1 Pass &amp; Shooting Activation",,,,,,,"1v1 Pass &amp; Shooting
+            Activation.pdf"
           </div>
         </div>
 
