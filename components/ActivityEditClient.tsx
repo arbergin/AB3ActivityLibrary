@@ -371,48 +371,51 @@ function MetadataOnlyEditor({
             />
           </label>
 
-          <div className="grid gap-5 md:grid-cols-3">
+          {/* Metadata dropdown layout: Field Location and Game Phase share the first row; Category is forced onto the next row. */}
+          <div className="grid gap-5 md:grid-cols-2">
             <label className="grid gap-2">
-              <span className="text-sm font-semibold text-slate-700">
-                Field Location
-              </span>
-              <select
-                value={formValues.fieldLocation}
-                onChange={(event) =>
-                  updateField("fieldLocation", event.target.value)
-                }
-                disabled={isLoadingDropdowns}
-                className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
-              >
-                <option value="">No selection</option>
-                {fieldLocationOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                <span className="text-sm font-semibold text-slate-700">
+                  Field Location
+                </span>
+                <select
+                  value={formValues.fieldLocation}
+                  onChange={(event) =>
+                    updateField("fieldLocation", event.target.value)
+                  }
+                  disabled={isLoadingDropdowns}
+                  className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                >
+                  <option value="">No selection</option>
+                  {fieldLocationOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-slate-700">
+                  Game Phase
+                </span>
+                <select
+                  value={formValues.gamePhase}
+                  onChange={(event) =>
+                    updateField("gamePhase", event.target.value)
+                  }
+                  disabled={isLoadingDropdowns}
+                  className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                >
+                  <option value="">No selection</option>
+                  {gamePhaseOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
             </label>
 
-            <label className="grid gap-2">
-              <span className="text-sm font-semibold text-slate-700">
-                Game Phase
-              </span>
-              <select
-                value={formValues.gamePhase}
-                onChange={(event) => updateField("gamePhase", event.target.value)}
-                disabled={isLoadingDropdowns}
-                className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
-              >
-                <option value="">No selection</option>
-                {gamePhaseOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="grid gap-2">
+            <label className="grid gap-2 md:col-span-2">
               <span className="text-sm font-semibold text-slate-700">
                 Category
               </span>
