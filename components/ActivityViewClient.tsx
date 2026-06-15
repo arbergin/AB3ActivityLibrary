@@ -302,6 +302,13 @@ export default function ActivityViewClient({
               <p className="mt-2 text-slate-600">
                 Open activity view with larger preview and full metadata.
               </p>
+              <div className="mt-3">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {activity.creatorState
+                    ? "Created with Activity Creator"
+                    : "Imported PNG/PDF"}
+                </span>
+              </div>
 
 
             </div>
@@ -421,7 +428,7 @@ export default function ActivityViewClient({
                   href={`/activity/${activity.id}/edit`}
                   className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
                 >
-                  Edit
+                  {activity.creatorState ? "Edit Activity" : "Edit Metadata"}
                 </Link>
 
                 <button
