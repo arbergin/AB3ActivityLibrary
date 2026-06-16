@@ -33,6 +33,7 @@ import {
 } from "@/lib/dropdownService";
 import { makeDropdownValue } from "@/lib/dropdownHelpers";
 import type { DropdownField, DropdownOption } from "@/lib/dropdownTypes";
+import BulkUserImport from "@/components/BulkUserImport";
 
 type LocalDataSummary = {
   count: number;
@@ -1022,6 +1023,8 @@ export default function SettingsPage() {
                       </span>
                     </label>
                   </form>
+
+                  <BulkUserImport onImportComplete={loadUserProfiles} />
 
                   {userManagementMessage && (
                     <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
