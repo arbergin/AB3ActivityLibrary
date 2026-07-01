@@ -1,0 +1,236 @@
+{
+  "activityDetails" : "",
+  "clientActivityId" : "3B9D6C22-A5AA-46A1-B0F2-45062694D456",
+  "createdAt" : "2026-07-01T19:33:34Z",
+  "creatorState" : {
+    "clientActivityId" : "3B9D6C22-A5AA-46A1-B0F2-45062694D456",
+    "lines" : [
+      {
+        "color" : {
+          "blue" : 0,
+          "green" : 0,
+          "opacity" : 1,
+          "red" : 0
+        },
+        "id" : "66117E8B-1D9B-41AB-971F-2E2FA91BD8C8",
+        "isArrow" : true,
+        "isDashed" : true,
+        "points" : [
+          {
+            "x" : 0.5245803357314148,
+            "y" : 0.24855212355212356
+          },
+          {
+            "x" : 0.697242206235012,
+            "y" : 0.2171814671814672
+          }
+        ]
+      },
+      {
+        "color" : {
+          "blue" : 0,
+          "green" : 0,
+          "opacity" : 1,
+          "red" : 0
+        },
+        "id" : "4D7057E1-8C57-4D69-A520-88F9D3D519D5",
+        "isArrow" : true,
+        "isDashed" : false,
+        "points" : [
+          {
+            "x" : 0.7308153477218226,
+            "y" : 0.20222007722007723
+          },
+          {
+            "x" : 0.6726618705035972,
+            "y" : 0.12644787644787644
+          }
+        ]
+      }
+    ],
+    "objects" : [
+      {
+        "fillColor" : {
+          "blue" : 0.9,
+          "green" : 0.3,
+          "opacity" : 1,
+          "red" : 0.1
+        },
+        "id" : "D4CD2ACA-DB8D-491E-8C45-9D8CF0F7A3D1",
+        "name" : "Player 1",
+        "nameFontSize" : 12,
+        "number" : "1",
+        "playerShape" : "circle",
+        "rotationDegrees" : 0,
+        "size" : 30,
+        "textColor" : {
+          "blue" : 1,
+          "green" : 1,
+          "opacity" : 1,
+          "red" : 1
+        },
+        "type" : "team1",
+        "x" : 0.7440047961630696,
+        "y" : 0.23310810810810811
+      },
+      {
+        "fillColor" : {
+          "blue" : 0.9,
+          "green" : 0.3,
+          "opacity" : 1,
+          "red" : 0.1
+        },
+        "id" : "2A7C1017-5527-4753-B1B6-C9D2A02B1C6B",
+        "name" : "Player 2",
+        "nameFontSize" : 12,
+        "number" : "2",
+        "playerShape" : "circle",
+        "rotationDegrees" : 0,
+        "size" : 30,
+        "textColor" : {
+          "blue" : 1,
+          "green" : 1,
+          "opacity" : 1,
+          "red" : 1
+        },
+        "type" : "team1",
+        "x" : 0.5209832134292566,
+        "y" : 0.2784749034749035
+      },
+      {
+        "fillColor" : {
+          "blue" : 0.9,
+          "green" : 0.3,
+          "opacity" : 1,
+          "red" : 0.1
+        },
+        "id" : "B75C7BA4-FEC7-45A7-A16A-816860667DF1",
+        "name" : "Player 3",
+        "nameFontSize" : 12,
+        "number" : "3",
+        "playerShape" : "circle",
+        "rotationDegrees" : 0,
+        "size" : 30,
+        "textColor" : {
+          "blue" : 1,
+          "green" : 1,
+          "opacity" : 1,
+          "red" : 1
+        },
+        "type" : "team1",
+        "x" : 0.29556354916067146,
+        "y" : 0.22152509652509653
+      },
+      {
+        "fillColor" : {
+          "blue" : 0.1,
+          "green" : 0.1,
+          "opacity" : 1,
+          "red" : 0.9
+        },
+        "id" : "D68CE425-FAC7-46F9-9ED2-EB0B3249D835",
+        "name" : "Player 4",
+        "nameFontSize" : 12,
+        "number" : "4",
+        "playerShape" : "circle",
+        "rotationDegrees" : 0,
+        "size" : 30,
+        "textColor" : {
+          "blue" : 1,
+          "green" : 1,
+          "opacity" : 1,
+          "red" : 1
+        },
+        "type" : "team2",
+        "x" : 0.4010791366906475,
+        "y" : 0.17664092664092665
+      },
+      {
+        "fillColor" : {
+          "blue" : 0.1,
+          "green" : 0.1,
+          "opacity" : 1,
+          "red" : 0.9
+        },
+        "id" : "64051FE3-1CED-4D16-9BC5-0147F153EE38",
+        "name" : "Player 5",
+        "nameFontSize" : 12,
+        "number" : "5",
+        "playerShape" : "circle",
+        "rotationDegrees" : 0,
+        "size" : 30,
+        "textColor" : {
+          "blue" : 1,
+          "green" : 1,
+          "opacity" : 1,
+          "red" : 1
+        },
+        "type" : "team2",
+        "x" : 0.5935251798561151,
+        "y" : 0.17229729729729729
+      },
+      {
+        "id" : "6ECA8A3C-1C32-4C31-A23A-5007B870A776",
+        "rotationDegrees" : 0,
+        "size" : 20,
+        "type" : "ball",
+        "x" : 0.4694244604316547,
+        "y" : 0.25965250965250963
+      },
+      {
+        "id" : "FE80F4AD-1A57-48F0-859C-98EA54D542C5",
+        "rotationDegrees" : 0,
+        "size" : 110,
+        "type" : "fullGoal",
+        "x" : 0.5275779376498801,
+        "y" : 0.027992277992277992
+      }
+    ],
+    "pitch" : {
+      "background" : "pitchGreen",
+      "offsetX" : 0,
+      "offsetY" : 0,
+      "rotationDegrees" : 0,
+      "zoom" : 1.12
+    },
+    "schemaVersion" : 2,
+    "settings" : {
+      "coneDefaultColor" : {
+        "blue" : 0.05,
+        "green" : 0.45,
+        "opacity" : 1,
+        "red" : 1
+      },
+      "coneDefaultSize" : 17,
+      "logoSize" : 74,
+      "playerDefaultSize" : 30,
+      "playerDisplayMode" : "number",
+      "playerTextDefaultColor" : {
+        "blue" : 1,
+        "green" : 1,
+        "opacity" : 1,
+        "red" : 1
+      },
+      "team1DefaultColor" : {
+        "blue" : 0.9,
+        "green" : 0.3,
+        "opacity" : 1,
+        "red" : 0.1
+      },
+      "team1DefaultShape" : "circle",
+      "team2DefaultColor" : {
+        "blue" : 0.1,
+        "green" : 0.1,
+        "opacity" : 1,
+        "red" : 0.9
+      },
+      "team2DefaultShape" : "circle"
+    },
+    "sourcePlatform" : "ios"
+  },
+  "folderName" : "Default",
+  "name" : "New Activity",
+  "schemaVersion" : 2,
+  "sourcePlatform" : "ios",
+  "updatedAt" : "2026-07-01T19:33:34Z"
+}

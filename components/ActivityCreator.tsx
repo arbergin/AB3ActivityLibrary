@@ -14,6 +14,7 @@ type ToolType =
   | "mannequin"
   | "miniGoal"
   | "fullGoal"
+  | "textBox"
   | "line"
   | "freehand"
   | "eraser";
@@ -40,6 +41,11 @@ type PitchObject = {
   rotation: number;
   fillColor?: string;
   size?: number;
+  textColor?: string;
+  nameFontSize?: number;
+  playerShape?: "circle" | "triangle" | "square" | "diamond";
+  textContent?: string;
+  fontSize?: number;
 };
 
 type PitchLine = {
@@ -117,6 +123,7 @@ const objectToolTypes: ToolType[] = [
   "mannequin",
   "miniGoal",
   "fullGoal",
+  "textBox",
 ];
 
 const drawToolTypes: ToolType[] = ["line", "freehand", "eraser"];
@@ -188,6 +195,8 @@ function getObjectDisplayName(type: ObjectToolType) {
       return "Mini Goal";
     case "fullGoal":
       return "Goal";
+    case "textBox":
+      return "Text Box";
   }
 }
 
@@ -206,6 +215,8 @@ function getSizeRange(type: ObjectToolType) {
       return { min: 40, max: 140 };
     case "fullGoal":
       return { min: 70, max: 240 };
+    case "textBox":
+      return { min: 60, max: 280 };
   }
 }
 
@@ -297,6 +308,14 @@ function ToolIcon({
         draggable={false}
         className="h-8 w-12 object-contain"
       />
+    );
+  }
+
+  if (type === "textBox") {
+    return (
+      <span className="flex h-7 w-7 items-center justify-center rounded border-2 border-slate-700 bg-white text-sm font-black text-slate-800">
+        T
+      </span>
     );
   }
 
@@ -541,55 +560,393 @@ type ActivityCreatorProps = {
   initialActivity?: Activity;
 };
 
+type NormalizedCreatorState = {
+  selectedPitchBackground: PitchBackgroundType;
+  objects: PitchObject[];
+  lines: PitchLine[];
+  settings: {
+    team1Color: string;
+    team2Color: string;
+    coneColor: string;
+    lineColor: string;
+    playerDefaultSize: number;
+    coneDefaultSize: number;
+    mannequinDefaultSize: number;
+    ballDefaultSize: number;
+    playerDisplayMode: PlayerDisplayMode;
+  };
+};
+
 function getInitialCreatorState(initialActivity?: Activity) {
   return initialActivity?.creatorState;
 }
 
-function getInitialPitchBackground(
-  initialCreatorState?: ActivityCreatorState
-): PitchBackgroundType {
-  const pitchBackground = initialCreatorState?.selectedPitchBackground;
-
-  if (
-    pitchBackground === "pitchGreen" ||
-    pitchBackground === "pitchWhite" ||
-    pitchBackground === "greenBlank" ||
-    pitchBackground === "whiteBlank"
-  ) {
-    return pitchBackground;
+function isColorObject(
+  value: unknown
+): value is { red: number; green: number; blue: number; opacity?: number } {
+  if (!value || typeof value !== "object") {
+    return false;
   }
 
-  return "pitchGreen";
+  const maybeColor = value as {
+    red?: unknown;
+    green?: unknown;
+    blue?: unknown;
+  };
+
+  return (
+    typeof maybeColor.red === "number" &&
+    typeof maybeColor.green === "number" &&
+    typeof maybeColor.blue === "number"
+  );
 }
 
-function getInitialPlayerDisplayMode(
-  initialCreatorState?: ActivityCreatorState
-): PlayerDisplayMode {
-  const displayMode = initialCreatorState?.settings?.playerDisplayMode;
-
-  if (
-    displayMode === "number" ||
-    displayMode === "name" ||
-    displayMode === "both" ||
-    displayMode === "none"
-  ) {
-    return displayMode;
+function colorToCss(value: unknown, fallback: string) {
+  if (typeof value === "string" && value.trim()) {
+    return value;
   }
 
-  return "number";
+  if (!isColorObject(value)) {
+    return fallback;
+  }
+
+  const red = Math.round(clamp(value.red, 0, 1) * 255);
+  const green = Math.round(clamp(value.green, 0, 1) * 255);
+  const blue = Math.round(clamp(value.blue, 0, 1) * 255);
+
+  return `#${[red, green, blue]
+    .map((component) => component.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function isPitchBackground(value: unknown): value is PitchBackgroundType {
+  return (
+    value === "pitchGreen" ||
+    value === "pitchWhite" ||
+    value === "greenBlank" ||
+    value === "whiteBlank"
+  );
+}
+
+function isPlayerDisplayMode(value: unknown): value is PlayerDisplayMode {
+  return (
+    value === "number" || value === "name" || value === "both" || value === "none"
+  );
+}
+
+function isObjectToolType(value: unknown): value is ObjectToolType {
+  return (
+    value === "team1" ||
+    value === "team2" ||
+    value === "cone" ||
+    value === "ball" ||
+    value === "mannequin" ||
+    value === "miniGoal" ||
+    value === "fullGoal" ||
+    value === "textBox"
+  );
+}
+
+function isCreatorStateV2(initialCreatorState?: ActivityCreatorState) {
+  return Boolean(
+    initialCreatorState &&
+      "schemaVersion" in initialCreatorState &&
+      initialCreatorState.schemaVersion === 2 &&
+      "pitch" in initialCreatorState
+  );
+}
+
+function normalizeV2Coordinate(value: unknown) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return 0;
+  }
+
+  return clamp(value * 100, 0, 100);
+}
+
+function normalizeV1Coordinate(value: unknown) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return 0;
+  }
+
+  return clamp(value, 0, 100);
+}
+
+function normalizeCreatorState(
+  initialCreatorState?: ActivityCreatorState
+): NormalizedCreatorState {
+  const defaultState: NormalizedCreatorState = {
+    selectedPitchBackground: "pitchGreen",
+    objects: [],
+    lines: [],
+    settings: {
+      team1Color: "#2563eb",
+      team2Color: "#dc2626",
+      coneColor: "#f97316",
+      lineColor: "#111827",
+      playerDefaultSize: 24,
+      coneDefaultSize: 14,
+      mannequinDefaultSize: 12,
+      ballDefaultSize: 14,
+      playerDisplayMode: "number",
+    },
+  };
+
+  if (!initialCreatorState) {
+    return defaultState;
+  }
+
+  if (isCreatorStateV2(initialCreatorState)) {
+    const creatorState = initialCreatorState as ActivityCreatorState & {
+      pitch?: { background?: unknown };
+      settings?: Record<string, unknown>;
+      objects?: unknown[];
+      lines?: unknown[];
+    };
+
+    const settings = creatorState.settings ?? {};
+
+    return {
+      selectedPitchBackground: isPitchBackground(creatorState.pitch?.background)
+        ? creatorState.pitch.background
+        : defaultState.selectedPitchBackground,
+      objects: (creatorState.objects ?? []).reduce<PitchObject[]>(
+        (normalizedObjects, rawObject) => {
+          const object = rawObject as Record<string, unknown>;
+          const type = object.type;
+
+          if (!isObjectToolType(type)) {
+            return normalizedObjects;
+          }
+
+          normalizedObjects.push({
+            id: typeof object.id === "string" ? object.id : makeId(),
+            type,
+            x: normalizeV2Coordinate(object.x),
+            y: normalizeV2Coordinate(object.y),
+            label:
+              typeof object.label === "string"
+                ? object.label
+                : typeof object.number === "string"
+                  ? object.number
+                  : "",
+            playerName:
+              typeof object.playerName === "string"
+                ? object.playerName
+                : typeof object.name === "string"
+                  ? object.name
+                  : "",
+            rotation:
+              typeof object.rotation === "number"
+                ? object.rotation
+                : typeof object.rotationDegrees === "number"
+                  ? object.rotationDegrees
+                  : 0,
+            fillColor:
+              type === "team1"
+                ? colorToCss(object.fillColor, colorToCss(settings.team1DefaultColor, "#2563eb"))
+                : type === "team2"
+                  ? colorToCss(object.fillColor, colorToCss(settings.team2DefaultColor, "#dc2626"))
+                  : type === "cone"
+                    ? colorToCss(object.fillColor, colorToCss(settings.coneDefaultColor, "#f97316"))
+                    : undefined,
+            size: typeof object.size === "number" ? object.size : undefined,
+            textColor: colorToCss(object.textColor, "#111827"),
+            nameFontSize:
+              typeof object.nameFontSize === "number" ? object.nameFontSize : undefined,
+            playerShape:
+              object.playerShape === "triangle" ||
+              object.playerShape === "square" ||
+              object.playerShape === "diamond" ||
+              object.playerShape === "circle"
+                ? object.playerShape
+                : "circle",
+            textContent:
+              typeof object.textContent === "string" ? object.textContent : "Text",
+            fontSize: typeof object.fontSize === "number" ? object.fontSize : undefined,
+          });
+
+          return normalizedObjects;
+        },
+        []
+      ),
+      lines: (creatorState.lines ?? [])
+        .map((rawLine) => {
+          const line = rawLine as Record<string, unknown>;
+          const points = Array.isArray(line.points) ? line.points : [];
+
+          return {
+            id: typeof line.id === "string" ? line.id : makeId(),
+            points: points.map((rawPoint) => {
+              const point = rawPoint as Record<string, unknown>;
+
+              return {
+                x: normalizeV2Coordinate(point.x),
+                y: normalizeV2Coordinate(point.y),
+              };
+            }),
+            dashed: Boolean(line.dashed ?? line.isDashed),
+            arrow: Boolean(line.arrow ?? line.isArrow),
+            color: colorToCss(line.color, "#111827"),
+          };
+        })
+        .filter((line) => line.points.length >= 2),
+      settings: {
+        team1Color: colorToCss(settings.team1DefaultColor, "#2563eb"),
+        team2Color: colorToCss(settings.team2DefaultColor, "#dc2626"),
+        coneColor: colorToCss(settings.coneDefaultColor, "#f97316"),
+        lineColor: defaultState.settings.lineColor,
+        playerDefaultSize:
+          typeof settings.playerDefaultSize === "number"
+            ? settings.playerDefaultSize
+            : defaultState.settings.playerDefaultSize,
+        coneDefaultSize:
+          typeof settings.coneDefaultSize === "number"
+            ? settings.coneDefaultSize
+            : defaultState.settings.coneDefaultSize,
+        mannequinDefaultSize: defaultState.settings.mannequinDefaultSize,
+        ballDefaultSize: defaultState.settings.ballDefaultSize,
+        playerDisplayMode: isPlayerDisplayMode(settings.playerDisplayMode)
+          ? settings.playerDisplayMode
+          : defaultState.settings.playerDisplayMode,
+      },
+    };
+  }
+
+  const creatorState = initialCreatorState as ActivityCreatorState & {
+    selectedPitchBackground?: unknown;
+    settings?: Record<string, unknown>;
+    objects?: unknown[];
+    lines?: unknown[];
+  };
+
+  const settings = creatorState.settings ?? {};
+
+  return {
+    selectedPitchBackground: isPitchBackground(creatorState.selectedPitchBackground)
+      ? creatorState.selectedPitchBackground
+      : defaultState.selectedPitchBackground,
+    objects: (creatorState.objects ?? []).reduce<PitchObject[]>(
+      (normalizedObjects, rawObject) => {
+        const object = rawObject as Record<string, unknown>;
+        const type = object.type;
+
+        if (!isObjectToolType(type)) {
+          return normalizedObjects;
+        }
+
+        normalizedObjects.push({
+          id: typeof object.id === "string" ? object.id : makeId(),
+          type,
+          x: normalizeV1Coordinate(object.x),
+          y: normalizeV1Coordinate(object.y),
+          label: typeof object.label === "string" ? object.label : "",
+          playerName:
+            typeof object.playerName === "string" ? object.playerName : "",
+          rotation: typeof object.rotation === "number" ? object.rotation : 0,
+          fillColor: typeof object.fillColor === "string" ? object.fillColor : undefined,
+          size: typeof object.size === "number" ? object.size : undefined,
+          textColor: typeof object.textColor === "string" ? object.textColor : undefined,
+          nameFontSize:
+            typeof object.nameFontSize === "number" ? object.nameFontSize : undefined,
+          playerShape:
+            object.playerShape === "triangle" ||
+            object.playerShape === "square" ||
+            object.playerShape === "diamond" ||
+            object.playerShape === "circle"
+              ? object.playerShape
+              : "circle",
+          textContent:
+            typeof object.textContent === "string" ? object.textContent : "Text",
+          fontSize: typeof object.fontSize === "number" ? object.fontSize : undefined,
+        });
+
+        return normalizedObjects;
+      },
+      []
+    ),
+    lines: (creatorState.lines ?? [])
+      .map((rawLine) => {
+        const line = rawLine as Record<string, unknown>;
+        const points = Array.isArray(line.points) ? line.points : [];
+
+        return {
+          id: typeof line.id === "string" ? line.id : makeId(),
+          points: points.map((rawPoint) => {
+            const point = rawPoint as Record<string, unknown>;
+
+            return {
+              x: normalizeV1Coordinate(point.x),
+              y: normalizeV1Coordinate(point.y),
+            };
+          }),
+          dashed: Boolean(line.dashed),
+          arrow: Boolean(line.arrow),
+          color: typeof line.color === "string" ? line.color : defaultState.settings.lineColor,
+        };
+      })
+      .filter((line) => line.points.length >= 2),
+    settings: {
+      team1Color:
+        typeof settings.team1Color === "string"
+          ? settings.team1Color
+          : defaultState.settings.team1Color,
+      team2Color:
+        typeof settings.team2Color === "string"
+          ? settings.team2Color
+          : defaultState.settings.team2Color,
+      coneColor:
+        typeof settings.coneColor === "string"
+          ? settings.coneColor
+          : defaultState.settings.coneColor,
+      lineColor:
+        typeof settings.lineColor === "string"
+          ? settings.lineColor
+          : defaultState.settings.lineColor,
+      playerDefaultSize:
+        typeof settings.playerDefaultSize === "number"
+          ? settings.playerDefaultSize
+          : defaultState.settings.playerDefaultSize,
+      coneDefaultSize:
+        typeof settings.coneDefaultSize === "number"
+          ? settings.coneDefaultSize
+          : defaultState.settings.coneDefaultSize,
+      mannequinDefaultSize:
+        typeof settings.mannequinDefaultSize === "number"
+          ? settings.mannequinDefaultSize
+          : defaultState.settings.mannequinDefaultSize,
+      ballDefaultSize:
+        typeof settings.ballDefaultSize === "number"
+          ? settings.ballDefaultSize
+          : defaultState.settings.ballDefaultSize,
+      playerDisplayMode: isPlayerDisplayMode(settings.playerDisplayMode)
+        ? settings.playerDisplayMode
+        : defaultState.settings.playerDisplayMode,
+    },
+  };
 }
 
 export default function ActivityCreator({ initialActivity }: ActivityCreatorProps) {
   const initialCreatorState = getInitialCreatorState(initialActivity);
+  const normalizedInitialCreatorState = useMemo(
+    () => normalizeCreatorState(initialCreatorState),
+    [initialCreatorState]
+  );
   const pitchRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
   const [mobileToolGroup, setMobileToolGroup] =
     useState<MobileToolGroup>("objects");
   const [selectedPitchBackground, setSelectedPitchBackground] =
-    useState<PitchBackgroundType>(getInitialPitchBackground(initialCreatorState));
-  const [objects, setObjects] = useState<PitchObject[]>((initialCreatorState?.objects || []) as PitchObject[]);
-  const [lines, setLines] = useState<PitchLine[]>((initialCreatorState?.lines || []) as PitchLine[]);
+    useState<PitchBackgroundType>(
+      normalizedInitialCreatorState.selectedPitchBackground
+    );
+  const [objects, setObjects] = useState<PitchObject[]>(
+    normalizedInitialCreatorState.objects
+  );
+  const [lines, setLines] = useState<PitchLine[]>(
+    normalizedInitialCreatorState.lines
+  );
   const [isDashed, setIsDashed] = useState(false);
   const [isArrow, setIsArrow] = useState(false);
   const [draggingObjectId, setDraggingObjectId] = useState<string | null>(null);
@@ -601,17 +958,35 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
 
-  const [team1Color, setTeam1Color] = useState(initialCreatorState?.settings?.team1Color || "#2563eb");
-  const [team2Color, setTeam2Color] = useState(initialCreatorState?.settings?.team2Color || "#dc2626");
-  const [coneColor, setConeColor] = useState(initialCreatorState?.settings?.coneColor || "#f97316");
-  const [lineColor, setLineColor] = useState(initialCreatorState?.settings?.lineColor || "#111827");
+  const [team1Color, setTeam1Color] = useState(
+    normalizedInitialCreatorState.settings.team1Color
+  );
+  const [team2Color, setTeam2Color] = useState(
+    normalizedInitialCreatorState.settings.team2Color
+  );
+  const [coneColor, setConeColor] = useState(
+    normalizedInitialCreatorState.settings.coneColor
+  );
+  const [lineColor, setLineColor] = useState(
+    normalizedInitialCreatorState.settings.lineColor
+  );
 
-  const [playerDefaultSize, setPlayerDefaultSize] = useState(initialCreatorState?.settings?.playerDefaultSize || 24);
-  const [coneDefaultSize, setConeDefaultSize] = useState(initialCreatorState?.settings?.coneDefaultSize || 14);
-  const [mannequinDefaultSize, setMannequinDefaultSize] = useState(initialCreatorState?.settings?.mannequinDefaultSize || 12);
-  const [ballDefaultSize, setBallDefaultSize] = useState(initialCreatorState?.settings?.ballDefaultSize || 14);
+  const [playerDefaultSize, setPlayerDefaultSize] = useState(
+    normalizedInitialCreatorState.settings.playerDefaultSize
+  );
+  const [coneDefaultSize, setConeDefaultSize] = useState(
+    normalizedInitialCreatorState.settings.coneDefaultSize
+  );
+  const [mannequinDefaultSize, setMannequinDefaultSize] = useState(
+    normalizedInitialCreatorState.settings.mannequinDefaultSize
+  );
+  const [ballDefaultSize, setBallDefaultSize] = useState(
+    normalizedInitialCreatorState.settings.ballDefaultSize
+  );
   const [playerDisplayMode, setPlayerDisplayMode] =
-    useState<PlayerDisplayMode>(getInitialPlayerDisplayMode(initialCreatorState));
+    useState<PlayerDisplayMode>(
+      normalizedInitialCreatorState.settings.playerDisplayMode
+    );
 
   const [isZoomLocked, setIsZoomLocked] = useState(true);
   const [zoom, setZoom] = useState(1);
@@ -871,7 +1246,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       playerDisplayMode === "name" || playerDisplayMode === "both";
 
     if (shouldShowNumber && object.label) {
-      context.fillStyle = "#ffffff";
+      context.fillStyle = object.textColor ?? "#ffffff";
       context.font = `700 ${Math.max(10, size * 0.42)}px Arial`;
       context.textAlign = "center";
       context.textBaseline = "middle";
@@ -930,6 +1305,37 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context.fillStyle = "#ffffff";
     context.fill();
 
+    context.restore();
+  }
+
+  function drawPreviewTextBoxObject(
+    context: CanvasRenderingContext2D,
+    object: PitchObject,
+    canvasWidth: number,
+    canvasHeight: number
+  ) {
+    const width = getPreviewObjectSize(object, canvasWidth);
+    const x = (object.x / 100) * canvasWidth;
+    const y = (object.y / 100) * canvasHeight;
+    const fontSize = Math.max(10, object.fontSize ?? 20) * (canvasWidth / 1000);
+    const text = object.textContent?.trim() || "Text";
+
+    context.save();
+    context.font = `700 ${fontSize}px Arial`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+
+    const textMetrics = context.measureText(text);
+    const boxWidth = Math.max(width, textMetrics.width + 18);
+    const boxHeight = fontSize + 16;
+
+    context.fillStyle = "rgba(255, 255, 255, 0.72)";
+    context.fillRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
+    context.strokeStyle = "rgba(15, 23, 42, 0.35)";
+    context.lineWidth = Math.max(1, canvasWidth * 0.001);
+    context.strokeRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
+    context.fillStyle = object.textColor ?? "#111827";
+    context.fillText(text, x, y);
     context.restore();
   }
 
@@ -1007,6 +1413,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         drawPreviewPlayerObject(context, object, canvasWidth, canvasHeight);
       } else if (object.type === "cone") {
         drawPreviewConeObject(context, object, canvasWidth, canvasHeight);
+      } else if (object.type === "textBox") {
+        drawPreviewTextBoxObject(context, object, canvasWidth, canvasHeight);
       } else {
         await drawPreviewAssetObject(
           context,
@@ -1168,6 +1576,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return 112;
     }
 
+    if (type === "textBox") {
+      return 120;
+    }
+
     return 36;
   }
 
@@ -1194,6 +1606,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return width * 0.5;
     }
 
+    if (object.type === "textBox") {
+      return Math.max(object.fontSize ?? 20, 20) + 16;
+    }
+
     return width;
   }
 
@@ -1213,7 +1629,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ? 36
               : type === "mannequin"
                 ? 44
-                : 54;
+                : type === "textBox"
+                  ? 62
+                  : 54;
 
     const similarObjects = objects.filter((object) => object.type === type);
 
@@ -1239,6 +1657,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       rotation: 0,
       fillColor: getObjectFillColor(type),
       size: getDefaultObjectSize(type),
+      textColor: "#111827",
+      textContent: type === "textBox" ? "Text" : undefined,
+      fontSize: type === "textBox" ? 20 : undefined,
     };
 
     setObjects((currentObjects) => [...currentObjects, newObject]);
@@ -1256,7 +1677,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       tool === "ball" ||
       tool === "mannequin" ||
       tool === "miniGoal" ||
-      tool === "fullGoal"
+      tool === "fullGoal" ||
+      tool === "textBox"
     ) {
       addObject(tool);
     }
@@ -1508,6 +1930,51 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
   }
 
+  function updateObjectTextColor(objectId: string, textColor: string) {
+    saveHistorySnapshot();
+
+    setObjects((currentObjects) =>
+      currentObjects.map((object) =>
+        object.id === objectId
+          ? {
+              ...object,
+              textColor,
+            }
+          : object
+      )
+    );
+  }
+
+  function updateTextContent(objectId: string, textContent: string) {
+    saveHistorySnapshot();
+
+    setObjects((currentObjects) =>
+      currentObjects.map((object) =>
+        object.id === objectId
+          ? {
+              ...object,
+              textContent,
+            }
+          : object
+      )
+    );
+  }
+
+  function updateTextFontSize(objectId: string, fontSize: number) {
+    saveHistorySnapshot();
+
+    setObjects((currentObjects) =>
+      currentObjects.map((object) =>
+        object.id === objectId
+          ? {
+              ...object,
+              fontSize,
+            }
+          : object
+      )
+    );
+  }
+
   function applyColorToExistingObjects(
     objectTypes: ObjectToolType[],
     fillColor: string,
@@ -1660,7 +2127,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const size = object.size ?? playerDefaultSize;
     const hitSize = Math.max(size, 44);
     const fontSize = Math.max(10, Math.round(size * 0.42));
-    const nameFontSize = Math.max(9, Math.round(size * 0.3));
+    const nameFontSize = Math.max(
+      9,
+      Math.round(object.nameFontSize ?? size * 0.3)
+    );
 
     const shouldShowNumber =
       playerDisplayMode === "number" || playerDisplayMode === "both";
@@ -1694,12 +2164,20 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             event.stopPropagation();
             openObjectEditor(object.id);
           }}
-          className="flex items-center justify-center rounded-full border-2 border-black font-bold text-white shadow-sm"
+          className="flex items-center justify-center border-2 border-black font-bold shadow-sm"
           style={{
             width: `${size}px`,
             height: `${size}px`,
             fontSize: `${fontSize}px`,
             backgroundColor: fillColor,
+            color: object.textColor ?? "#ffffff",
+            borderRadius: object.playerShape === "square" ? "8px" : "9999px",
+            clipPath:
+              object.playerShape === "triangle"
+                ? "polygon(50% 0%, 100% 100%, 0% 100%)"
+                : object.playerShape === "diamond"
+                  ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
+                  : undefined,
           }}
           title="Drag to move. Double-click to edit."
         >
@@ -1835,6 +2313,43 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
   }
 
+  function renderTextBoxObject(object: PitchObject) {
+    const width = object.size ?? 120;
+    const fontSize = object.fontSize ?? 20;
+    const hitWidth = Math.max(width, 60);
+    const hitHeight = Math.max(fontSize + 18, 44);
+
+    return (
+      <button
+        key={object.id}
+        type="button"
+        onPointerDown={(event) => startDraggingObject(event, object.id)}
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          openObjectEditor(object.id);
+        }}
+        className={`absolute z-20 flex touch-none items-center justify-center rounded-lg border border-slate-500/40 bg-white/70 px-2 py-1 text-center font-bold leading-tight shadow-sm ${
+          selectedObjectId === object.id ? "ring-4 ring-blue-400" : ""
+        }`}
+        style={{
+          left: `${object.x}%`,
+          top: `${object.y}%`,
+          width: `${hitWidth}px`,
+          minHeight: `${hitHeight}px`,
+          transform: "translate(-50%, -50%)",
+          color: object.textColor ?? "#111827",
+          fontSize: `${fontSize}px`,
+        }}
+        title="Drag to move. Double-click to edit."
+      >
+        {object.textContent?.trim() || "Text"}
+      </button>
+    );
+  }
+
   function renderObject(object: PitchObject) {
     if (object.type === "team1" || object.type === "team2") {
       return renderPlayerObject(object);
@@ -1842,6 +2357,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     if (object.type === "cone") {
       return renderConeObject(object);
+    }
+
+    if (object.type === "textBox") {
+      return renderTextBoxObject(object);
     }
 
     return renderAssetObject(object);
@@ -1872,18 +2391,21 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const supportsColor =
       selectedObject.type === "team1" ||
       selectedObject.type === "team2" ||
-      selectedObject.type === "cone";
+      selectedObject.type === "cone" ||
+      selectedObject.type === "textBox";
 
     const supportsPlayerFields =
       selectedObject.type === "team1" || selectedObject.type === "team2";
 
     const colorValue =
-      selectedObject.fillColor ??
-      (selectedObject.type === "team1"
-        ? team1Color
-        : selectedObject.type === "team2"
-          ? team2Color
-          : coneColor);
+      selectedObject.type === "textBox"
+        ? selectedObject.textColor ?? "#111827"
+        : selectedObject.fillColor ??
+          (selectedObject.type === "team1"
+            ? team1Color
+            : selectedObject.type === "team2"
+              ? team2Color
+              : coneColor);
 
     return (
       <div
@@ -1962,7 +2484,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 type="color"
                 value={colorValue}
                 onChange={(event) =>
-                  updateObjectColor(selectedObject.id, event.target.value)
+                  selectedObject.type === "textBox"
+                    ? updateObjectTextColor(selectedObject.id, event.target.value)
+                    : updateObjectColor(selectedObject.id, event.target.value)
                 }
                 className="h-8 w-10 cursor-pointer rounded border border-slate-300 bg-white p-1"
               />
@@ -1971,7 +2495,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 type="text"
                 value={colorValue}
                 onChange={(event) =>
-                  updateObjectColor(selectedObject.id, event.target.value)
+                  selectedObject.type === "textBox"
+                    ? updateObjectTextColor(selectedObject.id, event.target.value)
+                    : updateObjectColor(selectedObject.id, event.target.value)
                 }
                 className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs"
               />
@@ -2008,6 +2534,42 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                   updatePlayerName(selectedObject.id, event.target.value)
                 }
                 className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+              />
+            </div>
+          </div>
+        )}
+
+        {selectedObject.type === "textBox" && (
+          <div className="mt-2 grid grid-cols-1 gap-2">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600">
+                Text
+              </label>
+
+              <textarea
+                value={selectedObject.textContent ?? ""}
+                onChange={(event) =>
+                  updateTextContent(selectedObject.id, event.target.value)
+                }
+                className="mt-1 min-h-16 w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600">
+                Font Size: {selectedObject.fontSize ?? 20}px
+              </label>
+
+              <input
+                type="range"
+                min="10"
+                max="60"
+                step="1"
+                value={selectedObject.fontSize ?? 20}
+                onChange={(event) =>
+                  updateTextFontSize(selectedObject.id, Number(event.target.value))
+                }
+                className="mt-1 w-full"
               />
             </div>
           </div>
