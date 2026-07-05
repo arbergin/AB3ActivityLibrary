@@ -7,11 +7,13 @@ type IOSSyncActivityRequestBody = {
   name?: unknown;
   activityDetails?: unknown;
   clientActivityId?: unknown;
+  libraryActivityId?: unknown;
   schemaVersion?: unknown;
   sourcePlatform?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
   creatorState?: unknown;
+  previewDataUrl?: unknown;
 };
 
 type RequestingUserResult = {
@@ -105,6 +107,107 @@ function getOptionalIsoDate(value: unknown) {
   return parsedDate.toISOString();
 }
 
+function getPreviewDataUrl(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return undefined;
+  }
+
+  return trimmedValue;
+}
+
+function sanitizeFileNamePart(value: string) {
+  return value
+    .trim()
+    .replace(/[^a-z0-9-_ ]/gi, "")
+    .replace(/\s+/g, "_")
+    .toLowerCase()
+    .slice(0, 80);
+}
+
+function parseDataUrl(dataUrl: string) {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+
+  if (!match) {
+    throw new Error("Preview image must be a valid base64 data URL.");
+  }
+
+  const rawContentType = match[1].toLowerCase();
+  const base64Data = match[2];
+
+  const contentType = rawContentType === "image/jpg" ? "image/jpeg" : rawContentType;
+
+  if (contentType !== "image/jpeg" && contentType !== "image/png") {
+    throw new Error("Preview image must be a JPEG or PNG data URL.");
+  }
+
+  return {
+    contentType,
+    buffer: Buffer.from(base64Data, "base64"),
+  };
+}
+
+function getPreviewFileExtension(contentType: string) {
+  if (contentType === "image/jpeg") {
+    return "jpg";
+  }
+
+  return "png";
+}
+
+function createPreviewFilePath(
+  activityName: string,
+  clientActivityId: string,
+  contentType: string
+) {
+  const safeActivityName = sanitizeFileNamePart(activityName) || "ios_activity";
+  const safeClientId = sanitizeFileNamePart(clientActivityId) || "local";
+  const timestamp = Date.now();
+  const extension = getPreviewFileExtension(contentType);
+
+  return `activities/${safeActivityName}_${safeClientId}_${timestamp}.${extension}`;
+}
+
+async function uploadPreviewDataUrl(
+  previewDataUrl: string | undefined,
+  activityName: string,
+  clientActivityId: string
+) {
+  if (!previewDataUrl) {
+    return undefined;
+  }
+
+  const { contentType, buffer } = parseDataUrl(previewDataUrl);
+  const filePath = createPreviewFilePath(activityName, clientActivityId, contentType);
+
+  const { error } = await supabaseAdmin.storage
+    .from("activity-files")
+    .upload(filePath, buffer, {
+      contentType,
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    fileName:
+      filePath.split("/").pop() ||
+      (contentType === "image/jpeg"
+        ? "ios_activity_preview.jpg"
+        : "ios_activity_preview.png"),
+    fileType: contentType,
+    filePath,
+    fileBucket: "activity-files",
+  };
+}
+
 function isValidCreatorState(value: unknown): value is ActivityCreatorState {
   if (!isObjectRecord(value)) {
     return false;
@@ -126,6 +229,24 @@ function countPlayersFromCreatorState(creatorState: ActivityCreatorState) {
 function getPayloadCreatorState(body: IOSSyncActivityRequestBody) {
   if (isValidCreatorState(body.creatorState)) {
     return body.creatorState;
+  }
+
+  return undefined;
+}
+
+function buildCreatedByValue(user: NonNullable<RequestingUserResult["user"]>) {
+  return (
+    user.email ||
+    getStringValue(user.user_metadata?.name, "iOS Sync User")
+  );
+}
+
+function getCreatorStateClientActivityId(creatorState: ActivityCreatorState) {
+  if (
+    "clientActivityId" in creatorState &&
+    typeof creatorState.clientActivityId === "string"
+  ) {
+    return creatorState.clientActivityId;
   }
 
   return undefined;
@@ -166,8 +287,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const incomingLibraryActivityId = getStringValue(body.libraryActivityId);
     const clientActivityId = getStringValue(body.clientActivityId);
     const sourcePlatform = getStringValue(body.sourcePlatform, "ios");
+
     const schemaVersion =
       typeof body.schemaVersion === "number" &&
       Number.isFinite(body.schemaVersion)
@@ -178,7 +301,34 @@ export async function POST(request: NextRequest) {
     const updatedAt = getOptionalIsoDate(body.updatedAt);
     const nowIso = new Date().toISOString();
 
+    const createdBy = buildCreatedByValue(userCheck.user);
     const numberOfPlayers = countPlayersFromCreatorState(creatorState);
+    const previewDataUrl = getPreviewDataUrl(body.previewDataUrl);
+
+    let uploadedPreview:
+      | Awaited<ReturnType<typeof uploadPreviewDataUrl>>
+      | undefined;
+
+    try {
+      uploadedPreview = await uploadPreviewDataUrl(
+        previewDataUrl,
+        activityName,
+        clientActivityId || getCreatorStateClientActivityId(creatorState) || "ios"
+      );
+    } catch (previewError) {
+      const message =
+        previewError instanceof Error
+          ? previewError.message
+          : "The preview image could not be uploaded.";
+
+      return NextResponse.json(
+        {
+          error: "The preview image could not be uploaded.",
+          details: message,
+        },
+        { status: 400 }
+      );
+    }
 
     const creatorStateWithSyncMetadata = {
       ...creatorState,
@@ -188,11 +338,8 @@ export async function POST(request: NextRequest) {
           : schemaVersion,
       sourcePlatform,
       clientActivityId:
-        clientActivityId ||
-        ("clientActivityId" in creatorState &&
-        typeof creatorState.clientActivityId === "string"
-          ? creatorState.clientActivityId
-          : undefined),
+        clientActivityId || getCreatorStateClientActivityId(creatorState),
+      libraryActivityId: incomingLibraryActivityId || undefined,
     };
 
     const insertValue = {
@@ -204,41 +351,171 @@ export async function POST(request: NextRequest) {
       number_of_players: numberOfPlayers || null,
       activity_details: getStringValue(body.activityDetails) || null,
 
-      created_by:
-        userCheck.user.email ||
-        getStringValue(userCheck.user.user_metadata?.name, "iOS Sync User"),
+      created_by: createdBy,
       hidden: false,
 
       activity_source: "create",
       creator_state: creatorStateWithSyncMetadata,
 
-      file_name: null,
-      file_type: null,
-      file_path: null,
-      file_bucket: "activity-files",
+      file_name: uploadedPreview?.fileName || null,
+      file_type: uploadedPreview?.fileType || null,
+      file_path: uploadedPreview?.filePath || null,
+      file_bucket: uploadedPreview?.fileBucket || "activity-files",
 
       created_at: createdAt || nowIso,
       updated_at: updatedAt || nowIso,
     };
 
-    const { data, error } = await supabaseAdmin
+    const updateValue = {
+      activity_name: activityName,
+      number_of_players: numberOfPlayers || null,
+      activity_details: getStringValue(body.activityDetails) || null,
+
+      activity_source: "create",
+      creator_state: {
+        ...creatorStateWithSyncMetadata,
+        libraryActivityId: incomingLibraryActivityId || undefined,
+      },
+
+      ...(uploadedPreview
+        ? {
+            file_name: uploadedPreview.fileName,
+            file_type: uploadedPreview.fileType,
+            file_path: uploadedPreview.filePath,
+            file_bucket: uploadedPreview.fileBucket,
+          }
+        : {}),
+
+      updated_at: updatedAt || nowIso,
+    };
+
+    if (incomingLibraryActivityId) {
+      const { data: existingActivity, error: existingActivityError } =
+        await supabaseAdmin
+          .from("activities")
+          .select("id, created_by")
+          .eq("id", incomingLibraryActivityId)
+          .eq("created_by", createdBy)
+          .maybeSingle();
+
+      if (existingActivityError) {
+        console.error("iOS sync activity lookup failed.", {
+          message: existingActivityError.message,
+          details: existingActivityError.details,
+          hint: existingActivityError.hint,
+          code: existingActivityError.code,
+        });
+
+        return NextResponse.json(
+          {
+            error: "The existing Library activity could not be checked.",
+            details: existingActivityError.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      if (existingActivity) {
+        const { data: updatedActivity, error: updateError } =
+          await supabaseAdmin
+            .from("activities")
+            .update(updateValue)
+            .eq("id", incomingLibraryActivityId)
+            .eq("created_by", createdBy)
+            .select("*")
+            .single();
+
+        if (updateError) {
+          console.error("iOS sync activity update failed.", {
+            message: updateError.message,
+            details: updateError.details,
+            hint: updateError.hint,
+            code: updateError.code,
+          });
+
+          return NextResponse.json(
+            {
+              error: "The activity could not be updated in the Library.",
+              details: updateError.message,
+            },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          ok: true,
+          action: "updated",
+          devBypassUsed: isDevSyncBypassEnabled(),
+          activity: {
+            id: updatedActivity.id,
+            activityName: updatedActivity.activity_name,
+            clientActivityId:
+              clientActivityId ||
+              getCreatorStateClientActivityId(creatorState),
+            createdAt: updatedActivity.created_at,
+            updatedAt: updatedActivity.updated_at,
+          },
+        });
+      }
+    }
+
+    const { data: insertedActivity, error: insertError } = await supabaseAdmin
       .from("activities")
-      .insert(insertValue)
+      .insert({
+        ...insertValue,
+        creator_state: {
+          ...creatorStateWithSyncMetadata,
+          libraryActivityId: undefined,
+        },
+      })
       .select("*")
       .single();
 
-    if (error) {
+    if (insertError) {
       console.error("iOS sync activity insert failed.", {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+        code: insertError.code,
       });
 
       return NextResponse.json(
         {
           error: "The activity could not be synced to the Library.",
-          details: error.message,
+          details: insertError.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    const finalCreatorState = {
+      ...creatorStateWithSyncMetadata,
+      libraryActivityId: insertedActivity.id,
+    };
+
+    const { data: finalizedActivity, error: finalizeError } =
+      await supabaseAdmin
+        .from("activities")
+        .update({
+          creator_state: finalCreatorState,
+        })
+        .eq("id", insertedActivity.id)
+        .select("*")
+        .single();
+
+    if (finalizeError) {
+      console.error("iOS sync activity finalize failed.", {
+        message: finalizeError.message,
+        details: finalizeError.details,
+        hint: finalizeError.hint,
+        code: finalizeError.code,
+      });
+
+      return NextResponse.json(
+        {
+          error:
+            "The activity was created, but its sync metadata could not be finalized.",
+          details: finalizeError.message,
         },
         { status: 500 }
       );
@@ -246,17 +523,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      action: "created",
       devBypassUsed: isDevSyncBypassEnabled(),
       activity: {
-        id: data.id,
-        activityName: data.activity_name,
+        id: finalizedActivity.id,
+        activityName: finalizedActivity.activity_name,
         clientActivityId:
-          clientActivityId ||
-          ("clientActivityId" in creatorStateWithSyncMetadata
-            ? creatorStateWithSyncMetadata.clientActivityId
-            : undefined),
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
+          clientActivityId || getCreatorStateClientActivityId(creatorState),
+        createdAt: finalizedActivity.created_at,
+        updatedAt: finalizedActivity.updated_at,
       },
     });
   } catch (error) {
