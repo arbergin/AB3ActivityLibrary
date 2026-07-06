@@ -505,6 +505,101 @@ function SizeSetting({
   );
 }
 
+
+function CodedPitchBackground({
+  background,
+}: {
+  background: PitchBackgroundType;
+}) {
+  const isGreen = background === "pitchGreen" || background === "greenBlank";
+  const isBlank = background === "greenBlank" || background === "whiteBlank";
+  const lineColor = isGreen ? "#ffffff" : "#111827";
+
+  return (
+    <svg
+      viewBox="0 0 100 133.333333"
+      aria-label="Soccer pitch"
+      className="absolute inset-0 block h-full w-full select-none rounded-xl"
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <linearGradient id="ab3-green-pitch-gradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#168807" />
+          <stop offset="50%" stopColor="#27c20d" />
+          <stop offset="100%" stopColor="#147506" />
+        </linearGradient>
+
+        <linearGradient id="ab3-white-pitch-gradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="50%" stopColor="#f4f6f8" />
+          <stop offset="100%" stopColor="#ffffff" />
+        </linearGradient>
+      </defs>
+
+      <rect
+        x="0"
+        y="0"
+        width="100"
+        height="133.333333"
+        fill={
+          isGreen
+            ? "url(#ab3-green-pitch-gradient)"
+            : "url(#ab3-white-pitch-gradient)"
+        }
+      />
+
+      {isGreen &&
+        Array.from({ length: 14 }).map((_, index) => (
+          <rect
+            key={index}
+            x="0"
+            y={(index * 133.333333) / 14}
+            width="100"
+            height={133.333333 / 14}
+            fill={index % 2 === 0 ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}
+          />
+        ))}
+
+      {!isBlank && (
+        <g
+          fill="none"
+          stroke={lineColor}
+          strokeWidth="0.55"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="8" y="6" width="84" height="121.333333" />
+
+          <line x1="8" y1="66.666667" x2="92" y2="66.666667" />
+          <circle cx="50" cy="66.666667" r="9.5" />
+
+          <rect x="26" y="6" width="48" height="19.333333" />
+          <rect x="38" y="6" width="24" height="7.333333" />
+
+          <rect x="26" y="108" width="48" height="19.333333" />
+          <rect x="38" y="120" width="24" height="7.333333" />
+
+          <path d="M 43.04 25.333333 A 8.5 8.5 0 0 0 56.96 25.333333" />
+          <path d="M 43.04 108 A 8.5 8.5 0 0 1 56.96 108" />
+
+          <path d="M 10.8 6 A 2.8 2.8 0 0 1 8 8.8" />
+          <path d="M 89.2 6 A 2.8 2.8 0 0 0 92 8.8" />
+          <path d="M 10.8 127.333333 A 2.8 2.8 0 0 0 8 124.533333" />
+          <path d="M 89.2 127.333333 A 2.8 2.8 0 0 1 92 124.533333" />
+        </g>
+      )}
+
+      {!isBlank && (
+        <g fill={lineColor}>
+          <circle cx="50" cy="66.666667" r="0.65" />
+          <circle cx="50" cy="18.666667" r="0.65" />
+          <circle cx="50" cy="114.666667" r="0.65" />
+        </g>
+      )}
+    </svg>
+  );
+}
+
 function ColorSetting({
   label,
   value,
@@ -998,11 +1093,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const selectedObject =
     objects.find((object) => object.id === selectedObjectId) ?? null;
 
-  const selectedPitchAsset =
-    pitchBackgrounds.find(
-      (background) => background.type === selectedPitchBackground
-    )?.assetPath ?? "/activity-assets/pitch_green.png";
-
   const playerCount = useMemo(() => {
     return objects.filter(
       (object) => object.type === "team1" || object.type === "team2"
@@ -1379,6 +1469,132 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context.restore();
   }
 
+  function drawCanonicalPitchBackground(
+    context: CanvasRenderingContext2D,
+    canvasWidth: number,
+    canvasHeight: number,
+    background: PitchBackgroundType
+  ) {
+    const isGreen = background === "pitchGreen" || background === "greenBlank";
+    const isBlank = background === "greenBlank" || background === "whiteBlank";
+
+    const gradient = context.createLinearGradient(0, 0, 0, canvasHeight);
+
+    if (isGreen) {
+      gradient.addColorStop(0, "#168807");
+      gradient.addColorStop(0.5, "#27c20d");
+      gradient.addColorStop(1, "#147506");
+    } else {
+      gradient.addColorStop(0, "#ffffff");
+      gradient.addColorStop(0.5, "#f4f6f8");
+      gradient.addColorStop(1, "#ffffff");
+    }
+
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    if (isGreen) {
+      const stripeCount = 14;
+      const stripeHeight = canvasHeight / stripeCount;
+
+      for (let index = 0; index < stripeCount; index += 1) {
+        context.fillStyle =
+          index % 2 === 0 ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+        context.fillRect(0, index * stripeHeight, canvasWidth, stripeHeight);
+      }
+    }
+
+    if (isBlank) {
+      return;
+    }
+
+    const x = (value: number) => (value / 100) * canvasWidth;
+    const y = (value: number) => (value / 133.333333) * canvasHeight;
+
+    const lineColor = isGreen ? "#ffffff" : "#111827";
+
+    context.save();
+    context.strokeStyle = lineColor;
+    context.fillStyle = lineColor;
+    context.lineWidth = Math.max(3, Math.min(canvasWidth, canvasHeight) * 0.0045);
+    context.lineCap = "round";
+    context.lineJoin = "round";
+
+    context.strokeRect(x(8), y(6), x(84), y(121.333333));
+
+    context.beginPath();
+    context.moveTo(x(8), y(66.666667));
+    context.lineTo(x(92), y(66.666667));
+    context.stroke();
+
+    context.beginPath();
+    context.arc(x(50), y(66.666667), x(9.5), 0, Math.PI * 2);
+    context.stroke();
+
+    context.strokeRect(x(26), y(6), x(48), y(19.333333));
+    context.strokeRect(x(38), y(6), x(24), y(7.333333));
+
+    context.strokeRect(x(26), y(108), x(48), y(19.333333));
+    context.strokeRect(x(38), y(120), x(24), y(7.333333));
+
+    const penaltyArcRadius = x(8.5);
+    const penaltyLineDistanceFromSpot = Math.abs(y(25.333333) - y(18.666667));
+    const safeArcRatio = Math.min(
+      1,
+      Math.max(-1, penaltyLineDistanceFromSpot / Math.max(penaltyArcRadius, 1))
+    );
+    const arcCutAngle = Math.asin(safeArcRatio);
+
+    // Draw only the portion of each penalty arc that sits outside the penalty area.
+    // The start/end angles are calculated from the exact intersection between
+    // the circle and the penalty-area line. This keeps web and iOS aligned.
+    context.beginPath();
+    context.arc(x(50), y(18.666667), penaltyArcRadius, arcCutAngle, Math.PI - arcCutAngle);
+    context.stroke();
+
+    context.beginPath();
+    context.arc(
+      x(50),
+      y(114.666667),
+      penaltyArcRadius,
+      Math.PI + arcCutAngle,
+      Math.PI * 2 - arcCutAngle
+    );
+    context.stroke();
+
+    const cornerRadius = x(2.8);
+
+    context.beginPath();
+    context.arc(x(8), y(6), cornerRadius, 0, Math.PI / 2);
+    context.stroke();
+
+    context.beginPath();
+    context.arc(x(92), y(6), cornerRadius, Math.PI / 2, Math.PI);
+    context.stroke();
+
+    context.beginPath();
+    context.arc(x(8), y(127.333333), cornerRadius, (3 * Math.PI) / 2, Math.PI * 2);
+    context.stroke();
+
+    context.beginPath();
+    context.arc(x(92), y(127.333333), cornerRadius, Math.PI, (3 * Math.PI) / 2);
+    context.stroke();
+
+    const dotRadius = Math.max(3, Math.min(canvasWidth, canvasHeight) * 0.0048);
+
+    function drawDot(cx: number, cy: number) {
+      context.beginPath();
+      context.arc(x(cx), y(cy), dotRadius, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    drawDot(50, 66.666667);
+    drawDot(50, 18.666667);
+    drawDot(50, 114.666667);
+
+    context.restore();
+  }
+
   async function getCreatorPreviewDataUrl() {
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
@@ -1387,20 +1603,18 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return undefined;
     }
 
-    const pitchImage = await loadCanvasImage(selectedPitchAsset);
     const canvasWidth = 1200;
-    const pitchAspectRatio =
-      pitchImage.naturalWidth > 0
-        ? pitchImage.naturalHeight / pitchImage.naturalWidth
-        : 0.625;
-    const canvasHeight = Math.round(canvasWidth * pitchAspectRatio);
+    const canvasHeight = 1600;
 
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
 
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvasWidth, canvasHeight);
-    context.drawImage(pitchImage, 0, 0, canvasWidth, canvasHeight);
+    drawCanonicalPitchBackground(
+      context,
+      canvasWidth,
+      canvasHeight,
+      selectedPitchBackground
+    );
 
     lines.forEach((line) => {
       drawPreviewLine(context, line, canvasWidth, canvasHeight);
@@ -3032,7 +3246,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 setActiveLinePoints([]);
                 setPanState(null);
               }}
-              className={`relative inline-block max-w-full touch-none overflow-visible rounded-xl bg-white shadow-inner ${
+              className={`relative aspect-[3/4] h-full max-h-full max-w-full touch-none overflow-visible rounded-xl bg-white shadow-inner ${
                 !isZoomLocked && !panState ? "cursor-grab" : ""
               } ${panState ? "cursor-grabbing" : ""}`}
               style={{
@@ -3040,12 +3254,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 transformOrigin: "top left",
               }}
             >
-              <img
-                src={selectedPitchAsset}
-                alt="Soccer pitch"
-                draggable={false}
-                className="block h-auto max-h-[65vh] max-w-full select-none rounded-xl md:max-h-[760px]"
-              />
+              <CodedPitchBackground background={selectedPitchBackground} />
 
               <svg
                 className="absolute inset-0 z-10 h-full w-full"

@@ -87,6 +87,8 @@ export type ActivityCreatorPitchStateV2 = {
   offsetX: number;
   offsetY: number;
   rotationDegrees: number;
+  pitchAssetVersion?: number;
+  coordinateSystem?: "legacyCanvas" | "canonicalPitchV1";
 };
 
 export type ActivityCreatorSettingsV2 = {
