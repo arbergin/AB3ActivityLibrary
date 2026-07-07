@@ -68,37 +68,60 @@ async function fileSourceToArrayBuffer(fileSource: string) {
   return response.arrayBuffer();
 }
 
+function normalizeLineBreaks(value: string) {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\\n/g, "\n");
+}
+
 function wrapText(
   text: string,
   font: PDFFont,
   fontSize: number,
   maxWidth: number
 ) {
-  const words = text.split(/\s+/);
+  const normalizedText = normalizeLineBreaks(text || "—");
+  const paragraphs = normalizedText.split("\n");
   const lines: string[] = [];
-  let currentLine = "";
 
-  words.forEach((word) => {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    const trimmedParagraph = paragraph.trim();
 
-    if (testWidth <= maxWidth) {
-      currentLine = testLine;
+    if (!trimmedParagraph) {
+      lines.push("");
       return;
     }
+
+    const words = trimmedParagraph.split(/[ \t]+/);
+    let currentLine = "";
+
+    words.forEach((word) => {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+
+      if (testWidth <= maxWidth) {
+        currentLine = testLine;
+        return;
+      }
+
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+
+      currentLine = word;
+    });
 
     if (currentLine) {
       lines.push(currentLine);
     }
 
-    currentLine = word;
+    if (paragraphIndex < paragraphs.length - 1 && !trimmedParagraph) {
+      return;
+    }
   });
 
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-
-  return lines;
+  return lines.length > 0 ? lines : ["—"];
 }
 
 function drawSectionLabel({
@@ -147,13 +170,15 @@ function drawSectionValue({
   let nextY = y;
 
   lines.forEach((line) => {
-    page.drawText(line, {
-      x,
-      y: nextY,
-      size: fontSize,
-      font,
-      color: rgb(0.1, 0.15, 0.22),
-    });
+    if (line) {
+      page.drawText(line, {
+        x,
+        y: nextY,
+        size: fontSize,
+        font,
+        color: rgb(0.1, 0.15, 0.22),
+      });
+    }
 
     nextY -= lineHeight;
   });
@@ -390,13 +415,15 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
       return;
     }
 
-    page.drawText(line, {
-      x: PAGE_MARGIN,
-      y,
-      size: 12,
-      font: valueFont,
-      color: rgb(0.1, 0.15, 0.22),
-    });
+    if (line) {
+      page.drawText(line, {
+        x: PAGE_MARGIN,
+        y,
+        size: 12,
+        font: valueFont,
+        color: rgb(0.1, 0.15, 0.22),
+      });
+    }
 
     y -= detailsLineHeight;
   });

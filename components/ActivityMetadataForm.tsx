@@ -74,6 +74,7 @@ export default function ActivityMetadataForm({
   const [formError, setFormError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [dropdownOptions, setDropdownOptions] = useState<ActivityFormDropdownOptions>(
     defaultDropdownOptions
   );
@@ -439,13 +440,35 @@ export default function ActivityMetadataForm({
         </div>
 
         <label className="grid gap-1">
-          <span className="text-sm font-semibold">Activity Details</span>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold">Activity Details</span>
+
+            <button
+              type="button"
+              onClick={() =>
+                setIsDetailsExpanded((currentValue) => !currentValue)
+              }
+              disabled={isSaving}
+              className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isDetailsExpanded ? "Collapse" : "Expand"}
+            </button>
+          </div>
+
           <textarea
             value={activityDetails}
             onChange={(event) => setActivityDetails(event.target.value)}
-            className="min-h-32 rounded-lg border border-slate-300 px-3 py-2"
+            className={`rounded-lg border border-slate-300 px-3 py-2 transition-[min-height] duration-200 ${
+              isDetailsExpanded ? "min-h-[420px]" : "min-h-32"
+            }`}
             placeholder="Describe setup, rules, coaching points, progressions, or constraints."
           />
+
+          {isDetailsExpanded && (
+            <div className="text-xs text-slate-500">
+              Expanded for easier editing. Click Collapse when you are done.
+            </div>
+          )}
         </label>
 
         {formError && (

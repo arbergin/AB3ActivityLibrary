@@ -501,24 +501,6 @@ export default function ActivityViewClient({
                       {activity.numberOfPlayers || "—"}
                     </div>
                   </div>
-
-                  <div>
-                    <div className="font-semibold text-slate-700">
-                      Created Date
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {formatDate(activity.createdAt)}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-slate-700">
-                      Last Updated
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {formatDate(activity.updatedAt)}
-                    </div>
-                  </div>
                 </div>
 
                 <div>
@@ -536,6 +518,26 @@ export default function ActivityViewClient({
                   </div>
                   <div className="mt-1 whitespace-pre-line break-words text-slate-600">
                     {activity.activityDetails || "—"}
+                  </div>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Created Date
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {formatDate(activity.createdAt)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Last Updated
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {formatDate(activity.updatedAt)}
+                    </div>
                   </div>
                 </div>
 
