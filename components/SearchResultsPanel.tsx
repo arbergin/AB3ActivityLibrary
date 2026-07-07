@@ -700,7 +700,7 @@ export default function SearchResultsPanel({
                 <div className="font-semibold text-slate-700">
                   Activity Details
                 </div>
-                <div className="break-words text-slate-600">
+                <div className="whitespace-pre-line break-words text-slate-600">
                   {selectedActivity.activityDetails || "—"}
                 </div>
               </div>

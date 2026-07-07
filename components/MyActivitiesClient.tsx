@@ -71,6 +71,25 @@ function sortActivities(activities: Activity[], sortOption: SortOption) {
   });
 }
 
+function renderMultilineText(value?: string | number | null, fallback = "—") {
+  const normalizedValue = String(value ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\\n/g, "\n")
+    .trim();
+
+  if (!normalizedValue) {
+    return fallback;
+  }
+
+  return normalizedValue.split("\n").map((line, index, lines) => (
+    <span key={`${index}-${line}`}>
+      {line || " "}
+      {index < lines.length - 1 ? <br /> : null}
+    </span>
+  ));
+}
+
 function PreviewFallback() {
   return (
     <div className="flex min-h-64 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
@@ -387,9 +406,11 @@ export default function MyActivitiesClient() {
                               <div className="font-semibold text-slate-900">
                                 {getActivityName(activity)}
                               </div>
-                              <div className="mt-1 line-clamp-2 max-w-xl text-sm text-slate-500">
-                                {activity.activityDetails ||
-                                  "No activity details provided."}
+                              <div className="mt-1 line-clamp-2 max-w-xl whitespace-pre-line text-sm text-slate-500">
+                                {renderMultilineText(
+                                  activity.activityDetails,
+                                  "No activity details provided.",
+                                )}
                               </div>
                             </button>
                           </td>
@@ -550,8 +571,8 @@ export default function MyActivitiesClient() {
                       <div className="font-semibold text-slate-700">
                         Activity Details
                       </div>
-                      <div className="break-words text-slate-600">
-                        {selectedActivity.activityDetails || "—"}
+                      <div className="whitespace-pre-line break-words text-slate-600">
+                        {renderMultilineText(selectedActivity.activityDetails)}
                       </div>
                     </div>
 

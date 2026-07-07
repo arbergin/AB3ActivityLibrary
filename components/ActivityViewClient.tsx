@@ -332,14 +332,51 @@ export default function ActivityViewClient({
 
           <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
             <section className="rounded-xl bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
-                <h3 className="text-xl font-bold">Large Activity Preview</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900">
+                    Large Activity Preview
+                  </h3>
 
-                {activity.hidden && (
-                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                    Hidden — admin only
-                  </span>
-                )}
+                  {activity.hidden && (
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                      Hidden — admin only
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white"
+                  >
+                    Download
+                  </button>
+
+                  <Link
+                    href={`/activity/${activity.id}/edit`}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+                  >
+                    {activity.creatorState ? "Edit Activity" : "Edit Metadata"}
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleHidden}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+                  >
+                    {activity.hidden ? "Unhide" : "Hide"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDeleteClick}
+                    className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
 
               <div className="mt-6 flex min-h-[520px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-slate-500">
@@ -415,38 +452,6 @@ export default function ActivityViewClient({
                 </div>
               )}
 
-              <div className="mt-6 flex flex-wrap justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
-                >
-                  Download
-                </button>
-
-                <Link
-                  href={`/activity/${activity.id}/edit`}
-                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
-                >
-                  {activity.creatorState ? "Edit Activity" : "Edit Metadata"}
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={handleToggleHidden}
-                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
-                >
-                  {activity.hidden ? "Unhide" : "Hide"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDeleteClick}
-                  className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700"
-                >
-                  Delete
-                </button>
-              </div>
             </section>
 
             <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -529,7 +534,7 @@ export default function ActivityViewClient({
                   <div className="font-semibold text-slate-700">
                     Activity Details
                   </div>
-                  <div className="mt-1 text-slate-600">
+                  <div className="mt-1 whitespace-pre-line break-words text-slate-600">
                     {activity.activityDetails || "—"}
                   </div>
                 </div>
