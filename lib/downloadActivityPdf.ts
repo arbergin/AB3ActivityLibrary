@@ -220,20 +220,20 @@ function drawMetadataBox({
   drawSectionLabel({
     page,
     label,
-    x: x + 12,
-    y: y + height - 18,
+    x: x + 10,
+    y: y + height - 14,
     font: labelFont,
   });
 
   drawSectionValue({
     page,
     value,
-    x: x + 12,
-    y: y + height - 38,
+    x: x + 10,
+    y: y + height - 29,
     font: valueFont,
-    maxWidth: width - 24,
-    fontSize: 12,
-    lineHeight: 15,
+    maxWidth: width - 20,
+    fontSize: 11,
+    lineHeight: 12,
   });
 }
 
@@ -320,20 +320,21 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
     color: rgb(0.05, 0.13, 0.25),
   });
 
-  y -= 42;
+  y -= 34;
 
   const columnGap = 12;
+  const rowGap = 10;
   const threeColumnWidth = (contentWidth - columnGap * 2) / 3;
-  const threeColumnHeight = 74;
+  const compactBoxHeight = 44;
 
   drawMetadataBox({
     page,
     label: "Field Location",
     value: activity.fieldLocation || "—",
     x: PAGE_MARGIN,
-    y: y - threeColumnHeight,
+    y: y - compactBoxHeight,
     width: threeColumnWidth,
-    height: threeColumnHeight,
+    height: compactBoxHeight,
     labelFont,
     valueFont,
   });
@@ -343,9 +344,9 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
     label: "Game Phase",
     value: activity.gamePhase || "—",
     x: PAGE_MARGIN + threeColumnWidth + columnGap,
-    y: y - threeColumnHeight,
+    y: y - compactBoxHeight,
     width: threeColumnWidth,
-    height: threeColumnHeight,
+    height: compactBoxHeight,
     labelFont,
     valueFont,
   });
@@ -355,17 +356,17 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
     label: "Category",
     value: activity.category || "—",
     x: PAGE_MARGIN + threeColumnWidth * 2 + columnGap * 2,
-    y: y - threeColumnHeight,
+    y: y - compactBoxHeight,
     width: threeColumnWidth,
-    height: threeColumnHeight,
+    height: compactBoxHeight,
     labelFont,
     valueFont,
   });
 
-  y -= threeColumnHeight + 32;
+  y -= compactBoxHeight + rowGap;
 
   const twoColumnWidth = (contentWidth - columnGap) / 2;
-  const twoColumnHeight = 74;
+  const twoColumnHeight = compactBoxHeight;
 
   drawMetadataBox({
     page,
@@ -394,7 +395,7 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
     valueFont,
   });
 
-  y -= twoColumnHeight + 32;
+  y -= twoColumnHeight + 18;
 
   drawSectionLabel({
     page,
@@ -428,7 +429,7 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
     y -= detailsLineHeight;
   });
 
-  y -= 20;
+  y -= 14;
 
   drawMetadataBox({
     page,
