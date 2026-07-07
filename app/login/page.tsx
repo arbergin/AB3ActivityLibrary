@@ -227,11 +227,6 @@ export default function LoginPage() {
               Need access? Ask an admin to create your account.
             </div>
 
-            <div className="mt-6 text-center text-sm text-slate-600">
-              <Link href="/" className="font-semibold text-[#0d2140]">
-                Back to Dashboard
-              </Link>
-            </div>
           </div>
         </div>
       </section>
