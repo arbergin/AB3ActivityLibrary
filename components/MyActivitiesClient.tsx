@@ -539,23 +539,6 @@ export default function MyActivitiesClient() {
                         </div>
                       </div>
 
-                      <div>
-                        <div className="font-semibold text-slate-700">
-                          Created Date
-                        </div>
-                        <div className="text-slate-600">
-                          {formatDate(selectedActivity.createdAt)}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="font-semibold text-slate-700">
-                          Last Updated
-                        </div>
-                        <div className="text-slate-600">
-                          {formatDate(selectedActivity.updatedAt)}
-                        </div>
-                      </div>
                     </div>
 
                     <div>
@@ -573,6 +556,26 @@ export default function MyActivitiesClient() {
                       </div>
                       <div className="whitespace-pre-line break-words text-slate-600">
                         {renderMultilineText(selectedActivity.activityDetails)}
+                      </div>
+                    </div>
+
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Created Date
+                        </div>
+                        <div className="text-slate-600">
+                          {formatDate(selectedActivity.createdAt)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Last Updated
+                        </div>
+                        <div className="text-slate-600">
+                          {formatDate(selectedActivity.updatedAt)}
+                        </div>
                       </div>
                     </div>
 
