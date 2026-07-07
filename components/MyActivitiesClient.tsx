@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
 import {
   deleteSupabaseActivity,
   getSupabaseActivities,
+  updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
 import { supabase } from "@/lib/supabaseClient";
 import type { Activity } from "@/types/activity";
@@ -113,6 +115,7 @@ export default function MyActivitiesClient() {
   const [selectedPreviewFailed, setSelectedPreviewFailed] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
+  const [downloadMessage, setDownloadMessage] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -239,11 +242,66 @@ export default function MyActivitiesClient() {
     setSelectedPreviewFailed(false);
     setShowDeleteConfirm(false);
     setDeleteMessage("");
+    setDownloadMessage("");
+  }
+
+  async function handleDownload() {
+    if (!selectedActivity) return;
+
+    setDeleteMessage("");
+    setShowDeleteConfirm(false);
+
+    if (!selectedActivity.previewDataUrl) {
+      setDownloadMessage("No imported file is available for this activity.");
+      return;
+    }
+
+    try {
+      await downloadActivityAsPdf(selectedActivity);
+      setDownloadMessage("PDF export download started.");
+    } catch (error) {
+      console.error("PDF export failed.", error);
+      setDownloadMessage("The PDF export could not be created.");
+    }
+  }
+
+  async function handleToggleHidden() {
+    if (!selectedActivity) return;
+
+    setDeleteMessage("");
+    setDownloadMessage("");
+    setShowDeleteConfirm(false);
+
+    try {
+      const updatedActivity = await updateSupabaseActivityHidden(
+        selectedActivity.id,
+        !selectedActivity.hidden,
+      );
+
+      setActivities((currentActivities) =>
+        currentActivities.map((activity) =>
+          activity.id === updatedActivity.id ? updatedActivity : activity,
+        ),
+      );
+      setSelectedActivity(updatedActivity);
+      setDeleteMessage(
+        updatedActivity.hidden
+          ? "Activity hidden. It will still appear here because it is one of your activities."
+          : "Activity is visible again.",
+      );
+      router.refresh();
+    } catch (error) {
+      console.error("Unable to update activity visibility.", error);
+      setDeleteMessage(
+        "This activity visibility could not be updated. Refresh the page and try again.",
+      );
+    }
   }
 
   function handleDeleteClick() {
     if (!selectedActivity) return;
 
+    setDownloadMessage("");
     setDeleteMessage("");
     setShowDeleteConfirm(true);
   }
@@ -266,6 +324,7 @@ export default function MyActivitiesClient() {
       setActivities(remainingActivities);
       setShowDeleteConfirm(false);
       setSelectedPreviewFailed(false);
+      setDownloadMessage("");
       setDeleteMessage("Activity deleted.");
 
       const sortedRemainingActivities = sortActivities(
@@ -393,16 +452,15 @@ export default function MyActivitiesClient() {
                       return (
                         <tr
                           key={activity.id}
+                          onClick={() => handleSelectActivity(activity)}
                           className={
-                            isSelected ? "bg-blue-50" : "hover:bg-slate-50"
+                            isSelected
+                              ? "cursor-pointer bg-blue-50"
+                              : "cursor-pointer hover:bg-slate-50"
                           }
                         >
                           <td className="px-4 py-4 align-top">
-                            <button
-                              type="button"
-                              onClick={() => handleSelectActivity(activity)}
-                              className="block w-full text-left"
-                            >
+                            <div className="block w-full text-left">
                               <div className="font-semibold text-slate-900">
                                 {getActivityName(activity)}
                               </div>
@@ -412,7 +470,7 @@ export default function MyActivitiesClient() {
                                   "No activity details provided.",
                                 )}
                               </div>
-                            </button>
+                            </div>
                           </td>
                           <td className="px-4 py-4 align-top text-sm text-slate-700">
                             {activity.category || "—"}
@@ -427,16 +485,11 @@ export default function MyActivitiesClient() {
                           </td>
                           <td className="px-4 py-4 text-right align-top">
                             <div className="flex justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleSelectActivity(activity)}
-                                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                              >
-                                Preview
-                              </button>
-
                               <Link
                                 href={`/activity/${activity.id}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                }}
                                 className="inline-flex rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
                               >
                                 Open
@@ -464,6 +517,14 @@ export default function MyActivitiesClient() {
 
                 {selectedActivity && (
                   <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#17345f]"
+                    >
+                      Download
+                    </button>
+
                     <Link
                       href={`/activity/${selectedActivity.id}/edit`}
                       className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -471,12 +532,13 @@ export default function MyActivitiesClient() {
                       Edit
                     </Link>
 
-                    <Link
-                      href={`/activity/${selectedActivity.id}`}
-                      className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#17345f]"
+                    <button
+                      type="button"
+                      onClick={handleToggleHidden}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
-                      Open
-                    </Link>
+                      {selectedActivity.hidden ? "Unhide" : "Hide"}
+                    </button>
 
                     <button
                       type="button"
@@ -617,6 +679,12 @@ export default function MyActivitiesClient() {
                       </div>
                     )}
                   </div>
+
+                  {downloadMessage ? (
+                    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-700">
+                      {downloadMessage}
+                    </div>
+                  ) : null}
 
                   {deleteMessage ? (
                     <div
