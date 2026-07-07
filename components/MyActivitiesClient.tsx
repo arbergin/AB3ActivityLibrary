@@ -452,15 +452,42 @@ export default function MyActivitiesClient() {
             </div>
 
             <aside className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-lg font-bold text-slate-900">
+                  <h2 className="text-base font-bold text-slate-900">
                     Activity Preview
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
                     Select an activity to preview its file and metadata.
                   </p>
                 </div>
+
+                {selectedActivity && (
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Link
+                      href={`/activity/${selectedActivity.id}/edit`}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Edit
+                    </Link>
+
+                    <Link
+                      href={`/activity/${selectedActivity.id}`}
+                      className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#17345f]"
+                    >
+                      Open
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={handleDeleteClick}
+                      disabled={isDeleting}
+                      className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
 
               {!selectedActivity ? (
@@ -635,30 +662,6 @@ export default function MyActivitiesClient() {
                     </div>
                   ) : null}
 
-                  <div className="mt-6 flex flex-wrap justify-end gap-3">
-                    <Link
-                      href={`/activity/${selectedActivity.id}/edit`}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Edit
-                    </Link>
-
-                    <Link
-                      href={`/activity/${selectedActivity.id}`}
-                      className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
-                    >
-                      Open
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={handleDeleteClick}
-                      disabled={isDeleting}
-                      className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Delete
-                    </button>
-                  </div>
                 </>
               )}
             </aside>

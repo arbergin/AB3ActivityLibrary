@@ -584,7 +584,44 @@ export default function SearchResultsPanel({
       </section>
 
       <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6">
-        <h2 className="text-xl font-bold">Activity Detail</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-bold text-slate-900">Activity Detail</h2>
+
+          {selectedActivity && (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white"
+              >
+                Download
+              </button>
+
+              <Link
+                href={`/activity/${selectedActivity.id}/edit`}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+              >
+                {selectedActivity.creatorState ? "Edit Activity" : "Edit Metadata"}
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleToggleHidden}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+              >
+                {selectedActivity.hidden ? "Unhide" : "Hide"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
 
         {!selectedActivity ? (
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
@@ -755,38 +792,6 @@ export default function SearchResultsPanel({
               </div>
             )}
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
-              >
-                Download
-              </button>
-
-              <Link
-                href={`/activity/${selectedActivity.id}/edit`}
-                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
-              >
-                {selectedActivity.creatorState ? "Edit Activity" : "Edit Metadata"}
-              </Link>
-
-              <button
-                type="button"
-                onClick={handleToggleHidden}
-                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700"
-              >
-                {selectedActivity.hidden ? "Unhide" : "Hide"}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                className="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700"
-              >
-                Delete
-              </button>
-            </div>
           </>
         )}
       </section>
