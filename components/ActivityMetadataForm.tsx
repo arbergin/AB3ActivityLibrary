@@ -376,15 +376,7 @@ export default function ActivityMetadataForm({
           </div>
         )}
 
-      {mode === "create" && (
-        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-          This will save the editable activity layout, including the pitch,
-          icons, lines, colors, and sizes. A PNG preview will also be created
-          for the activity detail and search result screens.
-        </div>
-      )}
-
-      <div className="mt-6 grid gap-4">
+      <div className="mt-4 grid gap-4">
         <label className="grid gap-1">
           <span className="text-sm font-semibold">
             Activity Name <span className="text-red-600">*</span>
