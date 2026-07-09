@@ -508,20 +508,33 @@ function SizeSetting({
 
 function CodedPitchBackground({
   background,
+  zoom = 1,
+  panX = 0,
+  panY = 0,
+  rotationDegrees = 0,
 }: {
   background: PitchBackgroundType;
+  zoom?: number;
+  panX?: number;
+  panY?: number;
+  rotationDegrees?: number;
 }) {
   const isGreen = background === "pitchGreen" || background === "greenBlank";
   const isBlank = background === "greenBlank" || background === "whiteBlank";
   const lineColor = isGreen ? "#ffffff" : "#111827";
 
   return (
-    <svg
-      viewBox="0 0 100 133.333333"
-      aria-label="Soccer pitch"
-      className="absolute inset-0 block h-full w-full select-none rounded-xl"
-      preserveAspectRatio="none"
-    >
+    <div className="absolute inset-0 overflow-hidden rounded-xl">
+      <svg
+        viewBox="0 0 100 133.333333"
+        aria-label="Soccer pitch"
+        className="absolute inset-0 block h-full w-full select-none"
+        preserveAspectRatio="none"
+        style={{
+          transform: `translate(${panX}px, ${panY}px) rotate(${rotationDegrees}deg) scale(${zoom})`,
+          transformOrigin: "center center",
+        }}
+      >
       <defs>
         <linearGradient id="ab3-green-pitch-gradient" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#168807" />
@@ -596,7 +609,8 @@ function CodedPitchBackground({
           <circle cx="50" cy="114.666667" r="0.65" />
         </g>
       )}
-    </svg>
+      </svg>
+    </div>
   );
 }
 
@@ -657,6 +671,16 @@ type ActivityCreatorProps = {
 
 type NormalizedCreatorState = {
   selectedPitchBackground: PitchBackgroundType;
+  pitchView: {
+    zoom: number;
+    panX: number;
+    panY: number;
+    rotationDegrees: number;
+    pitchAssetVersion: number;
+    coordinateSystem: "legacyCanvas" | "canonicalPitchV1";
+    sourcePlatform: "ios" | "web";
+    clientActivityId?: string;
+  };
   objects: PitchObject[];
   lines: PitchLine[];
   settings: {
@@ -713,6 +737,28 @@ function colorToCss(value: unknown, fallback: string) {
     .map((component) => component.toString(16).padStart(2, "0"))
     .join("")}`;
 }
+function cssToColorObject(value: string) {
+  const normalizedValue = value.trim();
+  const hexMatch = normalizedValue.match(/^#?([0-9a-f]{6})$/i);
+
+  if (!hexMatch) {
+    return { red: 0, green: 0, blue: 0, opacity: 1 };
+  }
+
+  const hexValue = hexMatch[1];
+
+  return {
+    red: parseInt(hexValue.slice(0, 2), 16) / 255,
+    green: parseInt(hexValue.slice(2, 4), 16) / 255,
+    blue: parseInt(hexValue.slice(4, 6), 16) / 255,
+    opacity: 1,
+  };
+}
+
+function getFiniteNumber(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
 
 function isPitchBackground(value: unknown): value is PitchBackgroundType {
   return (
@@ -772,6 +818,15 @@ function normalizeCreatorState(
 ): NormalizedCreatorState {
   const defaultState: NormalizedCreatorState = {
     selectedPitchBackground: "pitchGreen",
+    pitchView: {
+      zoom: 1,
+      panX: 0,
+      panY: 0,
+      rotationDegrees: 0,
+      pitchAssetVersion: 2,
+      coordinateSystem: "canonicalPitchV1",
+      sourcePlatform: "web",
+    },
     objects: [],
     lines: [],
     settings: {
@@ -793,18 +848,41 @@ function normalizeCreatorState(
 
   if (isCreatorStateV2(initialCreatorState)) {
     const creatorState = initialCreatorState as ActivityCreatorState & {
-      pitch?: { background?: unknown };
+      pitch?: Record<string, unknown>;
       settings?: Record<string, unknown>;
       objects?: unknown[];
       lines?: unknown[];
     };
 
+    const creatorStateRecord = creatorState as Record<string, unknown>;
     const settings = creatorState.settings ?? {};
 
     return {
       selectedPitchBackground: isPitchBackground(creatorState.pitch?.background)
         ? creatorState.pitch.background
         : defaultState.selectedPitchBackground,
+      pitchView: {
+        zoom: getFiniteNumber(creatorState.pitch?.zoom, defaultState.pitchView.zoom),
+        panX: getFiniteNumber(creatorState.pitch?.offsetX, defaultState.pitchView.panX),
+        panY: getFiniteNumber(creatorState.pitch?.offsetY, defaultState.pitchView.panY),
+        rotationDegrees: getFiniteNumber(
+          creatorState.pitch?.rotationDegrees,
+          defaultState.pitchView.rotationDegrees
+        ),
+        pitchAssetVersion: getFiniteNumber(
+          creatorState.pitch?.pitchAssetVersion,
+          defaultState.pitchView.pitchAssetVersion
+        ),
+        coordinateSystem:
+          creatorState.pitch?.coordinateSystem === "legacyCanvas"
+            ? "legacyCanvas"
+            : "canonicalPitchV1",
+        sourcePlatform: creatorStateRecord.sourcePlatform === "ios" ? "ios" : "web",
+        clientActivityId:
+          typeof creatorStateRecord.clientActivityId === "string"
+            ? creatorStateRecord.clientActivityId
+            : undefined,
+      },
       objects: (creatorState.objects ?? []).reduce<PitchObject[]>(
         (normalizedObjects, rawObject) => {
           const object = rawObject as Record<string, unknown>;
@@ -921,6 +999,7 @@ function normalizeCreatorState(
     selectedPitchBackground: isPitchBackground(creatorState.selectedPitchBackground)
       ? creatorState.selectedPitchBackground
       : defaultState.selectedPitchBackground,
+    pitchView: defaultState.pitchView,
     objects: (creatorState.objects ?? []).reduce<PitchObject[]>(
       (normalizedObjects, rawObject) => {
         const object = rawObject as Record<string, unknown>;
@@ -1084,8 +1163,26 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
 
   const [isZoomLocked, setIsZoomLocked] = useState(true);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(normalizedInitialCreatorState.pitchView.zoom);
+  const [pan, setPan] = useState({
+    x: normalizedInitialCreatorState.pitchView.panX,
+    y: normalizedInitialCreatorState.pitchView.panY,
+  });
+  const [pitchRotationDegrees] = useState(
+    normalizedInitialCreatorState.pitchView.rotationDegrees
+  );
+  const [pitchAssetVersion] = useState(
+    normalizedInitialCreatorState.pitchView.pitchAssetVersion
+  );
+  const [pitchCoordinateSystem] = useState(
+    normalizedInitialCreatorState.pitchView.coordinateSystem
+  );
+  const [sourcePlatform] = useState(
+    normalizedInitialCreatorState.pitchView.sourcePlatform
+  );
+  const [clientActivityId] = useState(
+    normalizedInitialCreatorState.pitchView.clientActivityId
+  );
   const [panState, setPanState] = useState<PanState | null>(null);
   const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<HistorySnapshot[]>([]);
@@ -1108,20 +1205,61 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
   const creatorState = useMemo<ActivityCreatorState>(
     () => ({
-      selectedPitchBackground,
-      objects,
-      lines,
+      schemaVersion: 2,
+      sourcePlatform,
+      clientActivityId,
+      pitch: {
+        background: selectedPitchBackground,
+        zoom,
+        offsetX: pan.x,
+        offsetY: pan.y,
+        rotationDegrees: pitchRotationDegrees,
+        pitchAssetVersion,
+        coordinateSystem: pitchCoordinateSystem,
+      },
       settings: {
-        team1Color,
-        team2Color,
-        coneColor,
-        lineColor,
+        playerDisplayMode,
+        team1DefaultColor: cssToColorObject(team1Color),
+        team2DefaultColor: cssToColorObject(team2Color),
+        team1DefaultShape: "circle",
+        team2DefaultShape: "circle",
+        playerTextDefaultColor: cssToColorObject("#ffffff"),
+        coneDefaultColor: cssToColorObject(coneColor),
         playerDefaultSize,
         coneDefaultSize,
-        mannequinDefaultSize,
-        ballDefaultSize,
-        playerDisplayMode,
+        logoSize: 74,
       },
+      objects: objects.map((object) => ({
+        id: object.id,
+        type: object.type,
+        x: clamp(object.x, 0, 100) / 100,
+        y: clamp(object.y, 0, 100) / 100,
+        label: object.label,
+        playerName: object.playerName,
+        rotation: object.rotation,
+        fillColor: object.fillColor,
+        textColor: object.textColor,
+        number: object.label,
+        name: object.playerName,
+        size: object.size,
+        nameFontSize: object.nameFontSize,
+        playerShape: object.playerShape,
+        textContent: object.textContent,
+        fontSize: object.fontSize,
+        rotationDegrees: object.rotation,
+      })),
+      lines: lines.map((line) => ({
+        id: line.id,
+        points: line.points.map((point) => ({
+          x: clamp(point.x, 0, 100) / 100,
+          y: clamp(point.y, 0, 100) / 100,
+        })),
+        dashed: line.dashed,
+        arrow: line.arrow,
+        isDashed: line.dashed,
+        isArrow: line.arrow,
+        color: line.color,
+      })),
     }),
     [
       selectedPitchBackground,
@@ -1130,12 +1268,17 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       team1Color,
       team2Color,
       coneColor,
-      lineColor,
       playerDefaultSize,
       coneDefaultSize,
-      mannequinDefaultSize,
-      ballDefaultSize,
       playerDisplayMode,
+      zoom,
+      pan.x,
+      pan.y,
+      pitchRotationDegrees,
+      pitchAssetVersion,
+      pitchCoordinateSystem,
+      sourcePlatform,
+      clientActivityId,
     ]
   );
 
@@ -1609,12 +1752,20 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
 
+    context.save();
+    context.translate(canvasWidth / 2 + pan.x, canvasHeight / 2 + pan.y);
+    context.rotate((pitchRotationDegrees * Math.PI) / 180);
+    context.scale(zoom, zoom);
+    context.translate(-canvasWidth / 2, -canvasHeight / 2);
+
     drawCanonicalPitchBackground(
       context,
       canvasWidth,
       canvasHeight,
       selectedPitchBackground
     );
+
+    context.restore();
 
     lines.forEach((line) => {
       drawPreviewLine(context, line, canvasWidth, canvasHeight);
@@ -3250,11 +3401,16 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 !isZoomLocked && !panState ? "cursor-grab" : ""
               } ${panState ? "cursor-grabbing" : ""}`}
               style={{
-                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                transformOrigin: "top left",
+                transform: "none",
               }}
             >
-              <CodedPitchBackground background={selectedPitchBackground} />
+              <CodedPitchBackground
+                background={selectedPitchBackground}
+                zoom={zoom}
+                panX={pan.x}
+                panY={pan.y}
+                rotationDegrees={pitchRotationDegrees}
+              />
 
               <svg
                 className="absolute inset-0 z-10 h-full w-full"
