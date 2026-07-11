@@ -574,7 +574,7 @@ function CreatorStateActivityPreview({ activity }: { activity: Activity }) {
       return (
         <div
           key={object.id}
-          className="absolute z-20 rounded-lg border border-slate-500/40 bg-white/70 px-2 py-1 text-center font-bold leading-tight shadow-sm"
+          className="absolute z-20 whitespace-pre-wrap break-words rounded-lg border border-slate-500/40 bg-white/70 px-2 py-1 text-center font-bold leading-tight shadow-sm"
           style={{
             left,
             top,

@@ -110,6 +110,7 @@ const tools: { type: ToolType; label: string; shortLabel: string }[] = [
   { type: "mannequin", label: "Mannequin", shortLabel: "Man" },
   { type: "miniGoal", label: "Mini Goal", shortLabel: "Mini" },
   { type: "fullGoal", label: "Goal", shortLabel: "Goal" },
+  { type: "textBox", label: "Text", shortLabel: "Text" },
   { type: "line", label: "Line", shortLabel: "Line" },
   { type: "freehand", label: "Free Draw", shortLabel: "Free" },
   { type: "eraser", label: "Erase", shortLabel: "Erase" },
@@ -1551,24 +1552,69 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const x = (object.x / 100) * canvasWidth;
     const y = (object.y / 100) * canvasHeight;
     const fontSize = Math.max(10, object.fontSize ?? 20) * (canvasWidth / 1000);
-    const text = object.textContent?.trim() || "Text";
+    const lineHeight = fontSize * 1.22;
+    const rawText = object.textContent?.trim() || "Text";
+    const maxTextWidth = Math.max(width - 18, 40);
 
     context.save();
     context.font = `700 ${fontSize}px Arial`;
     context.textAlign = "center";
     context.textBaseline = "middle";
 
-    const textMetrics = context.measureText(text);
-    const boxWidth = Math.max(width, textMetrics.width + 18);
-    const boxHeight = fontSize + 16;
+    const wrappedLines = rawText
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .flatMap((paragraph) => {
+        const words = paragraph.split(/\s+/).filter(Boolean);
+
+        if (words.length === 0) {
+          return [""];
+        }
+
+        const linesForParagraph: string[] = [];
+        let currentLine = "";
+
+        words.forEach((word) => {
+          const nextLine = currentLine ? `${currentLine} ${word}` : word;
+
+          if (context.measureText(nextLine).width <= maxTextWidth || !currentLine) {
+            currentLine = nextLine;
+            return;
+          }
+
+          linesForParagraph.push(currentLine);
+          currentLine = word;
+        });
+
+        if (currentLine) {
+          linesForParagraph.push(currentLine);
+        }
+
+        return linesForParagraph;
+      });
+
+    const widestLine = wrappedLines.reduce(
+      (currentMax, line) => Math.max(currentMax, context.measureText(line).width),
+      0
+    );
+    const boxWidth = Math.max(width, widestLine + 18);
+    const boxHeight = Math.max(lineHeight * wrappedLines.length + 16, fontSize + 16);
 
     context.fillStyle = "rgba(255, 255, 255, 0.72)";
     context.fillRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
     context.strokeStyle = "rgba(15, 23, 42, 0.35)";
     context.lineWidth = Math.max(1, canvasWidth * 0.001);
     context.strokeRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
+
     context.fillStyle = object.textColor ?? "#111827";
-    context.fillText(text, x, y);
+
+    const firstLineY = y - ((wrappedLines.length - 1) * lineHeight) / 2;
+
+    wrappedLines.forEach((line, index) => {
+      context.fillText(line, x, firstLineY + index * lineHeight);
+    });
+
     context.restore();
   }
 
@@ -2696,7 +2742,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           event.stopPropagation();
           openObjectEditor(object.id);
         }}
-        className={`absolute z-20 flex touch-none items-center justify-center rounded-lg border border-slate-500/40 bg-white/70 px-2 py-1 text-center font-bold leading-tight shadow-sm ${
+        className={`absolute z-20 flex touch-none items-center justify-center whitespace-pre-wrap break-words rounded-lg border border-slate-500/40 bg-white/70 px-2 py-1 text-center font-bold leading-tight shadow-sm ${
           selectedObjectId === object.id ? "ring-4 ring-blue-400" : ""
         }`}
         style={{
