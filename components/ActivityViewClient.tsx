@@ -16,11 +16,12 @@ import { recordRecentActivityOpen } from "@/lib/recentActivityViews";
 import { supabase } from "@/lib/supabaseClient";
 import {
   deleteSupabaseActivity,
+  duplicateSupabaseActivity,
   getSupabaseActivityById,
   updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
 import type { Activity } from "@/types/activity";
-import { canManageActivity } from "@/lib/activityPermissions";
+import { canManageActivity, isActivityOwner } from "@/lib/activityPermissions";
 import { getCurrentUserProfile, type UserProfile } from "@/lib/userProfile";
 
 type ActivityViewClientProps = {
@@ -685,6 +686,7 @@ export default function ActivityViewClient({
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isCreatingCopy, setIsCreatingCopy] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
 
   async function recordActivityOpen(activityIdToRecord: string) {
@@ -802,6 +804,26 @@ export default function ActivityViewClient({
     }
   }
 
+  async function handleCreateCopy() {
+    if (!activity || activitySource !== "supabase") {
+      return;
+    }
+
+    setDownloadMessage("");
+    setShowDeleteConfirm(false);
+    setActionMessage("");
+    setIsCreatingCopy(true);
+
+    try {
+      const copiedActivity = await duplicateSupabaseActivity(activity.id);
+      router.push(`/activity/${copiedActivity.id}/edit`);
+    } catch (error) {
+      console.error("Supabase activity copy failed.", error);
+      setActionMessage("This activity could not be copied. Please try again.");
+      setIsCreatingCopy(false);
+    }
+  }
+
   async function handleToggleHidden() {
     if (!activity) {
       return;
@@ -904,6 +926,10 @@ export default function ActivityViewClient({
 
   const canManageCurrentActivity =
     activitySource !== "supabase" || canManageActivity(activity, currentProfile);
+  const showCreateCopy =
+    activitySource === "supabase" &&
+    Boolean(currentProfile) &&
+    !isActivityOwner(activity, currentProfile);
 
   if (!hasLoaded) {
     return (
@@ -1003,6 +1029,17 @@ export default function ActivityViewClient({
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2">
+                  {showCreateCopy && (
+                    <button
+                      type="button"
+                      onClick={handleCreateCopy}
+                      disabled={isCreatingCopy}
+                      className="rounded-lg border border-[#0d2140] bg-white px-3 py-1.5 text-sm font-semibold text-[#0d2140] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isCreatingCopy ? "Creating Copy..." : "Create Copy"}
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={handleDownload}

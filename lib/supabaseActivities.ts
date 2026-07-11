@@ -248,6 +248,121 @@ export async function createSupabaseActivity(
   return savedActivity;
 }
 
+
+export async function duplicateSupabaseActivity(
+  sourceActivityId: string
+): Promise<Activity> {
+  if (!isUuid(sourceActivityId)) {
+    throw new Error("Cannot copy Supabase activity because the ID is not a UUID.");
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    throw new Error("You must be logged in to create a copy.");
+  }
+
+  const { data: sourceData, error: sourceError } = await supabase
+    .from("activities")
+    .select("*")
+    .eq("id", sourceActivityId)
+    .single();
+
+  if (sourceError) {
+    console.error("Supabase activity copy lookup failed:", {
+      id: sourceActivityId,
+      message: sourceError.message,
+      details: sourceError.details,
+      hint: sourceError.hint,
+      code: sourceError.code,
+    });
+    throw sourceError;
+  }
+
+  const sourceRow = sourceData as SupabaseActivityRow;
+  const sourceActivity = supabaseRowToActivity(sourceRow);
+  const copiedActivity: Activity = {
+    ...sourceActivity,
+    id: crypto.randomUUID(),
+    activityName: `${sourceActivity.activityName} - Copy`,
+    createdBy: user.email,
+    hidden: false,
+    visibility: "private",
+    clubId: null,
+    createdAt: undefined,
+    updatedAt: undefined,
+  };
+
+  let copiedFilePath: string | null = null;
+
+  if (sourceRow.file_path) {
+    const { data: fileBlob, error: downloadError } = await supabase.storage
+      .from(ACTIVITY_FILES_BUCKET)
+      .download(sourceRow.file_path);
+
+    if (downloadError) {
+      console.error("Supabase activity copy file download failed:", {
+        filePath: sourceRow.file_path,
+        message: downloadError.message,
+        name: downloadError.name,
+      });
+      throw downloadError;
+    }
+
+    copiedFilePath = createStorageFilePath(copiedActivity);
+
+    const { error: uploadError } = await supabase.storage
+      .from(ACTIVITY_FILES_BUCKET)
+      .upload(copiedFilePath, fileBlob, {
+        contentType: sourceRow.file_type || fileBlob.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Supabase activity copy file upload failed:", {
+        filePath: copiedFilePath,
+        message: uploadError.message,
+        name: uploadError.name,
+      });
+      throw uploadError;
+    }
+  }
+
+  const insertValue = activityToSupabaseInsert(copiedActivity, copiedFilePath);
+  const { data, error } = await supabase
+    .from("activities")
+    .insert(insertValue)
+    .select("*")
+    .single();
+
+  if (error) {
+    if (copiedFilePath) {
+      await supabase.storage
+        .from(ACTIVITY_FILES_BUCKET)
+        .remove([copiedFilePath]);
+    }
+
+    console.error("Supabase activity copy insert failed:", {
+      sourceActivityId,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+    throw error;
+  }
+
+  const copiedRow = data as SupabaseActivityRow;
+  const savedCopy = supabaseRowToActivity(copiedRow);
+  savedCopy.previewDataUrl = getPublicActivityFileUrl(
+    copiedRow.file_path || undefined
+  );
+
+  return savedCopy;
+}
+
 export async function updateSupabaseActivity(
   activity: Activity
 ): Promise<Activity> {
