@@ -54,6 +54,7 @@ type PitchLine = {
   dashed: boolean;
   arrow: boolean;
   color: string;
+  lineWidth: number;
 };
 
 type PanState = {
@@ -694,6 +695,7 @@ type NormalizedCreatorState = {
     mannequinDefaultSize: number;
     ballDefaultSize: number;
     playerDisplayMode: PlayerDisplayMode;
+    lineDefaultWidth: number;
   };
 };
 
@@ -840,6 +842,7 @@ function normalizeCreatorState(
       mannequinDefaultSize: 12,
       ballDefaultSize: 14,
       playerDisplayMode: "number",
+      lineDefaultWidth: 4,
     },
   };
 
@@ -962,6 +965,7 @@ function normalizeCreatorState(
             dashed: Boolean(line.dashed ?? line.isDashed),
             arrow: Boolean(line.arrow ?? line.isArrow),
             color: colorToCss(line.color, "#111827"),
+            lineWidth: getFiniteNumber(line.lineWidth, 4),
           };
         })
         .filter((line) => line.points.length >= 2),
@@ -983,6 +987,7 @@ function normalizeCreatorState(
         playerDisplayMode: isPlayerDisplayMode(settings.playerDisplayMode)
           ? settings.playerDisplayMode
           : defaultState.settings.playerDisplayMode,
+        lineDefaultWidth: getFiniteNumber(settings.lineDefaultWidth, defaultState.settings.lineDefaultWidth),
       },
     };
   }
@@ -1058,6 +1063,7 @@ function normalizeCreatorState(
           dashed: Boolean(line.dashed),
           arrow: Boolean(line.arrow),
           color: typeof line.color === "string" ? line.color : defaultState.settings.lineColor,
+          lineWidth: getFiniteNumber(line.lineWidth, 4),
         };
       })
       .filter((line) => line.points.length >= 2),
@@ -1097,6 +1103,7 @@ function normalizeCreatorState(
       playerDisplayMode: isPlayerDisplayMode(settings.playerDisplayMode)
         ? settings.playerDisplayMode
         : defaultState.settings.playerDisplayMode,
+      lineDefaultWidth: getFiniteNumber(settings.lineDefaultWidth, defaultState.settings.lineDefaultWidth),
     },
   };
 }
@@ -1144,6 +1151,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   );
   const [lineColor, setLineColor] = useState(
     normalizedInitialCreatorState.settings.lineColor
+  );
+  const [lineWidth, setLineWidth] = useState(
+    normalizedInitialCreatorState.settings.lineDefaultWidth
   );
 
   const [playerDefaultSize, setPlayerDefaultSize] = useState(
@@ -1229,6 +1239,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         playerDefaultSize,
         coneDefaultSize,
         logoSize: 74,
+        lineDefaultWidth: lineWidth,
       },
       objects: objects.map((object) => ({
         id: object.id,
@@ -1260,6 +1271,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         isDashed: line.dashed,
         isArrow: line.arrow,
         color: line.color,
+        lineWidth: line.lineWidth,
       })),
     }),
     [
@@ -1269,6 +1281,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       team1Color,
       team2Color,
       coneColor,
+      lineWidth,
       playerDefaultSize,
       coneDefaultSize,
       playerDisplayMode,
@@ -1401,13 +1414,15 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     }
 
     context.save();
+    const previewLineWidth = Math.max(1, line.lineWidth || lineWidth || 4) * (canvasWidth / 1000);
+
     context.strokeStyle = line.color || lineColor;
-    context.lineWidth = Math.max(3, canvasWidth * 0.0055);
+    context.lineWidth = previewLineWidth;
     context.lineCap = "round";
     context.lineJoin = "round";
 
     if (line.dashed) {
-      context.setLineDash([canvasWidth * 0.018, canvasWidth * 0.014]);
+      context.setLineDash([previewLineWidth * 2.5, previewLineWidth * 2]);
     }
 
     context.beginPath();
@@ -2197,6 +2212,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           dashed: isDashed,
           arrow: isArrow,
           color: lineColor,
+          lineWidth,
         },
       ]);
     }
@@ -2503,6 +2519,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     };
 
     const strokeColor = isPreview ? lineColor : line.color;
+    const strokeWidth = Math.max(0.14, (isPreview ? lineWidth : line.lineWidth || 4) * 0.1375);
+    const dashLength = Math.max(1.2, strokeWidth * 3.25);
+    const dashGap = Math.max(1, strokeWidth * 2.5);
 
     return (
       <g key={line.id}>
@@ -2510,10 +2529,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           points={points}
           fill="none"
           stroke={strokeColor}
-          strokeWidth="0.55"
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeDasharray={line.dashed ? "1.8 1.4" : undefined}
+          strokeDasharray={line.dashed ? `${dashLength} ${dashGap}` : undefined}
           opacity={isPreview ? 0.75 : 1}
         />
 
@@ -2522,7 +2541,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             points={`${arrowPoint1.x},${arrowPoint1.y} ${end.x},${end.y} ${arrowPoint2.x},${arrowPoint2.y}`}
             fill="none"
             stroke={strokeColor}
-            strokeWidth="0.55"
+            strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
             opacity={isPreview ? 0.75 : 1}
@@ -3219,6 +3238,20 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                   </p>
                 }
               />
+
+              <SizeSetting
+                label="Line Thickness"
+                value={lineWidth}
+                min={1}
+                max={12}
+                onChange={setLineWidth}
+                onApply={() => {
+                  setLines((currentLines) =>
+                    currentLines.map((line) => ({ ...line, lineWidth }))
+                  );
+                  setMessage("Line thickness applied to existing lines.");
+                }}
+              />
             </div>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-4">
@@ -3473,6 +3506,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                       dashed: isDashed,
                       arrow: isArrow,
                       color: lineColor,
+                      lineWidth,
                     },
                     true
                   )}

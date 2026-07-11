@@ -66,6 +66,7 @@ export type ActivityCreatorLine = {
   isDashed?: boolean;
   isArrow?: boolean;
 
+  lineWidth?: number;
   color: string | ActivityCreatorColorObject;
 };
 
@@ -79,6 +80,7 @@ export type ActivityCreatorSettingsV1 = {
   mannequinDefaultSize: number;
   ballDefaultSize: number;
   playerDisplayMode: string;
+  lineDefaultWidth?: number;
 };
 
 export type ActivityCreatorPitchStateV2 = {
@@ -105,6 +107,7 @@ export type ActivityCreatorSettingsV2 = {
   playerDefaultSize: number;
   coneDefaultSize: number;
   logoSize: number;
+  lineDefaultWidth?: number;
 };
 
 export type ActivityCreatorStateV1 = {

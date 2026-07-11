@@ -69,6 +69,7 @@ type PreviewLine = {
   dashed: boolean;
   arrow: boolean;
   color: string;
+  lineWidth: number;
 };
 
 const PREVIEW_ASSETS = {
@@ -333,6 +334,7 @@ function getCreatorStateLines(activity: Activity): PreviewLine[] {
         dashed: Boolean(rawLine.dashed ?? rawLine.isDashed),
         arrow: Boolean(rawLine.arrow ?? rawLine.isArrow),
         color: colorToCss(rawLine.color, "#111827"),
+        lineWidth: getNumberValue(rawLine.lineWidth, 4),
       };
     })
     .filter((line): line is PreviewLine => Boolean(line));
@@ -451,16 +453,20 @@ function renderPreviewLine(line: PreviewLine) {
     y: end.y - arrowLength * Math.sin(angle + arrowAngle),
   };
 
+  const strokeWidth = Math.max(0.14, line.lineWidth * 0.1375);
+  const dashLength = Math.max(1.2, strokeWidth * 3.25);
+  const dashGap = Math.max(1, strokeWidth * 2.5);
+
   return (
     <g key={line.id}>
       <polyline
         points={points}
         fill="none"
         stroke={line.color}
-        strokeWidth="0.55"
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeDasharray={line.dashed ? "1.8 1.4" : undefined}
+        strokeDasharray={line.dashed ? `${dashLength} ${dashGap}` : undefined}
       />
 
       {line.arrow && (
@@ -468,7 +474,7 @@ function renderPreviewLine(line: PreviewLine) {
           points={`${arrowPoint1.x},${arrowPoint1.y} ${end.x},${end.y} ${arrowPoint2.x},${arrowPoint2.y}`}
           fill="none"
           stroke={line.color}
-          strokeWidth="0.55"
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
