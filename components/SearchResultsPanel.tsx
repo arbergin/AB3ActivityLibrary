@@ -10,6 +10,8 @@ import {
   updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
 import type { Activity } from "@/types/activity";
+import { canManageActivity } from "@/lib/activityPermissions";
+import { getCurrentUserProfile, type UserProfile } from "@/lib/userProfile";
 import type {
   SearchFilterValues,
   SearchSortValue,
@@ -193,6 +195,7 @@ export default function SearchResultsPanel({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isLoadingActivities, setIsLoadingActivities] = useState(true);
   const [selectedPreviewFailed, setSelectedPreviewFailed] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
 
   const loadActivities = useCallback(async () => {
     setIsLoadingActivities(true);
@@ -319,6 +322,30 @@ export default function SearchResultsPanel({
   useEffect(() => {
     loadActivities();
   }, [loadActivities, refreshKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCurrentProfile() {
+      try {
+        const profile = await getCurrentUserProfile();
+        if (isMounted) {
+          setCurrentProfile(profile ?? null);
+        }
+      } catch (error) {
+        console.error("Unable to load current user permissions.", error);
+        if (isMounted) {
+          setCurrentProfile(null);
+        }
+      }
+    }
+
+    loadCurrentProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     function handleWindowFocus() {
@@ -454,6 +481,11 @@ export default function SearchResultsPanel({
       setShowDeleteConfirm(false);
     }
   }
+
+  const canManageSelectedActivity = canManageActivity(
+    selectedActivity,
+    currentProfile
+  );
 
   return (
     <div className="grid min-w-0 gap-6 overflow-hidden lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
@@ -597,28 +629,32 @@ export default function SearchResultsPanel({
                 Download
               </button>
 
-              <Link
-                href={`/activity/${selectedActivity.id}/edit`}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
-              >
-                {selectedActivity.creatorState ? "Edit" : "Edit Metadata"}
-              </Link>
+              {canManageSelectedActivity && (
+                <>
+                  <Link
+                    href={`/activity/${selectedActivity.id}/edit`}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+                  >
+                    {selectedActivity.creatorState ? "Edit" : "Edit Metadata"}
+                  </Link>
 
-              <button
-                type="button"
-                onClick={handleToggleHidden}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
-              >
-                {selectedActivity.hidden ? "Unhide" : "Hide"}
-              </button>
+                  <button
+                    type="button"
+                    onClick={handleToggleHidden}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+                  >
+                    {selectedActivity.hidden ? "Unhide" : "Hide"}
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700"
-              >
-                Delete
-              </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteClick}
+                    className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold text-red-700"
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

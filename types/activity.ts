@@ -131,6 +131,8 @@ export type ActivityCreatorState =
   | ActivityCreatorStateV1
   | ActivityCreatorStateV2;
 
+export type ActivityVisibility = "private" | "club" | "everyone";
+
 export type Activity = {
   id: string;
   activityName: string;
@@ -142,6 +144,8 @@ export type Activity = {
   activityDetails: string;
   createdBy: string;
   hidden: boolean;
+  visibility: ActivityVisibility;
+  clubId?: string | null;
   activitySource?: "import" | "create";
   creatorState?: ActivityCreatorState;
   fileName?: string;

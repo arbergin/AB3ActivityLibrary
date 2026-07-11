@@ -8,6 +8,7 @@ type CreateUserRequestBody = {
   password?: string;
   role?: UserRole;
   mustChangePassword?: boolean;
+  clubId?: string | null;
 };
 
 function getBearerToken(request: NextRequest) {
@@ -68,6 +69,7 @@ export async function POST(request: NextRequest) {
     const password = body.password || "";
     const role = isValidRole(body.role) ? body.role : "user";
     const mustChangePassword = Boolean(body.mustChangePassword);
+    const clubId = typeof body.clubId === "string" && body.clubId.trim() ? body.clubId.trim() : null;
 
     if (!name) {
       return NextResponse.json(
@@ -129,6 +131,7 @@ export async function POST(request: NextRequest) {
           email,
           role,
           must_change_password: mustChangePassword,
+          club_id: clubId,
           updated_at: new Date().toISOString(),
         },
         {

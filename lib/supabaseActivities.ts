@@ -9,6 +9,28 @@ import {
 
 const ACTIVITY_FILES_BUCKET = "activity-files";
 
+async function resolveActivityClubId(activity: Activity) {
+  if (activity.visibility !== "club") {
+    return null;
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("You must be logged in to share an activity with My Club.");
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (error) throw error;
+  if (!profile?.club_id) {
+    throw new Error("You must be assigned to a club before saving an activity as My Club.");
+  }
+
+  return profile.club_id as string;
+}
+
 function dataUrlToBlob(dataUrl: string) {
   const [header, base64] = dataUrl.split(",");
 
@@ -193,6 +215,9 @@ export async function createSupabaseActivity(
     createdBy: user?.email || activity.createdBy || "Coach User",
   };
 
+  const clubId = await resolveActivityClubId(activityWithCreator);
+  activityWithCreator.clubId = clubId;
+
   const filePath = await uploadActivityFile(activityWithCreator);
   const insertValue = activityToSupabaseInsert(activityWithCreator, filePath);
 
@@ -230,11 +255,16 @@ export async function updateSupabaseActivity(
     throw new Error("Cannot update Supabase activity because the ID is not a UUID.");
   }
 
-  const filePath = isDataUrl(activity.previewDataUrl)
-    ? await uploadActivityFile(activity)
+  const activityWithClub: Activity = {
+    ...activity,
+    clubId: await resolveActivityClubId(activity),
+  };
+
+  const filePath = isDataUrl(activityWithClub.previewDataUrl)
+    ? await uploadActivityFile(activityWithClub)
     : undefined;
 
-  const updateValue = activityToSupabaseUpdate(activity, filePath);
+  const updateValue = activityToSupabaseUpdate(activityWithClub, filePath);
 
   const { data, error } = await supabase
     .from("activities")

@@ -404,6 +404,7 @@ export default function BulkImportFlow() {
           activityDetails: row.activityDetails.trim(),
           createdBy: "Coach User",
           hidden: false,
+          visibility: "private",
           fileName: row.file.name,
           fileType: row.file.type,
           previewDataUrl,

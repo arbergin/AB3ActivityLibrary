@@ -34,6 +34,7 @@ import {
 import { makeDropdownValue } from "@/lib/dropdownHelpers";
 import type { DropdownField, DropdownOption } from "@/lib/dropdownTypes";
 import BulkUserImport from "@/components/BulkUserImport";
+import { createClub, getClubs, updateUserClub, type Club } from "@/lib/clubs";
 
 type LocalDataSummary = {
   count: number;
@@ -69,6 +70,12 @@ export default function SettingsPage() {
   const [newUserRole, setNewUserRole] = useState<UserRole>("user");
   const [newUserMustChangePassword, setNewUserMustChangePassword] =
     useState(true);
+  const [newUserClubId, setNewUserClubId] = useState("");
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [newClubName, setNewClubName] = useState("");
+  const [newClubContact, setNewClubContact] = useState("");
+  const [isCreatingClub, setIsCreatingClub] = useState(false);
+  const [isUpdatingClubUserId, setIsUpdatingClubUserId] = useState<string | undefined>(undefined);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   const [resetPasswordUserId, setResetPasswordUserId] = useState<
@@ -142,6 +149,56 @@ export default function SettingsPage() {
       );
     } finally {
       setIsLoadingUsers(false);
+    }
+  }
+
+  async function loadClubs() {
+    try {
+      setClubs(await getClubs());
+    } catch (error) {
+      console.error("Unable to load clubs.", error);
+      setUserManagementMessage("Unable to load clubs.");
+    }
+  }
+
+  async function handleCreateClub(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isCreatingClub) return;
+
+    const name = newClubName.trim();
+    if (!name) {
+      setUserManagementMessage("Club Name is required.");
+      return;
+    }
+
+    setIsCreatingClub(true);
+    setUserManagementMessage("");
+    try {
+      const club = await createClub(name, newClubContact.trim());
+      setClubs((current) => [...current, club].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewClubName("");
+      setNewClubContact("");
+      setUserManagementMessage(`${club.name} was added.`);
+    } catch (error) {
+      setUserManagementMessage(error instanceof Error ? error.message : "Unable to add club.");
+    } finally {
+      setIsCreatingClub(false);
+    }
+  }
+
+  async function handleClubChange(userId: string, clubId: string) {
+    setIsUpdatingClubUserId(userId);
+    setUserManagementMessage("");
+    try {
+      const updatedProfile = await updateUserClub(userId, clubId || null);
+      setUserProfiles((current) => current.map((profile) =>
+        profile.id === userId ? updatedProfile : profile
+      ));
+      setUserManagementMessage("User club assignment updated.");
+    } catch (error) {
+      setUserManagementMessage(error instanceof Error ? error.message : "Unable to assign club.");
+    } finally {
+      setIsUpdatingClubUserId(undefined);
     }
   }
 
@@ -542,6 +599,7 @@ export default function SettingsPage() {
           password: newUserPassword,
           role: newUserRole,
           mustChangePassword: newUserMustChangePassword,
+          clubId: newUserClubId || null,
         }),
       });
 
@@ -559,6 +617,7 @@ export default function SettingsPage() {
       setNewUserEmail("");
       setNewUserPassword("");
       setNewUserRole("user");
+      setNewUserClubId("");
       setNewUserMustChangePassword(true);
 
       setUserManagementMessage(
@@ -822,8 +881,7 @@ export default function SettingsPage() {
         setProfile(currentProfile);
 
         if (currentProfile?.role === "admin") {
-          await loadUserProfiles();
-          await loadDropdownFields();
+          await Promise.all([loadUserProfiles(), loadClubs(), loadDropdownFields()]);
         }
       } catch (error) {
         console.error("Unable to load current user profile.", error);
@@ -930,7 +988,7 @@ export default function SettingsPage() {
                   >
                     <h4 className="font-bold">Add User</h4>
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1.2fr_1fr_0.7fr_auto]">
+                    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1.2fr_1fr_0.7fr_1fr_auto]">
                       <label className="grid gap-1">
                         <span className="text-sm font-semibold">Name</span>
                         <input
@@ -990,6 +1048,21 @@ export default function SettingsPage() {
                         </select>
                       </label>
 
+                      <label className="grid gap-1">
+                        <span className="text-sm font-semibold">Club</span>
+                        <select
+                          value={newUserClubId}
+                          onChange={(event) => setNewUserClubId(event.target.value)}
+                          disabled={isCreatingUser}
+                          className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                        >
+                          <option value="">No Club</option>
+                          {clubs.map((club) => (
+                            <option key={club.id} value={club.id}>{club.name}</option>
+                          ))}
+                        </select>
+                      </label>
+
                       <div className="flex items-end">
                         <button
                           type="submit"
@@ -1022,6 +1095,44 @@ export default function SettingsPage() {
                         </span>
                       </span>
                     </label>
+                  </form>
+
+                  <form
+                    onSubmit={handleCreateClub}
+                    className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <h4 className="font-bold">Add Club</h4>
+                    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+                      <label className="grid gap-1">
+                        <span className="text-sm font-semibold">Club Name</span>
+                        <input
+                          value={newClubName}
+                          onChange={(event) => setNewClubName(event.target.value)}
+                          disabled={isCreatingClub}
+                          className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                          placeholder="Club Name"
+                        />
+                      </label>
+                      <label className="grid gap-1">
+                        <span className="text-sm font-semibold">Club Contact</span>
+                        <input
+                          value={newClubContact}
+                          onChange={(event) => setNewClubContact(event.target.value)}
+                          disabled={isCreatingClub}
+                          className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                          placeholder="Name, email, phone, or notes"
+                        />
+                      </label>
+                      <div className="flex items-end">
+                        <button
+                          type="submit"
+                          disabled={isCreatingClub}
+                          className="w-full rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:opacity-60"
+                        >
+                          {isCreatingClub ? "Adding..." : "Add Club"}
+                        </button>
+                      </div>
+                    </div>
                   </form>
 
                   <BulkUserImport onImportComplete={loadUserProfiles} />
@@ -1139,12 +1250,12 @@ export default function SettingsPage() {
                   )}
 
                   <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
-                    <div className="grid grid-cols-[1.35fr_1.2fr_0.45fr_0.65fr_0.7fr_0.85fr_0.8fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+                    <div className="grid grid-cols-[1.4fr_1.25fr_1fr_0.9fr_0.75fr_0.75fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
                       <div>Name / Edit</div>
-                      <div>Email</div>
-                      <div>Role</div>
+                      <div>Email / Role</div>
+                      <div>Club</div>
                       <div>Change Role</div>
-                      <div>Password Reset</div>
+                      <div>Password</div>
                       <div>Actions</div>
                       <div>Updated</div>
                     </div>
@@ -1166,7 +1277,7 @@ export default function SettingsPage() {
                         return (
                           <div
                             key={userProfile.id}
-                            className="grid grid-cols-[1.35fr_1.2fr_0.45fr_0.65fr_0.7fr_0.85fr_0.8fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
+                            className="grid grid-cols-[1.4fr_1.25fr_1fr_0.9fr_0.75fr_0.75fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
                           >
                             <div className="grid gap-2">
                               <div className="flex gap-2">
@@ -1213,12 +1324,23 @@ export default function SettingsPage() {
                               )}
                             </div>
 
-                            <div className="break-words text-slate-700">
-                              {userProfile.email}
+                            <div className="grid gap-2 break-words text-slate-700">
+                              <div>{userProfile.email}</div>
+                              <div><RoleBadge role={userProfile.role} /></div>
                             </div>
 
                             <div>
-                              <RoleBadge role={userProfile.role} />
+                              <select
+                                value={userProfile.club_id || ""}
+                                onChange={(event) => handleClubChange(userProfile.id, event.target.value)}
+                                disabled={isUpdatingClubUserId === userProfile.id}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                              >
+                                <option value="">No Club</option>
+                                {clubs.map((club) => (
+                                  <option key={club.id} value={club.id}>{club.name}</option>
+                                ))}
+                              </select>
                             </div>
 
                             <div>
@@ -1244,30 +1366,23 @@ export default function SettingsPage() {
                               )}
                             </div>
 
-                            <div>
+                            <div className="grid justify-items-start gap-2">
                               {userProfile.must_change_password ? (
-                                <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-red-700">
-                                  Required
-                                </span>
+                                <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-red-700">Required</span>
                               ) : (
-                                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
-                                  Complete
-                                </span>
+                                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">Complete</span>
                               )}
+                              <button
+                                type="button"
+                                onClick={() => openResetPassword(userProfile.id)}
+                                disabled={isCurrentUser}
+                                className="rounded-md border border-amber-300 px-2.5 py-1.5 text-xs font-semibold text-amber-700 disabled:opacity-50"
+                              >
+                                Reset Password
+                              </button>
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openResetPassword(userProfile.id)
-                                }
-                                disabled={isCurrentUser}
-                                className="rounded-md border border-amber-300 px-2.5 py-1.5 text-xs font-semibold text-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Reset
-                              </button>
-
                               <button
                                 type="button"
                                 onClick={() => openDeleteUser(userProfile.id)}

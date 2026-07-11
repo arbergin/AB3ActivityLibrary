@@ -9,6 +9,7 @@ export type UserProfile = {
   email: string;
   role: UserRole;
   must_change_password: boolean;
+  club_id: string | null;
   created_at: string;
   updated_at: string;
 };

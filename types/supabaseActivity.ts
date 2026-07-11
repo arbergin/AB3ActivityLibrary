@@ -1,4 +1,4 @@
-import type { Activity, ActivityCreatorState } from "@/types/activity";
+import type { Activity, ActivityCreatorState, ActivityVisibility } from "@/types/activity";
 
 export type SupabaseActivityRow = {
   id: string;
@@ -13,6 +13,8 @@ export type SupabaseActivityRow = {
 
   created_by: string;
   hidden: boolean;
+  visibility: ActivityVisibility;
+  club_id: string | null;
 
   activity_source: "import" | "create" | null;
   creator_state: ActivityCreatorState | null;
@@ -38,6 +40,8 @@ export function supabaseRowToActivity(row: SupabaseActivityRow): Activity {
     activityDetails: row.activity_details || "",
     createdBy: row.created_by,
     hidden: row.hidden,
+    visibility: row.visibility || "private",
+    clubId: row.club_id,
     activitySource: row.activity_source || (row.creator_state ? "create" : "import"),
     creatorState: row.creator_state || undefined,
     fileName: row.file_name || undefined,
@@ -64,6 +68,8 @@ export function activityToSupabaseInsert(
 
     created_by: activity.createdBy || "Coach User",
     hidden: activity.hidden,
+    visibility: activity.visibility || "private",
+    club_id: activity.clubId || null,
 
     activity_source: activity.activitySource || (activity.creatorState ? "create" : "import"),
     creator_state: activity.creatorState || null,
@@ -91,6 +97,8 @@ export function activityToSupabaseUpdate(
 
     created_by: activity.createdBy || "Coach User",
     hidden: activity.hidden,
+    visibility: activity.visibility || "private",
+    club_id: activity.clubId || null,
 
     activity_source: activity.activitySource || (activity.creatorState ? "create" : "import"),
     creator_state: activity.creatorState || null,

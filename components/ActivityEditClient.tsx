@@ -13,6 +13,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { getSupabaseActivityById } from "@/lib/supabaseActivities";
 import type { DropdownField } from "@/lib/dropdownTypes";
 import type { Activity } from "@/types/activity";
+import { canManageActivity } from "@/lib/activityPermissions";
+import { getCurrentUserProfile, type UserProfile } from "@/lib/userProfile";
 
 type ActivityEditClientProps = {
   activityId: string;
@@ -556,6 +558,36 @@ export default function ActivityEditClient({
   const [activity, setActivity] = useState<Activity | undefined>(undefined);
   const [activitySource, setActivitySource] = useState<ActivitySource>(undefined);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCurrentProfile() {
+      try {
+        const profile = await getCurrentUserProfile();
+        if (isMounted) {
+          setCurrentProfile(profile ?? null);
+        }
+      } catch (error) {
+        console.error("Unable to load current user permissions.", error);
+        if (isMounted) {
+          setCurrentProfile(null);
+        }
+      } finally {
+        if (isMounted) {
+          setHasLoadedProfile(true);
+        }
+      }
+    }
+
+    loadCurrentProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -599,7 +631,10 @@ export default function ActivityEditClient({
     };
   }, [activityId]);
 
-  if (!hasLoaded) {
+  const canEditCurrentActivity =
+    activitySource !== "supabase" || canManageActivity(activity, currentProfile);
+
+  if (!hasLoaded || !hasLoadedProfile) {
     return (
       <ProtectedPage>
         <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -633,6 +668,32 @@ export default function ActivityEditClient({
                 className="mt-6 inline-block rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
               >
                 Back to Search
+              </Link>
+            </div>
+          </section>
+        </main>
+      </ProtectedPage>
+    );
+  }
+
+  if (!canEditCurrentActivity) {
+    return (
+      <ProtectedPage>
+        <main className="min-h-screen bg-slate-100 text-slate-900">
+          <AppHeader />
+
+          <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+            <div className="rounded-xl bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-bold">View-only activity</h2>
+              <p className="mt-2 text-slate-600">
+                Only the activity creator or an administrator can edit this activity.
+              </p>
+
+              <Link
+                href={`/activity/${activity.id}`}
+                className="mt-6 inline-block rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
+              >
+                Back to Activity
               </Link>
             </div>
           </section>

@@ -526,6 +526,8 @@ export async function POST(request: NextRequest) {
 
       created_by: createdBy,
       hidden: false,
+      visibility: "private",
+      club_id: null,
 
       activity_source: "create",
       creator_state: creatorStateWithSyncMetadata,

@@ -13,6 +13,7 @@ export const mockActivities: Activity[] = [
       "Attack quickly with a 3v2 advantage, then transition immediately when possession is lost. Focus on decision-making, spacing, and recovery runs.",
     createdBy: "Coach User",
     hidden: false,
+    visibility: "private",
   },
   {
     id: "activity-2",
@@ -26,6 +27,7 @@ export const mockActivities: Activity[] = [
       "Possession activity focused on scanning, support angles, body shape, and playing through pressure in the middle third.",
     createdBy: "Coach User",
     hidden: false,
+    visibility: "private",
   },
   {
     id: "activity-3",
@@ -39,5 +41,6 @@ export const mockActivities: Activity[] = [
       "Pattern-based activation for building out from the back with emphasis on spacing, timing, and third-player options.",
     createdBy: "Coach User",
     hidden: true,
+    visibility: "private",
   },
 ];

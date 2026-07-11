@@ -14,7 +14,7 @@ import {
   createSupabaseActivity,
   updateSupabaseActivity,
 } from "@/lib/supabaseActivities";
-import type { Activity, ActivityCreatorState } from "@/types/activity";
+import type { Activity, ActivityCreatorState, ActivityVisibility } from "@/types/activity";
 
 
 const defaultDropdownOptions: ActivityFormDropdownOptions = {
@@ -48,6 +48,9 @@ export default function ActivityMetadataForm({
 }: ActivityMetadataFormProps) {
   const router = useRouter();
 
+  const [visibility, setVisibility] = useState<ActivityVisibility>(
+    initialActivity?.visibility || "private"
+  );
   const [activityName, setActivityName] = useState(
     initialActivity?.activityName || ""
   );
@@ -122,6 +125,11 @@ export default function ActivityMetadataForm({
     setFormError("");
     setSaveMessage("");
 
+    if (!visibility) {
+      setFormError("Activity visibility is required.");
+      return;
+    }
+
     if (!activityName.trim()) {
       setFormError("Activity Name is required.");
       return;
@@ -174,6 +182,8 @@ export default function ActivityMetadataForm({
       activityDetails: activityDetails.trim(),
       createdBy: initialActivity?.createdBy || "Coach User",
       hidden: initialActivity?.hidden || false,
+      visibility,
+      clubId: visibility === "club" ? initialActivity?.clubId || null : null,
       activitySource: mode,
       creatorState: mode === "create" ? creatorState : undefined,
       fileName: activityFileName,
@@ -237,6 +247,7 @@ export default function ActivityMetadataForm({
   }
 
   function handleClearForm() {
+    setVisibility("private");
     setActivityName("");
     setFieldLocation("");
     setGamePhase("");
@@ -323,7 +334,27 @@ export default function ActivityMetadataForm({
           </p>
         </div>
 
-        {onCancel && (
+        <div className="flex items-start gap-3">
+          <label className="grid min-w-36 gap-1">
+            <span className="text-sm font-semibold">
+              Visibility <span className="text-red-600">*</span>
+            </span>
+            <select
+              value={visibility}
+              onChange={(event) =>
+                setVisibility(event.target.value as ActivityVisibility)
+              }
+              disabled={isSaving}
+              required
+              className="rounded-lg border border-slate-300 px-3 py-2"
+            >
+              <option value="private">Private</option>
+              <option value="club">My Club</option>
+              <option value="everyone">Everyone</option>
+            </select>
+          </label>
+
+          {onCancel && (
           <button
             type="button"
             onClick={onCancel}
@@ -334,7 +365,8 @@ export default function ActivityMetadataForm({
           >
             ×
           </button>
-        )}
+          )}
+        </div>
       </div>
 
       {mode === "import" && selectedFileName && (
