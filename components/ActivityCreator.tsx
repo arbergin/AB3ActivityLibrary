@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import type { PointerEvent, ReactNode, WheelEvent } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
@@ -65,6 +65,14 @@ type PanState = {
 };
 
 type HistorySnapshot = {
+  objects: PitchObject[];
+  lines: PitchLine[];
+};
+
+type ActivityFrame = {
+  id: string;
+  name: string;
+  durationMs: number;
   objects: PitchObject[];
   lines: PitchLine[];
 };
@@ -1108,11 +1116,103 @@ function normalizeCreatorState(
   };
 }
 
+function deepCopyObjects(objects: PitchObject[]) {
+  return objects.map((object) => ({ ...object }));
+}
+
+function deepCopyLines(lines: PitchLine[]) {
+  return lines.map((line) => ({
+    ...line,
+    points: line.points.map((point) => ({ ...point })),
+  }));
+}
+
+function getInitialFrames(
+  initialCreatorState: ActivityCreatorState | undefined,
+  fallbackState: NormalizedCreatorState
+): { frames: ActivityFrame[]; activeFrameId: string } {
+  if (
+    initialCreatorState &&
+    "schemaVersion" in initialCreatorState &&
+    initialCreatorState.schemaVersion === 3 &&
+    "frames" in initialCreatorState &&
+    Array.isArray(initialCreatorState.frames) &&
+    initialCreatorState.frames.length > 0
+  ) {
+    const normalizedFrames = initialCreatorState.frames.map((frame, index) => {
+      const normalized = normalizeCreatorState({
+        schemaVersion: 2,
+        sourcePlatform: initialCreatorState.sourcePlatform,
+        clientActivityId: initialCreatorState.clientActivityId,
+        pitch: initialCreatorState.pitch,
+        settings: initialCreatorState.settings,
+        objects: frame.objects ?? [],
+        lines: frame.lines ?? [],
+      });
+
+      return {
+        id: frame.id || makeId(),
+        name: frame.name?.trim() || `Tab ${index + 1}`,
+        durationMs: Math.max(250, frame.durationMs ?? 1500),
+        objects: normalized.objects,
+        lines: normalized.lines,
+      };
+    });
+
+    const requestedActiveId = initialCreatorState.activeFrameId;
+    const activeFrameId = normalizedFrames.some((frame) => frame.id === requestedActiveId)
+      ? requestedActiveId
+      : normalizedFrames[0].id;
+
+    return { frames: normalizedFrames, activeFrameId };
+  }
+
+  const firstFrameId = makeId();
+  return {
+    activeFrameId: firstFrameId,
+    frames: [
+      {
+        id: firstFrameId,
+        name: "Tab 1",
+        durationMs: 1500,
+        objects: deepCopyObjects(fallbackState.objects),
+        lines: deepCopyLines(fallbackState.lines),
+      },
+    ],
+  };
+}
+
 export default function ActivityCreator({ initialActivity }: ActivityCreatorProps) {
   const initialCreatorState = getInitialCreatorState(initialActivity);
-  const normalizedInitialCreatorState = useMemo(
-    () => normalizeCreatorState(initialCreatorState),
-    [initialCreatorState]
+  const normalizedInitialCreatorState = useMemo(() => {
+    if (
+      initialCreatorState &&
+      "schemaVersion" in initialCreatorState &&
+      initialCreatorState.schemaVersion === 3 &&
+      "frames" in initialCreatorState &&
+      initialCreatorState.frames.length > 0
+    ) {
+      const activeFrame =
+        initialCreatorState.frames.find(
+          (frame) => frame.id === initialCreatorState.activeFrameId
+        ) ?? initialCreatorState.frames[0];
+
+      return normalizeCreatorState({
+        schemaVersion: 2,
+        sourcePlatform: initialCreatorState.sourcePlatform,
+        clientActivityId: initialCreatorState.clientActivityId,
+        pitch: initialCreatorState.pitch,
+        settings: initialCreatorState.settings,
+        objects: activeFrame.objects,
+        lines: activeFrame.lines,
+      });
+    }
+
+    return normalizeCreatorState(initialCreatorState);
+  }, [initialCreatorState]);
+  const normalizedInitialFrames = useMemo(
+    () => getInitialFrames(initialCreatorState, normalizedInitialCreatorState),
+    [initialCreatorState, normalizedInitialCreatorState]
   );
   const pitchRef = useRef<HTMLDivElement | null>(null);
 
@@ -1123,12 +1223,21 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     useState<PitchBackgroundType>(
       normalizedInitialCreatorState.selectedPitchBackground
     );
+  const initialActiveFrame =
+    normalizedInitialFrames.frames.find(
+      (frame) => frame.id === normalizedInitialFrames.activeFrameId
+    ) ?? normalizedInitialFrames.frames[0];
+  const [frames, setFrames] = useState<ActivityFrame[]>(normalizedInitialFrames.frames);
+  const [activeFrameId, setActiveFrameId] = useState(normalizedInitialFrames.activeFrameId);
   const [objects, setObjects] = useState<PitchObject[]>(
-    normalizedInitialCreatorState.objects
+    deepCopyObjects(initialActiveFrame.objects)
   );
   const [lines, setLines] = useState<PitchLine[]>(
-    normalizedInitialCreatorState.lines
+    deepCopyLines(initialActiveFrame.lines)
   );
+  const [isPlayingAnimation, setIsPlayingAnimation] = useState(false);
+  const [playbackFrameIndex, setPlaybackFrameIndex] = useState(0);
+  const [showAnimationDurations, setShowAnimationDurations] = useState(false);
   const [isDashed, setIsDashed] = useState(false);
   const [isArrow, setIsArrow] = useState(false);
   const [draggingObjectId, setDraggingObjectId] = useState<string | null>(null);
@@ -1198,6 +1307,59 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<HistorySnapshot[]>([]);
 
+  useEffect(() => {
+    setFrames((currentFrames) =>
+      currentFrames.map((frame) =>
+        frame.id === activeFrameId
+          ? {
+              ...frame,
+              objects: deepCopyObjects(objects),
+              lines: deepCopyLines(lines),
+            }
+          : frame
+      )
+    );
+  }, [activeFrameId, objects, lines]);
+
+  useEffect(() => {
+    const savedPreference = window.localStorage.getItem(
+      "ab3-show-animation-durations"
+    );
+    setShowAnimationDurations(savedPreference === "true");
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      "ab3-show-animation-durations",
+      String(showAnimationDurations)
+    );
+  }, [showAnimationDurations]);
+
+  useEffect(() => {
+    if (!isPlayingAnimation || frames.length < 2) {
+      return;
+    }
+
+    const currentFrame = frames[playbackFrameIndex] ?? frames[0];
+    const timer = window.setTimeout(() => {
+      const isLastFrame = playbackFrameIndex >= frames.length - 1;
+
+      if (isLastFrame) {
+        const lastFrame = frames[frames.length - 1];
+        setActiveFrameId(lastFrame.id);
+        setObjects(deepCopyObjects(lastFrame.objects));
+        setLines(deepCopyLines(lastFrame.lines));
+        setPlaybackFrameIndex(0);
+        setIsPlayingAnimation(false);
+        return;
+      }
+
+      setPlaybackFrameIndex((currentIndex) => currentIndex + 1);
+    }, Math.max(250, currentFrame.durationMs));
+
+    return () => window.clearTimeout(timer);
+  }, [isPlayingAnimation, playbackFrameIndex, frames]);
+
   const selectedObject =
     objects.find((object) => object.id === selectedObjectId) ?? null;
 
@@ -1216,7 +1378,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
   const creatorState = useMemo<ActivityCreatorState>(
     () => ({
-      schemaVersion: 2,
+      schemaVersion: 3,
       sourcePlatform,
       clientActivityId,
       pitch: {
@@ -1241,6 +1403,50 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         logoSize: 74,
         lineDefaultWidth: lineWidth,
       },
+      activeFrameId,
+      frames: frames.map((frame) => {
+        const frameObjects = frame.id === activeFrameId ? objects : frame.objects;
+        const frameLines = frame.id === activeFrameId ? lines : frame.lines;
+
+        return {
+          id: frame.id,
+          name: frame.name,
+          durationMs: frame.durationMs,
+          objects: frameObjects.map((object) => ({
+            id: object.id,
+            type: object.type,
+            x: clamp(object.x, 0, 100) / 100,
+            y: clamp(object.y, 0, 100) / 100,
+            label: object.label,
+            playerName: object.playerName,
+            rotation: object.rotation,
+            fillColor: object.fillColor,
+            textColor: object.textColor,
+            number: object.label,
+            name: object.playerName,
+            size: object.size,
+            nameFontSize: object.nameFontSize,
+            playerShape: object.playerShape,
+            textContent: object.textContent,
+            fontSize: object.fontSize,
+            rotationDegrees: object.rotation,
+          })),
+          lines: frameLines.map((line) => ({
+            id: line.id,
+            points: line.points.map((point) => ({
+              x: clamp(point.x, 0, 100) / 100,
+              y: clamp(point.y, 0, 100) / 100,
+            })),
+            dashed: line.dashed,
+            arrow: line.arrow,
+            isDashed: line.dashed,
+            isArrow: line.arrow,
+            color: line.color,
+            lineWidth: line.lineWidth,
+          })),
+        };
+      }),
+      // Keep the active tab mirrored at the top level for older clients.
       objects: objects.map((object) => ({
         id: object.id,
         type: object.type,
@@ -1276,6 +1482,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     }),
     [
       selectedPitchBackground,
+      frames,
+      activeFrameId,
       objects,
       lines,
       team1Color,
@@ -1295,6 +1503,108 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       clientActivityId,
     ]
   );
+
+  function switchFrame(frameId: string) {
+    if (frameId === activeFrameId) {
+      return;
+    }
+
+    const targetFrame = frames.find((frame) => frame.id === frameId);
+    if (!targetFrame) {
+      return;
+    }
+
+    setIsPlayingAnimation(false);
+    setSelectedObjectId(null);
+    setActiveLinePoints([]);
+    setUndoStack([]);
+    setRedoStack([]);
+    setActiveFrameId(frameId);
+    setObjects(deepCopyObjects(targetFrame.objects));
+    setLines(deepCopyLines(targetFrame.lines));
+  }
+
+  function addFrame() {
+    const sourceFrame = frames[frames.length - 1] ?? {
+      id: activeFrameId,
+      name: "Tab 1",
+      durationMs: 1500,
+      objects,
+      lines,
+    };
+    const sourceObjects = sourceFrame.id === activeFrameId ? objects : sourceFrame.objects;
+    const sourceLines = sourceFrame.id === activeFrameId ? lines : sourceFrame.lines;
+    const nextFrame: ActivityFrame = {
+      id: makeId(),
+      name: `Tab ${frames.length + 1}`,
+      durationMs: sourceFrame.durationMs,
+      objects: deepCopyObjects(sourceObjects),
+      lines: deepCopyLines(sourceLines),
+    };
+
+    setFrames((currentFrames) => [...currentFrames, nextFrame]);
+    setActiveFrameId(nextFrame.id);
+    setObjects(deepCopyObjects(nextFrame.objects));
+    setLines(deepCopyLines(nextFrame.lines));
+    setSelectedObjectId(null);
+    setUndoStack([]);
+    setRedoStack([]);
+    setMessage(`${nextFrame.name} created from the most recent tab.`);
+  }
+
+  function renameFrame(frameId: string) {
+    const frame = frames.find((candidate) => candidate.id === frameId);
+    if (!frame) return;
+    const nextName = window.prompt("Tab name", frame.name)?.trim();
+    if (!nextName) return;
+    setFrames((currentFrames) =>
+      currentFrames.map((candidate) =>
+        candidate.id === frameId ? { ...candidate, name: nextName } : candidate
+      )
+    );
+  }
+
+  function deleteFrame(frameId: string) {
+    if (frames.length <= 1) {
+      setMessage("An activity must have at least one tab.");
+      return;
+    }
+    if (!window.confirm("Delete this tab?")) return;
+
+    const frameIndex = frames.findIndex((frame) => frame.id === frameId);
+    const nextFrames = frames.filter((frame) => frame.id !== frameId);
+    setFrames(nextFrames);
+
+    if (frameId === activeFrameId) {
+      const nextFrame = nextFrames[Math.max(0, frameIndex - 1)] ?? nextFrames[0];
+      setActiveFrameId(nextFrame.id);
+      setObjects(deepCopyObjects(nextFrame.objects));
+      setLines(deepCopyLines(nextFrame.lines));
+      setSelectedObjectId(null);
+      setUndoStack([]);
+      setRedoStack([]);
+    }
+  }
+
+  function updateFrameDuration(frameId: string, durationMs: number) {
+    setFrames((currentFrames) =>
+      currentFrames.map((frame) =>
+        frame.id === frameId
+          ? { ...frame, durationMs: clamp(durationMs, 250, 10000) }
+          : frame
+      )
+    );
+  }
+
+  function toggleAnimationPlayback() {
+    if (frames.length < 2) {
+      setMessage("Create at least two tabs before playing the animation.");
+      return;
+    }
+    setPlaybackFrameIndex(0);
+    setSelectedObjectId(null);
+    setIsPlayingAnimation((current) => !current);
+  }
 
   function openSavePanel() {
     setSelectedObjectId(null);
@@ -2582,6 +2892,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           width: `${hitSize}px`,
           minHeight: `${hitSize}px`,
           transform: "translate(-50%, -50%)",
+          transition: isPlayingAnimation
+            ? `left ${Math.max(250, playbackFrame.durationMs)}ms linear, top ${Math.max(250, playbackFrame.durationMs)}ms linear`
+            : undefined,
         }}
       >
         <button
@@ -2666,6 +2979,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         style={{
           left: `${object.x}%`,
           top: `${object.y}%`,
+          transition: isPlayingAnimation
+            ? `left ${Math.max(250, playbackFrame.durationMs)}ms linear, top ${Math.max(250, playbackFrame.durationMs)}ms linear`
+            : undefined,
           width: `${hitSize}px`,
           height: `${hitSize}px`,
           transform: "translate(-50%, -50%)",
@@ -2723,6 +3039,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         style={{
           left: `${object.x}%`,
           top: `${object.y}%`,
+          transition: isPlayingAnimation
+            ? `left ${Math.max(250, playbackFrame.durationMs)}ms linear, top ${Math.max(250, playbackFrame.durationMs)}ms linear`
+            : undefined,
           width: `${hitWidth}px`,
           height: `${hitHeight}px`,
           transform: `translate(-50%, -50%) rotate(${object.rotation}deg)`,
@@ -2767,6 +3086,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         style={{
           left: `${object.x}%`,
           top: `${object.y}%`,
+          transition: isPlayingAnimation
+            ? `left ${Math.max(250, playbackFrame.durationMs)}ms linear, top ${Math.max(250, playbackFrame.durationMs)}ms linear`
+            : undefined,
           width: `${hitWidth}px`,
           minHeight: `${hitHeight}px`,
           transform: "translate(-50%, -50%)",
@@ -3008,6 +3330,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
   }
 
+  const playbackFrame = frames[playbackFrameIndex] ?? frames[0];
+  const displayedObjects = isPlayingAnimation ? playbackFrame.objects : objects;
+  const displayedLines = isPlayingAnimation ? playbackFrame.lines : lines;
+
   return (
     <div className="grid gap-5">
       <section className="rounded-xl bg-white p-3 shadow-sm md:p-4">
@@ -3158,6 +3484,17 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             <h3 className="text-sm font-bold text-slate-800">
               Toolbar Settings
             </h3>
+
+            <label className="mt-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={showAnimationDurations}
+                onChange={(event) =>
+                  setShowAnimationDurations(event.target.checked)
+                }
+              />
+              Show animation duration controls in milliseconds
+            </label>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-4">
               <ColorSetting
@@ -3389,6 +3726,80 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           zoom to zoom and pan the pitch.
         </p>
 
+        <hr className="my-4 border-slate-200" />
+
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+              Activity Tabs
+            </div>
+            {frames.map((frame, index) => (
+              <div key={frame.id} className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white">
+                <button
+                  type="button"
+                  onClick={() => switchFrame(frame.id)}
+                  onDoubleClick={() => renameFrame(frame.id)}
+                  disabled={isPlayingAnimation}
+                  className={`px-3 py-2 text-sm font-bold ${
+                    frame.id === activeFrameId && !isPlayingAnimation
+                      ? "bg-[#0d2140] text-white"
+                      : isPlayingAnimation && index === playbackFrameIndex
+                        ? "bg-emerald-600 text-white"
+                        : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                  title="Click to open. Double-click to rename."
+                >
+                  {frame.name}
+                </button>
+                {showAnimationDurations && (
+                  <input
+                    type="number"
+                    min="250"
+                    max="10000"
+                    step="250"
+                    value={frame.durationMs}
+                    onChange={(event) =>
+                      updateFrameDuration(frame.id, Number(event.target.value))
+                    }
+                    disabled={isPlayingAnimation}
+                    className="w-20 border-l border-slate-200 px-2 py-2 text-xs text-slate-600"
+                    title="Animation duration in milliseconds"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => deleteFrame(frame.id)}
+                  disabled={isPlayingAnimation || frames.length === 1}
+                  className="border-l border-slate-200 px-2 py-2 text-xs font-bold text-red-600 disabled:text-slate-300"
+                  title="Delete tab"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addFrame}
+              disabled={isPlayingAnimation}
+              className="rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              + New Tab
+            </button>
+            <button
+              type="button"
+              onClick={toggleAnimationPlayback}
+              className={`rounded-lg px-3 py-2 text-sm font-bold text-white ${
+                isPlayingAnimation ? "bg-red-600" : "bg-emerald-600"
+              }`}
+            >
+              {isPlayingAnimation ? "Stop Animation" : "Play Animation"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            New tabs copy the most recent tab and preserve object IDs so movement can animate between tabs. Animation plays once and stops on the final tab.
+          </p>
+        </div>
+
         {message && (
           <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
             {message}
@@ -3496,7 +3907,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
               >
-                {lines.map((line) => renderLine(line))}
+                {displayedLines.map((line) => renderLine(line))}
 
                 {activeLinePoints.length > 1 &&
                   renderLine(
@@ -3512,8 +3923,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                   )}
               </svg>
 
-              {objects.map((object) => renderObject(object))}
-              {renderSelectedObjectPitchControls()}
+              {displayedObjects.map((object) => renderObject(object))}
+              {!isPlayingAnimation && renderSelectedObjectPitchControls()}
             </div>
           </div>
         </div>

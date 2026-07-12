@@ -127,9 +127,33 @@ export type ActivityCreatorStateV2 = {
   lines: ActivityCreatorLine[];
 };
 
+
+export type ActivityCreatorFrame = {
+  id: string;
+  name: string;
+  durationMs?: number;
+  objects: ActivityCreatorObject[];
+  lines: ActivityCreatorLine[];
+};
+
+export type ActivityCreatorStateV3 = {
+  schemaVersion: 3;
+  sourcePlatform: "ios" | "web";
+  clientActivityId?: string;
+  pitch: ActivityCreatorPitchStateV2;
+  settings: ActivityCreatorSettingsV2;
+  activeFrameId: string;
+  frames: ActivityCreatorFrame[];
+
+  /** Compatibility mirror for older iOS/web clients. */
+  objects?: ActivityCreatorObject[];
+  lines?: ActivityCreatorLine[];
+};
+
 export type ActivityCreatorState =
   | ActivityCreatorStateV1
-  | ActivityCreatorStateV2;
+  | ActivityCreatorStateV2
+  | ActivityCreatorStateV3;
 
 export type ActivityVisibility = "private" | "club" | "everyone";
 
