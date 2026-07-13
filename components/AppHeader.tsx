@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type ProfileRow = {
@@ -60,7 +59,6 @@ function readStorageValue(key: string) {
 }
 
 export default function AppHeader() {
-  const router = useRouter();
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return readStorageValue(IS_LOGGED_IN_STORAGE_KEY) === "true";
@@ -179,7 +177,12 @@ export default function AppHeader() {
   }, []);
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Logout failed.", error);
+      return;
+    }
 
     setIsLoggedIn(false);
     setDisplayName("");
@@ -189,8 +192,8 @@ export default function AppHeader() {
     window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
     window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
 
-    router.push("/login");
-    router.refresh();
+    // Force a full navigation so protected client state is discarded immediately.
+    window.location.replace("/login");
   }
 
   const isAdmin = userRole === "admin";
@@ -201,7 +204,7 @@ export default function AppHeader() {
         <Link href="/" className="flex min-w-0 items-center gap-3">
           <Image
             src="/ab3-activity-library-logo.png"
-            alt="AB3 Activity Library"
+            alt="AB3 Soccer Activity Library"
             width={44}
             height={44}
             priority
@@ -209,7 +212,7 @@ export default function AppHeader() {
           />
 
           <span className="truncate text-lg font-bold tracking-tight sm:text-xl">
-            AB3 Activity Library
+            AB3 Soccer Activity Library
           </span>
         </Link>
 

@@ -241,7 +241,7 @@ export default function HomePage() {
           <div className="mb-8">
             <h2 className="text-3xl font-bold">Dashboard</h2>
             <p className="mt-2 text-slate-600">
-              Welcome to the AB3 Activity Library. Create, import, organize,
+              Welcome to the AB3 Soccer Activity Library. Create, import, organize,
               search, and manage soccer training activities.
             </p>
           </div>

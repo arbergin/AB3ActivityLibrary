@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AB3 Activity Library",
+  title: "AB3 Soccer Activity Library",
   description: "Created by AB3 Analytics",
 };
 
