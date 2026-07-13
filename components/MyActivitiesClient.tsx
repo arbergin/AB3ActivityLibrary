@@ -369,7 +369,7 @@ export default function MyActivitiesClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-md sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">My Activities</h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -399,7 +399,7 @@ export default function MyActivitiesClient() {
       </div>
 
       {isLoading ? (
-        <div className="rounded-2xl bg-white p-8 text-center text-slate-600 shadow-sm ring-1 ring-slate-200">
+        <div className="rounded-2xl border border-slate-300 bg-white p-8 text-center text-slate-600 shadow-md">
           Loading your activities...
         </div>
       ) : errorMessage ? (
@@ -407,7 +407,7 @@ export default function MyActivitiesClient() {
           {errorMessage}
         </div>
       ) : sortedActivities.length === 0 ? (
-        <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+        <div className="rounded-2xl border border-slate-300 bg-white p-8 text-center shadow-md">
           <h2 className="text-lg font-bold text-slate-900">
             No activities found
           </h2>
@@ -424,7 +424,7 @@ export default function MyActivitiesClient() {
       ) : (
         <>
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-            <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+            <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md">
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
@@ -505,7 +505,7 @@ export default function MyActivitiesClient() {
               </div>
             </div>
 
-            <aside className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <aside className="min-w-0 rounded-2xl border border-slate-300 bg-white p-5 shadow-md">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="text-base font-bold text-slate-900">
@@ -743,7 +743,7 @@ export default function MyActivitiesClient() {
             </aside>
           </div>
 
-          <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-md sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-slate-600">
               Showing{" "}
               <span className="font-semibold text-slate-900">
