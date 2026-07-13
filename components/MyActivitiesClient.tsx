@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
+import { getActivityCreatorFrameCount } from "@/lib/activityCreatorFrames";
 import {
   deleteSupabaseActivity,
   getSupabaseActivities,
@@ -589,6 +590,13 @@ export default function MyActivitiesClient() {
                       <div className="break-words text-slate-600">
                         {selectedActivity.activityName}
                       </div>
+                      {selectedActivity.creatorState && (
+                        <div className="mt-2">
+                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                            {getActivityCreatorFrameCount(selectedActivity.creatorState)} {getActivityCreatorFrameCount(selectedActivity.creatorState) === 1 ? "tab" : "tabs"}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid min-w-0 gap-3 sm:grid-cols-2">

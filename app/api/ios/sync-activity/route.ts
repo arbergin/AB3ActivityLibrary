@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { ActivityCreatorState } from "@/types/activity";
+import {
+  getActiveActivityCreatorFrame,
+  getIOSCompatibleCreatorState,
+} from "@/lib/activityCreatorFrames";
 
 type IOSSyncActivityRequestBody = {
   activityName?: unknown;
@@ -219,13 +223,22 @@ function isValidCreatorState(value: unknown): value is ActivityCreatorState {
     return false;
   }
 
-  return Array.isArray(value.objects) && Array.isArray(value.lines);
+  const hasLegacyCanvas = Array.isArray(value.objects) && Array.isArray(value.lines);
+  const hasFrames =
+    value.schemaVersion === 3 &&
+    Array.isArray(value.frames) &&
+    value.frames.some(
+      (frame) =>
+        isObjectRecord(frame) &&
+        Array.isArray(frame.objects) &&
+        Array.isArray(frame.lines)
+    );
+
+  return hasLegacyCanvas || hasFrames;
 }
 
 function countPlayersFromCreatorState(creatorState: ActivityCreatorState) {
-  const objects = Array.isArray(creatorState.objects)
-    ? creatorState.objects
-    : [];
+  const objects = getActiveActivityCreatorFrame(creatorState)?.objects ?? [];
 
   return objects.filter(
     (object) => object.type === "team1" || object.type === "team2"
@@ -312,7 +325,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "A valid creatorState is required. It must include objects and lines arrays.",
+            "A valid creatorState is required. It must include objects and lines arrays, or a schema-version-3 frames array.",
         },
         { status: 400 }
       );
@@ -338,7 +351,7 @@ export async function POST(request: NextRequest) {
     const previewDataUrl = getPreviewDataUrl(body.previewDataUrl);
 
     const creatorStateWithSyncMetadata = {
-      ...creatorState,
+      ...getIOSCompatibleCreatorState(creatorState),
       schemaVersion:
         "schemaVersion" in creatorState
           ? creatorState.schemaVersion

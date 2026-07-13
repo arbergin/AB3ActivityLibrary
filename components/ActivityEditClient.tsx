@@ -745,7 +745,7 @@ export default function ActivityEditClient({
             <div>
               <h2 className="text-2xl font-bold">Edit Activity</h2>
               <p className="mt-2 text-slate-600">
-                Adjust the saved pitch icons, lines, colors, and metadata.
+                Adjust the saved pitch icons, lines, tabs, animation sequence, colors, and metadata.
               </p>
             </div>
 

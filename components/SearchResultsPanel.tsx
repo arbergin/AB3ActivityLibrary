@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
+import { getActivityCreatorFrameCount } from "@/lib/activityCreatorFrames";
 import {
   deleteSupabaseActivity,
   getSupabaseActivities,
@@ -698,11 +699,18 @@ export default function SearchResultsPanel({
                   {selectedActivity.activityName}
                 </div>
                 <div className="mt-2">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                    {selectedActivity.creatorState
-                      ? "Created with Activity Creator"
-                      : "Imported PNG/PDF"}
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      {selectedActivity.creatorState
+                        ? "Created with Activity Creator"
+                        : "Imported PNG/PDF"}
+                    </span>
+                    {selectedActivity.creatorState && (
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                        {getActivityCreatorFrameCount(selectedActivity.creatorState)} {getActivityCreatorFrameCount(selectedActivity.creatorState) === 1 ? "tab" : "tabs"}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 

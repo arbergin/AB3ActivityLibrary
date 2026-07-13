@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { ActivityCreatorState } from "@/types/activity";
+import { getIOSCompatibleCreatorState } from "@/lib/activityCreatorFrames";
 
 type IOSPullActivityUpdatesRequestBody = {
   libraryActivityId?: unknown;
@@ -112,7 +113,18 @@ function isValidCreatorState(value: unknown): value is ActivityCreatorState {
     return false;
   }
 
-  return Array.isArray(value.objects) && Array.isArray(value.lines);
+  const hasLegacyCanvas = Array.isArray(value.objects) && Array.isArray(value.lines);
+  const hasFrames =
+    value.schemaVersion === 3 &&
+    Array.isArray(value.frames) &&
+    value.frames.some(
+      (frame) =>
+        isObjectRecord(frame) &&
+        Array.isArray(frame.objects) &&
+        Array.isArray(frame.lines)
+    );
+
+  return hasLegacyCanvas || hasFrames;
 }
 
 function getCreatorStateSchemaVersion(creatorState: ActivityCreatorState) {
@@ -283,7 +295,7 @@ export async function POST(request: NextRequest) {
         lastSyncedAt: existingActivity.updated_at,
         previewDataUrl: null,
         creatorState: {
-          ...creatorState,
+          ...getIOSCompatibleCreatorState(creatorState),
           schemaVersion,
           sourcePlatform: getCreatorStateSourcePlatform(creatorState),
           clientActivityId: clientActivityId || undefined,

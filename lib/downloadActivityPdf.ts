@@ -6,6 +6,7 @@ import {
   type PDFFont,
 } from "pdf-lib";
 import type { Activity } from "@/types/activity";
+import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
@@ -396,6 +397,30 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
   });
 
   y -= twoColumnHeight + 18;
+
+  const creatorFrames = getActivityCreatorFrames(activity.creatorState);
+  if (activity.creatorState && creatorFrames.length > 0) {
+    drawSectionLabel({
+      page,
+      label: "Activity Tabs",
+      x: PAGE_MARGIN,
+      y,
+      font: labelFont,
+    });
+
+    y -= 18;
+    y = drawSectionValue({
+      page,
+      value: creatorFrames.map((frame, index) => `${index + 1}. ${frame.name}`).join(" • "),
+      x: PAGE_MARGIN,
+      y,
+      font: valueFont,
+      maxWidth: contentWidth,
+      fontSize: 11,
+      lineHeight: 14,
+    });
+    y -= 10;
+  }
 
   drawSectionLabel({
     page,

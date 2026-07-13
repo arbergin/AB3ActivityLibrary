@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import ProtectedPage from "@/components/ProtectedPage";
@@ -20,7 +20,8 @@ import {
   getSupabaseActivityById,
   updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
-import type { Activity } from "@/types/activity";
+import type { Activity, ActivityCreatorFrame } from "@/types/activity";
+import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
 import { canManageActivity, isActivityOwner } from "@/lib/activityPermissions";
 import { getCurrentUserProfile, type UserProfile } from "@/lib/userProfile";
 
@@ -487,10 +488,71 @@ function renderPreviewLine(line: PreviewLine) {
 }
 
 function CreatorStateActivityPreview({ activity }: { activity: Activity }) {
-  const pitch = getCreatorStatePitch(activity);
-  const settings = getCreatorStateSettings(activity);
-  const objects = getCreatorStateObjects(activity);
-  const lines = getCreatorStateLines(activity);
+  const frames = useMemo(
+    () => getActivityCreatorFrames(activity.creatorState),
+    [activity.creatorState]
+  );
+  const creatorStateRecord = activity.creatorState as
+    | Record<string, unknown>
+    | undefined;
+  const initialFrameIndex = Math.max(
+    0,
+    frames.findIndex((frame) =>
+      creatorStateRecord?.schemaVersion === 3 &&
+      typeof creatorStateRecord.activeFrameId === "string"
+        ? frame.id === creatorStateRecord.activeFrameId
+        : false
+    )
+  );
+  const [activeFrameIndex, setActiveFrameIndex] = useState(initialFrameIndex);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const activeFrame: ActivityCreatorFrame | undefined =
+    frames[activeFrameIndex] ?? frames[0];
+
+  useEffect(() => {
+    setActiveFrameIndex(initialFrameIndex);
+    setIsPlaying(false);
+  }, [activity.id, initialFrameIndex]);
+
+  useEffect(() => {
+    if (!isPlaying || frames.length <= 1) {
+      return;
+    }
+
+    if (activeFrameIndex >= frames.length - 1) {
+      setIsPlaying(false);
+      return;
+    }
+
+    const durationMs = Math.max(100, activeFrame?.durationMs ?? 1500);
+    const timer = window.setTimeout(() => {
+      setActiveFrameIndex((currentIndex) =>
+        Math.min(currentIndex + 1, frames.length - 1)
+      );
+    }, durationMs);
+
+    return () => window.clearTimeout(timer);
+  }, [activeFrame?.durationMs, activeFrameIndex, frames.length, isPlaying]);
+
+  const frameActivity = useMemo<Activity>(() => {
+    if (!activeFrame || !activity.creatorState) {
+      return activity;
+    }
+
+    return {
+      ...activity,
+      creatorState: {
+        ...activity.creatorState,
+        objects: activeFrame.objects,
+        lines: activeFrame.lines,
+      },
+    };
+  }, [activeFrame, activity]);
+
+  const pitch = getCreatorStatePitch(frameActivity);
+  const settings = getCreatorStateSettings(frameActivity);
+  const objects = getCreatorStateObjects(frameActivity);
+  const lines = getCreatorStateLines(frameActivity);
 
   function renderObject(object: PreviewObject) {
     const left = `${object.x}%`;
@@ -646,7 +708,40 @@ function CreatorStateActivityPreview({ activity }: { activity: Activity }) {
   }
 
   return (
-    <div className="flex h-full w-full items-center justify-center">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+      {frames.length > 1 && (
+        <div className="flex w-full max-w-[520px] flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveFrameIndex(0);
+              setIsPlaying(true);
+            }}
+            className="rounded-lg bg-[#0d2140] px-3 py-2 text-xs font-semibold text-white hover:bg-[#17345f]"
+          >
+            {isPlaying ? "Playing..." : "Play Animation"}
+          </button>
+
+          {frames.map((frame, index) => (
+            <button
+              key={frame.id}
+              type="button"
+              onClick={() => {
+                setIsPlaying(false);
+                setActiveFrameIndex(index);
+              }}
+              className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                index === activeFrameIndex
+                  ? "border-[#0d2140] bg-[#0d2140] text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {frame.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="relative aspect-[3/4] h-[620px] max-h-full max-w-full overflow-hidden rounded-lg bg-white shadow-inner">
         <div
           className="absolute inset-0"
@@ -671,7 +766,6 @@ function CreatorStateActivityPreview({ activity }: { activity: Activity }) {
     </div>
   );
 }
-
 
 export default function ActivityViewClient({
   activityId,
