@@ -444,7 +444,7 @@ function renderPreviewLine(line: PreviewLine) {
   const end = line.points[line.points.length - 1];
   const previous = line.points[line.points.length - 2];
   const angle = Math.atan2(end.y - previous.y, end.x - previous.x);
-  const arrowLength = 2.5;
+  const arrowLength = clamp(1.1 + line.lineWidth * 0.18, 1.3, 2.1);
   const arrowAngle = Math.PI / 6;
 
   const arrowPoint1 = {
