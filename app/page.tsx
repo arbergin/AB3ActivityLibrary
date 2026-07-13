@@ -28,13 +28,7 @@ function formatDate(dateValue?: string) {
   });
 }
 
-function DashboardActionIcon({
-  src,
-  alt,
-}: {
-  src: string;
-  alt: string;
-}) {
+function DashboardActionIcon({ src, alt }: { src: string; alt: string }) {
   return (
     <img
       src={src}
@@ -162,9 +156,7 @@ function ActivityList({
             Loading activities...
           </div>
         ) : activities.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-slate-500">
-            {emptyMessage}
-          </div>
+          <div className="px-4 py-6 text-sm text-slate-500">{emptyMessage}</div>
         ) : (
           activities.map((activity) => (
             <Link
@@ -234,49 +226,56 @@ export default function HomePage() {
 
   return (
     <ProtectedPage>
-      <main className="min-h-screen bg-slate-100 text-slate-900">
-        <AppHeader />
+      <main className="relative min-h-screen overflow-hidden bg-slate-100 text-slate-900">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-[url('/dashboard_background.png')] bg-cover bg-center bg-no-repeat opacity-65"
+        />
 
-        <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold">Dashboard</h2>
-            <p className="mt-2 text-slate-600">
-              Welcome to the AB3 Soccer Activity Library. Create, import, organize,
-              search, and manage soccer training activities.
-            </p>
-          </div>
+        <div className="relative z-10">
+          <AppHeader />
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="contents lg:grid lg:grid-rows-[288px_auto] lg:gap-6">
-              <ActivityToolsCard />
-
-              <div className="order-3 lg:order-none">
-                <ActivityList
-                  title="My Activities"
-                  titleHref="/my-activities"
-                  emptyMessage="No activities created by you yet."
-                  activities={createdActivities}
-                  isLoading={isLoadingDashboard}
-                />
-              </div>
+          <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+            <div className="mb-8 w-full rounded-xl bg-[#0d2140] px-5 py-4 shadow-lg backdrop-blur-sm">
+              <h2 className="text-3xl font-bold text-white">Dashboard</h2>
+              <p className="mt-2 text-slate-200 lg:whitespace-nowrap">
+                Welcome to the AB3 Soccer Activity Library. Create, import,
+                organize, search, and manage soccer training activities.
+              </p>
             </div>
 
-            <div className="contents lg:grid lg:grid-rows-[288px_auto] lg:gap-6">
-              <div className="order-2 lg:order-none">
-                <ImportOptionsCard />
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="contents lg:grid lg:grid-rows-[288px_auto] lg:gap-6">
+                <ActivityToolsCard />
+
+                <div className="order-3 lg:order-none">
+                  <ActivityList
+                    title="My Activities"
+                    titleHref="/my-activities"
+                    emptyMessage="No activities created by you yet."
+                    activities={createdActivities}
+                    isLoading={isLoadingDashboard}
+                  />
+                </div>
               </div>
 
-              <div className="order-4 lg:order-none">
-                <ActivityList
-                  title="Recent Activities"
-                  emptyMessage="No recently opened activities yet."
-                  activities={openedActivities}
-                  isLoading={isLoadingDashboard}
-                />
+              <div className="contents lg:grid lg:grid-rows-[288px_auto] lg:gap-6">
+                <div className="order-2 lg:order-none">
+                  <ImportOptionsCard />
+                </div>
+
+                <div className="order-4 lg:order-none">
+                  <ActivityList
+                    title="Recent Activities"
+                    emptyMessage="No recently opened activities yet."
+                    activities={openedActivities}
+                    isLoading={isLoadingDashboard}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
     </ProtectedPage>
   );

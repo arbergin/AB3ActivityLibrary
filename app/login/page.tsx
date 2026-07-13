@@ -158,7 +158,7 @@ export default function LoginPage() {
       <section className="relative min-h-[calc(100vh-72px)] overflow-hidden px-8 py-10">
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-[url('/login-background.png')] bg-cover bg-center bg-no-repeat opacity-50"
+          className="absolute inset-0 bg-[url('/login-background.png')] bg-cover bg-center bg-no-repeat opacity-65"
         />
 
         <div aria-hidden="true" className="absolute inset-0 bg-slate-100/20" />
