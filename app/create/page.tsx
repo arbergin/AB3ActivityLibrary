@@ -16,15 +16,7 @@ export default function CreateActivityPage() {
               "linear-gradient(135deg, #c5d3e5 0%, #d9e3f0 42%, #f4f7fb 100%)",
           }}
         >
-          <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold">Create Activity</h2>
-            <p className="mt-2 text-slate-600">
-              Build a soccer activity on the pitch using players, cones, goals,
-              mannequins, and drawing tools.
-            </p>
-          </div>
-
+          <section className="mx-auto max-w-7xl px-4 py-1 sm:px-6 lg:px-8">
             <ActivityCreator />
           </section>
         </div>

@@ -289,11 +289,13 @@ export async function duplicateSupabaseActivity(
     activityName: `${sourceActivity.activityName} - Copy`,
     createdBy: user.email,
     hidden: false,
-    visibility: "private",
+    visibility: "club",
     clubId: null,
     createdAt: undefined,
     updatedAt: undefined,
   };
+
+  copiedActivity.clubId = await resolveActivityClubId(copiedActivity);
 
   let copiedFilePath: string | null = null;
 

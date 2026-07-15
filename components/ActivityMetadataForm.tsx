@@ -49,7 +49,7 @@ export default function ActivityMetadataForm({
   const router = useRouter();
 
   const [visibility, setVisibility] = useState<ActivityVisibility>(
-    initialActivity?.visibility || "private"
+    initialActivity?.visibility || (mode === "create" ? "club" : "private")
   );
   const [activityName, setActivityName] = useState(
     initialActivity?.activityName || ""
@@ -247,7 +247,7 @@ export default function ActivityMetadataForm({
   }
 
   function handleClearForm() {
-    setVisibility("private");
+    setVisibility(mode === "create" ? "club" : "private");
     setActivityName("");
     setFieldLocation("");
     setGamePhase("");

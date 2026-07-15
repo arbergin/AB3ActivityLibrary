@@ -30,6 +30,8 @@ type PitchBackgroundType =
 
 type PlayerDisplayMode = "number" | "name" | "both" | "none";
 
+type PlayerShape = "circle" | "triangle" | "square" | "diamond";
+
 type MobileToolGroup = "objects" | "draw" | "settings";
 
 type PitchObject = {
@@ -44,7 +46,7 @@ type PitchObject = {
   size?: number;
   textColor?: string;
   nameFontSize?: number;
-  playerShape?: "circle" | "triangle" | "square" | "diamond";
+  playerShape?: PlayerShape;
   textContent?: string;
   fontSize?: number;
 };
@@ -140,6 +142,26 @@ const objectToolTypes: ToolType[] = [
 ];
 
 const drawToolTypes: ToolType[] = ["line", "freehand", "dribble", "eraser"];
+
+const USER_CREATOR_SETTINGS_KEY = "ab3-activity-creator-user-settings";
+
+type PersistedCreatorUserSettings = {
+  toolbarOnLeft: boolean;
+  showAnimationDurations: boolean;
+  selectedPitchBackground: PitchBackgroundType;
+  playerDisplayMode: PlayerDisplayMode;
+  team1Color: string;
+  team2Color: string;
+  team1Shape: PlayerShape;
+  team2Shape: PlayerShape;
+  coneColor: string;
+  lineColor: string;
+  lineWidth: number;
+  playerDefaultSize: number;
+  coneDefaultSize: number;
+  mannequinDefaultSize: number;
+  ballDefaultSize: number;
+};
 
 const presetColors = [
   { label: "Blue", value: "#2563eb" },
@@ -254,21 +276,34 @@ function ToolIcon({
   type,
   team1Color,
   team2Color,
+  team1Shape,
+  team2Shape,
   coneColor,
   lineColor,
 }: {
   type: ToolType;
   team1Color: string;
   team2Color: string;
+  team1Shape: PlayerShape;
+  team2Shape: PlayerShape;
   coneColor: string;
   lineColor: string;
 }) {
   if (type === "team1" || type === "team2") {
+    const shape = type === "team1" ? team1Shape : team2Shape;
+
     return (
       <span
-        className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-black text-xs font-bold text-white"
+        className="flex h-7 w-7 items-center justify-center border-2 border-black text-xs font-bold text-white"
         style={{
           backgroundColor: type === "team1" ? team1Color : team2Color,
+          borderRadius: shape === "circle" ? "9999px" : shape === "square" ? "5px" : "0",
+          clipPath:
+            shape === "triangle"
+              ? "polygon(50% 0%, 100% 100%, 0% 100%)"
+              : shape === "diamond"
+                ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
+                : undefined,
         }}
       >
         {type === "team1" ? "1" : "2"}
@@ -697,6 +732,8 @@ type NormalizedCreatorState = {
   settings: {
     team1Color: string;
     team2Color: string;
+    team1Shape: PlayerShape;
+    team2Shape: PlayerShape;
     coneColor: string;
     lineColor: string;
     playerDefaultSize: number;
@@ -781,6 +818,15 @@ function isPitchBackground(value: unknown): value is PitchBackgroundType {
   );
 }
 
+function isPlayerShape(value: unknown): value is PlayerShape {
+  return (
+    value === "circle" ||
+    value === "triangle" ||
+    value === "square" ||
+    value === "diamond"
+  );
+}
+
 function isPlayerDisplayMode(value: unknown): value is PlayerDisplayMode {
   return (
     value === "number" || value === "name" || value === "both" || value === "none"
@@ -844,6 +890,8 @@ function normalizeCreatorState(
     settings: {
       team1Color: "#2563eb",
       team2Color: "#dc2626",
+      team1Shape: "circle",
+      team2Shape: "circle",
       coneColor: "#f97316",
       lineColor: "#111827",
       playerDefaultSize: 24,
@@ -982,6 +1030,12 @@ function normalizeCreatorState(
       settings: {
         team1Color: colorToCss(settings.team1DefaultColor, "#2563eb"),
         team2Color: colorToCss(settings.team2DefaultColor, "#dc2626"),
+        team1Shape: isPlayerShape(settings.team1DefaultShape)
+          ? settings.team1DefaultShape
+          : defaultState.settings.team1Shape,
+        team2Shape: isPlayerShape(settings.team2DefaultShape)
+          ? settings.team2DefaultShape
+          : defaultState.settings.team2Shape,
         coneColor: colorToCss(settings.coneDefaultColor, "#f97316"),
         lineColor: defaultState.settings.lineColor,
         playerDefaultSize:
@@ -1087,6 +1141,12 @@ function normalizeCreatorState(
         typeof settings.team2Color === "string"
           ? settings.team2Color
           : defaultState.settings.team2Color,
+      team1Shape: isPlayerShape(settings.team1Shape)
+        ? settings.team1Shape
+        : defaultState.settings.team1Shape,
+      team2Shape: isPlayerShape(settings.team2Shape)
+        ? settings.team2Shape
+        : defaultState.settings.team2Shape,
       coneColor:
         typeof settings.coneColor === "string"
           ? settings.coneColor
@@ -1218,6 +1278,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     [initialCreatorState, normalizedInitialCreatorState]
   );
   const pitchRef = useRef<HTMLDivElement | null>(null);
+  const hasLoadedUserSettingsRef = useRef(false);
 
   const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
   const [mobileToolGroup, setMobileToolGroup] =
@@ -1249,6 +1310,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   >([]);
   const [message, setMessage] = useState("");
   const [showToolbarSettings, setShowToolbarSettings] = useState(false);
+  const [isToolbarOnLeft, setIsToolbarOnLeft] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
 
@@ -1257,6 +1319,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   );
   const [team2Color, setTeam2Color] = useState(
     normalizedInitialCreatorState.settings.team2Color
+  );
+  const [team1Shape, setTeam1Shape] = useState<PlayerShape>(
+    normalizedInitialCreatorState.settings.team1Shape
+  );
+  const [team2Shape, setTeam2Shape] = useState<PlayerShape>(
+    normalizedInitialCreatorState.settings.team2Shape
   );
   const [coneColor, setConeColor] = useState(
     normalizedInitialCreatorState.settings.coneColor
@@ -1325,18 +1393,144 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   }, [activeFrameId, objects, lines]);
 
   useEffect(() => {
-    const savedPreference = window.localStorage.getItem(
-      "ab3-show-animation-durations"
-    );
-    setShowAnimationDurations(savedPreference === "true");
-  }, []);
+    try {
+      const savedValue = window.localStorage.getItem(USER_CREATOR_SETTINGS_KEY);
+
+      if (savedValue && !initialActivity) {
+        const savedSettings = JSON.parse(
+          savedValue
+        ) as Partial<PersistedCreatorUserSettings>;
+
+        if (typeof savedSettings.toolbarOnLeft === "boolean") {
+          setIsToolbarOnLeft(savedSettings.toolbarOnLeft);
+        }
+
+        if (typeof savedSettings.showAnimationDurations === "boolean") {
+          setShowAnimationDurations(savedSettings.showAnimationDurations);
+        }
+
+        if (isPitchBackground(savedSettings.selectedPitchBackground)) {
+          setSelectedPitchBackground(savedSettings.selectedPitchBackground);
+        }
+
+        if (isPlayerDisplayMode(savedSettings.playerDisplayMode)) {
+          setPlayerDisplayMode(savedSettings.playerDisplayMode);
+        }
+
+        if (typeof savedSettings.team1Color === "string") {
+          setTeam1Color(savedSettings.team1Color);
+        }
+
+        if (typeof savedSettings.team2Color === "string") {
+          setTeam2Color(savedSettings.team2Color);
+        }
+
+        if (isPlayerShape(savedSettings.team1Shape)) {
+          setTeam1Shape(savedSettings.team1Shape);
+        }
+
+        if (isPlayerShape(savedSettings.team2Shape)) {
+          setTeam2Shape(savedSettings.team2Shape);
+        }
+
+        if (typeof savedSettings.coneColor === "string") {
+          setConeColor(savedSettings.coneColor);
+        }
+
+        if (typeof savedSettings.lineColor === "string") {
+          setLineColor(savedSettings.lineColor);
+        }
+
+        if (
+          typeof savedSettings.lineWidth === "number" &&
+          Number.isFinite(savedSettings.lineWidth)
+        ) {
+          setLineWidth(clamp(savedSettings.lineWidth, 1, 12));
+        }
+
+        if (
+          typeof savedSettings.playerDefaultSize === "number" &&
+          Number.isFinite(savedSettings.playerDefaultSize)
+        ) {
+          setPlayerDefaultSize(
+            clamp(savedSettings.playerDefaultSize, 24, 72)
+          );
+        }
+
+        if (
+          typeof savedSettings.coneDefaultSize === "number" &&
+          Number.isFinite(savedSettings.coneDefaultSize)
+        ) {
+          setConeDefaultSize(clamp(savedSettings.coneDefaultSize, 14, 52));
+        }
+
+        if (
+          typeof savedSettings.mannequinDefaultSize === "number" &&
+          Number.isFinite(savedSettings.mannequinDefaultSize)
+        ) {
+          setMannequinDefaultSize(
+            clamp(savedSettings.mannequinDefaultSize, 12, 110)
+          );
+        }
+
+        if (
+          typeof savedSettings.ballDefaultSize === "number" &&
+          Number.isFinite(savedSettings.ballDefaultSize)
+        ) {
+          setBallDefaultSize(clamp(savedSettings.ballDefaultSize, 14, 64));
+        }
+      }
+    } catch (error) {
+      console.error("Unable to load saved Activity Creator settings.", error);
+    } finally {
+      hasLoadedUserSettingsRef.current = true;
+    }
+  }, [initialActivity]);
 
   useEffect(() => {
+    if (!hasLoadedUserSettingsRef.current) {
+      return;
+    }
+
+    const settingsToSave: PersistedCreatorUserSettings = {
+      toolbarOnLeft: isToolbarOnLeft,
+      showAnimationDurations,
+      selectedPitchBackground,
+      playerDisplayMode,
+      team1Color,
+      team2Color,
+      team1Shape,
+      team2Shape,
+      coneColor,
+      lineColor,
+      lineWidth,
+      playerDefaultSize,
+      coneDefaultSize,
+      mannequinDefaultSize,
+      ballDefaultSize,
+    };
+
     window.localStorage.setItem(
-      "ab3-show-animation-durations",
-      String(showAnimationDurations)
+      USER_CREATOR_SETTINGS_KEY,
+      JSON.stringify(settingsToSave)
     );
-  }, [showAnimationDurations]);
+  }, [
+    isToolbarOnLeft,
+    showAnimationDurations,
+    selectedPitchBackground,
+    playerDisplayMode,
+    team1Color,
+    team2Color,
+    team1Shape,
+    team2Shape,
+    coneColor,
+    lineColor,
+    lineWidth,
+    playerDefaultSize,
+    coneDefaultSize,
+    mannequinDefaultSize,
+    ballDefaultSize,
+  ]);
 
   useEffect(() => {
     if (!isPlayingAnimation || frames.length < 2) {
@@ -1397,8 +1591,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         playerDisplayMode,
         team1DefaultColor: cssToColorObject(team1Color),
         team2DefaultColor: cssToColorObject(team2Color),
-        team1DefaultShape: "circle",
-        team2DefaultShape: "circle",
+        team1DefaultShape: team1Shape,
+        team2DefaultShape: team2Shape,
         playerTextDefaultColor: cssToColorObject("#ffffff"),
         coneDefaultColor: cssToColorObject(coneColor),
         playerDefaultSize,
@@ -1493,6 +1687,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       lines,
       team1Color,
       team2Color,
+      team1Shape,
+      team2Shape,
       coneColor,
       lineWidth,
       playerDefaultSize,
@@ -1824,7 +2020,28 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     context.save();
     context.beginPath();
-    context.arc(x, y, size / 2, 0, Math.PI * 2);
+
+    const shape =
+      object.playerShape ??
+      (object.type === "team1" ? team1Shape : team2Shape);
+
+    if (shape === "triangle") {
+      context.moveTo(x, y - size / 2);
+      context.lineTo(x + size / 2, y + size / 2);
+      context.lineTo(x - size / 2, y + size / 2);
+      context.closePath();
+    } else if (shape === "square") {
+      context.rect(x - size / 2, y - size / 2, size, size);
+    } else if (shape === "diamond") {
+      context.moveTo(x, y - size / 2);
+      context.lineTo(x + size / 2, y);
+      context.lineTo(x, y + size / 2);
+      context.lineTo(x - size / 2, y);
+      context.closePath();
+    } else {
+      context.arc(x, y, size / 2, 0, Math.PI * 2);
+    }
+
     context.fillStyle = fillColor;
     context.fill();
     context.lineWidth = Math.max(2, canvasWidth * 0.0025);
@@ -2170,13 +2387,19 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     context.restore();
 
-    lines.forEach((line) => {
+    const firstFrame = frames[0];
+    const previewLines =
+      firstFrame?.id === activeFrameId ? lines : firstFrame?.lines ?? lines;
+    const previewObjects =
+      firstFrame?.id === activeFrameId ? objects : firstFrame?.objects ?? objects;
+
+    previewLines.forEach((line) => {
       drawPreviewLine(context, line, canvasWidth, canvasHeight);
     });
 
     const imageCache = new Map<string, HTMLImageElement>();
 
-    for (const object of objects) {
+    for (const object of previewObjects) {
       if (object.type === "team1" || object.type === "team2") {
         drawPreviewPlayerObject(context, object, canvasWidth, canvasHeight);
       } else if (object.type === "cone") {
@@ -2425,6 +2648,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       rotation: 0,
       fillColor: getObjectFillColor(type),
       size: getDefaultObjectSize(type),
+      playerShape:
+        type === "team1"
+          ? team1Shape
+          : type === "team2"
+            ? team2Shape
+            : undefined,
       textColor: "#111827",
       textContent: type === "textBox" ? "Text" : undefined,
       fontSize: type === "textBox" ? 20 : undefined,
@@ -2745,6 +2974,27 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
   }
 
+  function applyShapeToExistingPlayers(
+    objectType: "team1" | "team2",
+    playerShape: PlayerShape,
+    messageText: string
+  ) {
+    saveHistorySnapshot();
+
+    setObjects((currentObjects) =>
+      currentObjects.map((object) =>
+        object.type === objectType
+          ? {
+              ...object,
+              playerShape,
+            }
+          : object
+      )
+    );
+
+    setMessage(messageText);
+  }
+
   function applyColorToExistingObjects(
     objectTypes: ObjectToolType[],
     fillColor: string,
@@ -2830,6 +3080,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           type={tool.type}
           team1Color={team1Color}
           team2Color={team2Color}
+          team1Shape={team1Shape}
+          team2Shape={team2Shape}
           coneColor={coneColor}
           lineColor={lineColor}
         />
@@ -2963,6 +3215,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const fallbackColor = object.type === "team1" ? team1Color : team2Color;
     const fillColor = object.fillColor ?? fallbackColor;
     const size = object.size ?? playerDefaultSize;
+    const playerShape =
+      object.playerShape ??
+      (object.type === "team1" ? team1Shape : team2Shape);
     const hitSize = Math.max(size, 44);
     const fontSize = Math.max(10, Math.round(size * 0.42));
     const nameFontSize = Math.max(
@@ -3012,11 +3267,16 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             fontSize: `${fontSize}px`,
             backgroundColor: fillColor,
             color: object.textColor ?? "#ffffff",
-            borderRadius: object.playerShape === "square" ? "8px" : "9999px",
+            borderRadius:
+              playerShape === "circle"
+                ? "9999px"
+                : playerShape === "square"
+                  ? "8px"
+                  : "0",
             clipPath:
-              object.playerShape === "triangle"
+              playerShape === "triangle"
                 ? "polygon(50% 0%, 100% 100%, 0% 100%)"
-                : object.playerShape === "diamond"
+                : playerShape === "diamond"
                   ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
                   : undefined,
           }}
@@ -3433,8 +3693,79 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const displayedLines = isPlayingAnimation ? playbackFrame.lines : lines;
 
   return (
-    <div className="grid gap-5">
-      <section className="rounded-xl bg-white p-3 shadow-sm md:p-4">
+    <div className="grid gap-2">
+      <section className="rounded-xl bg-white p-2 shadow-sm md:p-3">
+        <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+              Activity Tabs
+            </div>
+            {frames.map((frame, index) => (
+              <div key={frame.id} className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white">
+                <button
+                  type="button"
+                  onClick={() => switchFrame(frame.id)}
+                  onDoubleClick={() => renameFrame(frame.id)}
+                  disabled={isPlayingAnimation}
+                  className={`px-3 py-2 text-sm font-bold ${
+                    frame.id === activeFrameId && !isPlayingAnimation
+                      ? "bg-[#0d2140] text-white"
+                      : isPlayingAnimation && index === playbackFrameIndex
+                        ? "bg-emerald-600 text-white"
+                        : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                  title="Click to open. Double-click to rename."
+                >
+                  {frame.name}
+                </button>
+                {showAnimationDurations && (
+                  <input
+                    type="number"
+                    min="250"
+                    max="10000"
+                    step="250"
+                    value={frame.durationMs}
+                    onChange={(event) =>
+                      updateFrameDuration(frame.id, Number(event.target.value))
+                    }
+                    disabled={isPlayingAnimation}
+                    className="w-20 border-l border-slate-200 px-2 py-2 text-xs text-slate-600"
+                    title="Animation duration in milliseconds"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => deleteFrame(frame.id)}
+                  disabled={isPlayingAnimation || frames.length === 1}
+                  className="border-l border-slate-200 px-2 py-2 text-xs font-bold text-red-600 disabled:text-slate-300"
+                  title="Delete tab"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addFrame}
+              disabled={isPlayingAnimation}
+              className="rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              + New Tab
+            </button>
+            <button
+              type="button"
+              onClick={toggleAnimationPlayback}
+              className={`rounded-lg px-3 py-2 text-sm font-bold text-white ${
+                isPlayingAnimation ? "bg-red-600" : "bg-emerald-600"
+              }`}
+            >
+              {isPlayingAnimation ? "Stop Animation" : "Play Animation"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            New tabs copy the most recent tab and preserve object IDs so movement can animate between tabs. Animation plays once and stops on the final tab.
+          </p>
+        </div>
         <div className="md:hidden">
           <div className="grid grid-cols-3 gap-2">
             <button
@@ -3520,6 +3851,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           )}
         </div>
 
+        {!isToolbarOnLeft && (
         <div className="hidden flex-wrap items-center gap-2 md:flex">
           {tools.map((tool) => renderToolButton(tool))}
 
@@ -3576,14 +3908,34 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           </button>
 
         </div>
+        )}
 
         {showToolbarSettings && (
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <h3 className="text-sm font-bold text-slate-800">
-              Toolbar Settings
-            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-slate-800">
+                Toolbar Settings
+              </h3>
+
+              <button
+                type="button"
+                onClick={() => setShowToolbarSettings(false)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
 
             <label className="mt-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={isToolbarOnLeft}
+                onChange={(event) => setIsToolbarOnLeft(event.target.checked)}
+              />
+              Move toolbar to the left of the pitch
+            </label>
+
+            <label className="mt-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
               <input
                 type="checkbox"
                 checked={showAnimationDurations}
@@ -3593,6 +3945,74 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               />
               Show animation duration controls in milliseconds
             </label>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <label className="text-sm font-semibold text-slate-700">
+                  Team 1 Default Shape
+                </label>
+
+                <select
+                  value={team1Shape}
+                  onChange={(event) =>
+                    setTeam1Shape(event.target.value as PlayerShape)
+                  }
+                  className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="circle">Circle</option>
+                  <option value="triangle">Triangle</option>
+                  <option value="square">Square</option>
+                  <option value="diamond">Diamond</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    applyShapeToExistingPlayers(
+                      "team1",
+                      team1Shape,
+                      "Team 1 shape applied to existing Team 1 players."
+                    )
+                  }
+                  className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Apply to Existing Team 1
+                </button>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <label className="text-sm font-semibold text-slate-700">
+                  Team 2 Default Shape
+                </label>
+
+                <select
+                  value={team2Shape}
+                  onChange={(event) =>
+                    setTeam2Shape(event.target.value as PlayerShape)
+                  }
+                  className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="circle">Circle</option>
+                  <option value="triangle">Triangle</option>
+                  <option value="square">Square</option>
+                  <option value="diamond">Diamond</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    applyShapeToExistingPlayers(
+                      "team2",
+                      team2Shape,
+                      "Team 2 shape applied to existing Team 2 players."
+                    )
+                  }
+                  className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Apply to Existing Team 2
+                </button>
+              </div>
+            </div>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-4">
               <ColorSetting
@@ -3818,85 +4238,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           </button>
         </div>
 
-        <p className="mt-3 text-sm text-slate-500">
-          Drag objects to move them. Double-click an object to edit it directly
-          on the pitch. Click the pitch to close the object settings. Unlock
-          zoom to zoom and pan the pitch.
-        </p>
-
-        <hr className="my-4 border-slate-200" />
-
-        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="mr-1 text-xs font-bold uppercase tracking-wide text-slate-500">
-              Activity Tabs
-            </div>
-            {frames.map((frame, index) => (
-              <div key={frame.id} className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white">
-                <button
-                  type="button"
-                  onClick={() => switchFrame(frame.id)}
-                  onDoubleClick={() => renameFrame(frame.id)}
-                  disabled={isPlayingAnimation}
-                  className={`px-3 py-2 text-sm font-bold ${
-                    frame.id === activeFrameId && !isPlayingAnimation
-                      ? "bg-[#0d2140] text-white"
-                      : isPlayingAnimation && index === playbackFrameIndex
-                        ? "bg-emerald-600 text-white"
-                        : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                  title="Click to open. Double-click to rename."
-                >
-                  {frame.name}
-                </button>
-                {showAnimationDurations && (
-                  <input
-                    type="number"
-                    min="250"
-                    max="10000"
-                    step="250"
-                    value={frame.durationMs}
-                    onChange={(event) =>
-                      updateFrameDuration(frame.id, Number(event.target.value))
-                    }
-                    disabled={isPlayingAnimation}
-                    className="w-20 border-l border-slate-200 px-2 py-2 text-xs text-slate-600"
-                    title="Animation duration in milliseconds"
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={() => deleteFrame(frame.id)}
-                  disabled={isPlayingAnimation || frames.length === 1}
-                  className="border-l border-slate-200 px-2 py-2 text-xs font-bold text-red-600 disabled:text-slate-300"
-                  title="Delete tab"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addFrame}
-              disabled={isPlayingAnimation}
-              className="rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              + New Tab
-            </button>
-            <button
-              type="button"
-              onClick={toggleAnimationPlayback}
-              className={`rounded-lg px-3 py-2 text-sm font-bold text-white ${
-                isPlayingAnimation ? "bg-red-600" : "bg-emerald-600"
-              }`}
-            >
-              {isPlayingAnimation ? "Stop Animation" : "Play Animation"}
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            New tabs copy the most recent tab and preserve object IDs so movement can animate between tabs. Animation plays once and stops on the final tab.
-          </p>
-        </div>
 
         {message && (
           <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
@@ -3905,11 +4246,46 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         )}
       </section>
 
-      <section className="overflow-hidden rounded-xl bg-white p-2 shadow-sm md:p-4">
+      <section className="overflow-hidden rounded-xl bg-white p-1 shadow-sm md:p-2">
         <div
           className="relative mx-auto flex max-w-full justify-center overflow-visible rounded-xl border border-slate-200 bg-slate-100"
           onWheel={handleWheel}
         >
+          {isToolbarOnLeft && (
+            <div className="absolute left-3 top-16 z-40 hidden grid-cols-2 gap-2 rounded-xl border border-slate-300 bg-white/95 p-2 shadow-lg backdrop-blur md:grid">
+              {tools.map((tool) => renderToolButton(tool))}
+
+              <label className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={isDashed}
+                  onChange={(event) => setIsDashed(event.target.checked)}
+                />
+                Dashed
+              </label>
+
+              <label className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={isArrow}
+                  onChange={(event) => setIsArrow(event.target.checked)}
+                />
+                Arrow
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setShowToolbarSettings((current) => !current)}
+                className={`col-span-2 flex h-12 items-center justify-center gap-2 rounded-lg text-xs font-semibold ${
+                  showToolbarSettings
+                    ? "bg-[#0d2140] text-white"
+                    : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Settings
+              </button>
+            </div>
+          )}
           <div className="absolute left-2 top-2 z-50 flex flex-col gap-1 md:left-3 md:top-3 md:flex-row md:gap-2">
             <button
               type="button"
@@ -3974,7 +4350,13 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             </button>
           </div>
 
-          <div className="flex h-[70vh] min-h-[420px] w-full justify-center overflow-visible md:h-[820px]">
+          <div
+            className={`flex min-h-[420px] w-full justify-center overflow-visible ${
+              isToolbarOnLeft
+                ? "md:pl-[14rem] md:pr-[7rem]"
+                : "h-[70vh] pt-14 md:h-auto md:px-14 md:pt-20"
+            }`}
+          >
             <div
               ref={pitchRef}
               onPointerDown={handlePitchPointerDown}
@@ -3985,7 +4367,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 setActiveLinePoints([]);
                 setPanState(null);
               }}
-              className={`relative aspect-[3/4] h-full max-h-full max-w-full touch-none overflow-visible rounded-xl bg-white shadow-inner ${
+              className={`relative aspect-[3/4] max-w-full touch-none overflow-visible rounded-xl bg-white shadow-inner ${
+                isToolbarOnLeft
+                  ? "h-auto w-full"
+                  : "h-full max-h-full w-auto md:h-auto md:w-full"
+              } ${
                 !isZoomLocked && !panState ? "cursor-grab" : ""
               } ${panState ? "cursor-grabbing" : ""}`}
               style={{
