@@ -30,6 +30,8 @@ type ActivityWithSource = Activity & {
   source: "supabase";
 };
 
+const SEARCH_SELECTED_ACTIVITY_KEY = "ab3-search-selected-activity-id";
+
 function safeLower(value?: string | number | null) {
   return String(value ?? "").toLowerCase();
 }
@@ -197,6 +199,9 @@ export default function SearchResultsPanel({
   const [isLoadingActivities, setIsLoadingActivities] = useState(true);
   const [selectedPreviewFailed, setSelectedPreviewFailed] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
+  const [restoredSelectedActivityId, setRestoredSelectedActivityId] = useState<
+    string | null
+  >(null);
 
   const loadActivities = useCallback(async () => {
     setIsLoadingActivities(true);
@@ -321,6 +326,14 @@ export default function SearchResultsPanel({
     : "No search run yet";
 
   useEffect(() => {
+    const savedSelectedActivityId = window.sessionStorage.getItem(
+      SEARCH_SELECTED_ACTIVITY_KEY
+    );
+
+    setRestoredSelectedActivityId(savedSelectedActivityId);
+  }, []);
+
+  useEffect(() => {
     loadActivities();
   }, [loadActivities, refreshKey]);
 
@@ -388,12 +401,37 @@ export default function SearchResultsPanel({
     );
 
     if (!selectedActivityIsVisible) {
-      setSelectedActivity(visibleActivities[0]);
+      const restoredActivity = restoredSelectedActivityId
+        ? visibleActivities.find(
+            (activity) => activity.id === restoredSelectedActivityId
+          )
+        : undefined;
+
+      setSelectedActivity(restoredActivity ?? visibleActivities[0]);
       setDownloadMessage("");
       setShowDeleteConfirm(false);
       setSelectedPreviewFailed(false);
     }
-  }, [hasSearched, visibleActivities, selectedActivity?.id]);
+  }, [
+    hasSearched,
+    visibleActivities,
+    selectedActivity?.id,
+    restoredSelectedActivityId,
+  ]);
+
+  useEffect(() => {
+    if (selectedActivity?.id) {
+      window.sessionStorage.setItem(
+        SEARCH_SELECTED_ACTIVITY_KEY,
+        selectedActivity.id
+      );
+      return;
+    }
+
+    if (!hasSearched) {
+      window.sessionStorage.removeItem(SEARCH_SELECTED_ACTIVITY_KEY);
+    }
+  }, [hasSearched, selectedActivity?.id]);
 
   useEffect(() => {
     setSelectedPreviewFailed(false);

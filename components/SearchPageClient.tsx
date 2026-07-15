@@ -34,33 +34,55 @@ const emptyFilters: SearchFilterValues = {
   activityDetails: "",
 };
 
+const SEARCH_PAGE_STATE_KEY = "ab3-search-page-state";
+
+type PersistedSearchPageState = {
+  filters: SearchFilterValues;
+  appliedFilters: SearchFilterValues;
+  includeHidden: boolean;
+  appliedIncludeHidden: boolean;
+  sortValue: SearchSortValue;
+  hasSearched: boolean;
+  searchMessage: string;
+  refreshKey: number;
+};
+
+function isSearchSortValue(value: unknown): value is SearchSortValue {
+  return (
+    value === "activityNameAsc" ||
+    value === "activityNameDesc" ||
+    value === "newestFirst" ||
+    value === "oldestFirst" ||
+    value === "recentlyUpdated" ||
+    value === "oldestUpdated" ||
+    value === "playersLowToHigh" ||
+    value === "playersHighToLow"
+  );
+}
+
+function isSearchFilterValues(value: unknown): value is SearchFilterValues {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.activityName === "string" &&
+    typeof record.fieldLocation === "string" &&
+    typeof record.gamePhase === "string" &&
+    typeof record.category === "string" &&
+    typeof record.positionsInvolved === "string" &&
+    typeof record.numberOfPlayers === "string" &&
+    typeof record.activityDetails === "string"
+  );
+}
+
 function hasSearchCriteria(filters: SearchFilterValues) {
   return Object.values(filters).some((value) => value.trim() !== "");
 }
 
-function isMobileBrowser() {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(max-width: 767px)").matches;
-}
 
-function clearStaleSearchBrowserState() {
-  if (typeof window === "undefined") return;
-
-  // These keys cover old search/filter cache names if any were used previously.
-  const exactKeysToRemove = [
-    "searchFilters",
-    "activitySearchFilters",
-    "searchResults",
-    "activitySearchResults",
-    "recentSearchResults",
-    "selectedSearchActivity",
-  ];
-
-  exactKeysToRemove.forEach((key) => {
-    window.localStorage.removeItem(key);
-    window.sessionStorage.removeItem(key);
-  });
-}
 
 export default function SearchPageClient() {
   const [includeHidden, setIncludeHidden] = useState(false);
@@ -73,9 +95,11 @@ export default function SearchPageClient() {
   const [hasSearched, setHasSearched] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [hasRestoredSearchState, setHasRestoredSearchState] = useState(false);
 
   const resetSearchState = useCallback(() => {
-    clearStaleSearchBrowserState();
+    window.sessionStorage.removeItem(SEARCH_PAGE_STATE_KEY);
+    window.sessionStorage.removeItem("ab3-search-selected-activity-id");
     setFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     setIncludeHidden(false);
@@ -87,7 +111,6 @@ export default function SearchPageClient() {
   }, []);
 
   function handleSearch() {
-    clearStaleSearchBrowserState();
 
     if (!hasSearchCriteria(filters)) {
       setHasSearched(false);
@@ -110,17 +133,87 @@ export default function SearchPageClient() {
   }
 
   useEffect(() => {
-    function handlePageReturn() {
-      if (!isMobileBrowser()) return;
-      resetSearchState();
+    try {
+      const savedValue = window.sessionStorage.getItem(SEARCH_PAGE_STATE_KEY);
+
+      if (savedValue) {
+        const savedState = JSON.parse(
+          savedValue
+        ) as Partial<PersistedSearchPageState>;
+
+        if (isSearchFilterValues(savedState.filters)) {
+          setFilters(savedState.filters);
+        }
+
+        if (isSearchFilterValues(savedState.appliedFilters)) {
+          setAppliedFilters(savedState.appliedFilters);
+        }
+
+        if (typeof savedState.includeHidden === "boolean") {
+          setIncludeHidden(savedState.includeHidden);
+        }
+
+        if (typeof savedState.appliedIncludeHidden === "boolean") {
+          setAppliedIncludeHidden(savedState.appliedIncludeHidden);
+        }
+
+        if (isSearchSortValue(savedState.sortValue)) {
+          setSortValue(savedState.sortValue);
+        }
+
+        if (typeof savedState.hasSearched === "boolean") {
+          setHasSearched(savedState.hasSearched);
+        }
+
+        if (typeof savedState.searchMessage === "string") {
+          setSearchMessage(savedState.searchMessage);
+        }
+
+        if (
+          typeof savedState.refreshKey === "number" &&
+          Number.isFinite(savedState.refreshKey)
+        ) {
+          setRefreshKey(savedState.refreshKey);
+        }
+      }
+    } catch (error) {
+      console.error("Unable to restore search state.", error);
+    } finally {
+      setHasRestoredSearchState(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestoredSearchState) {
+      return;
     }
 
-    window.addEventListener("pageshow", handlePageReturn);
-
-    return () => {
-      window.removeEventListener("pageshow", handlePageReturn);
+    const stateToSave: PersistedSearchPageState = {
+      filters,
+      appliedFilters,
+      includeHidden,
+      appliedIncludeHidden,
+      sortValue,
+      hasSearched,
+      searchMessage,
+      refreshKey,
     };
-  }, [resetSearchState]);
+
+    window.sessionStorage.setItem(
+      SEARCH_PAGE_STATE_KEY,
+      JSON.stringify(stateToSave)
+    );
+  }, [
+    filters,
+    appliedFilters,
+    includeHidden,
+    appliedIncludeHidden,
+    sortValue,
+    hasSearched,
+    searchMessage,
+    refreshKey,
+    hasRestoredSearchState,
+  ]);
 
   return (
     <div className="grid min-w-0 gap-8 overflow-hidden">

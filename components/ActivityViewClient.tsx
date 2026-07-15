@@ -1158,12 +1158,13 @@ export default function ActivityViewClient({
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Link
-                href="/search"
+              <button
+                type="button"
+                onClick={() => router.push("/search")}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700"
               >
                 Close
-              </Link>
+              </button>
 
               <Link
                 href="/"
