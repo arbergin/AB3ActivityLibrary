@@ -3070,7 +3070,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         onClick={() => handleToolClick(tool.type)}
         title={tool.label}
         aria-label={tool.label}
-        className={`flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-semibold md:h-16 md:w-16 md:text-xs ${
+        className={`flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[9px] font-semibold md:h-14 md:w-14 md:text-[10px] ${
           selectedTool === tool.type
             ? "bg-[#0d2140] text-white"
             : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
@@ -4252,10 +4252,22 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           onWheel={handleWheel}
         >
           {isToolbarOnLeft && (
-            <div className="absolute left-3 top-16 z-40 hidden grid-cols-2 gap-2 rounded-xl border border-slate-300 bg-white/95 p-2 shadow-lg backdrop-blur md:grid">
+            <div className="absolute left-3 top-16 z-40 hidden max-h-[calc(100%-5rem)] grid-cols-2 gap-1.5 overflow-y-auto rounded-xl border border-slate-300 bg-white/95 p-2 shadow-lg backdrop-blur md:grid">
+              <button
+                type="button"
+                onClick={() => setShowToolbarSettings((current) => !current)}
+                className={`sticky top-0 z-10 col-span-2 flex h-10 items-center justify-center gap-2 rounded-lg text-[10px] font-semibold shadow-sm ${
+                  showToolbarSettings
+                    ? "bg-[#0d2140] text-white"
+                    : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Settings
+              </button>
+
               {tools.map((tool) => renderToolButton(tool))}
 
-              <label className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700">
+              <label className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-300 bg-white text-[9px] font-semibold text-slate-700 md:h-14 md:w-14 md:text-[10px]">
                 <input
                   type="checkbox"
                   checked={isDashed}
@@ -4264,7 +4276,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 Dashed
               </label>
 
-              <label className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700">
+              <label className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-300 bg-white text-[9px] font-semibold text-slate-700 md:h-14 md:w-14 md:text-[10px]">
                 <input
                   type="checkbox"
                   checked={isArrow}
@@ -4272,18 +4284,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 />
                 Arrow
               </label>
-
-              <button
-                type="button"
-                onClick={() => setShowToolbarSettings((current) => !current)}
-                className={`col-span-2 flex h-12 items-center justify-center gap-2 rounded-lg text-xs font-semibold ${
-                  showToolbarSettings
-                    ? "bg-[#0d2140] text-white"
-                    : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                Settings
-              </button>
             </div>
           )}
           <div className="absolute left-2 top-2 z-50 flex flex-col gap-1 md:left-3 md:top-3 md:flex-row md:gap-2">
@@ -4353,7 +4353,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           <div
             className={`flex min-h-[420px] w-full justify-center overflow-visible ${
               isToolbarOnLeft
-                ? "md:pl-[14rem] md:pr-[7rem]"
+                ? "md:pl-[12rem] md:pr-[6rem]"
                 : "h-[70vh] pt-14 md:h-auto md:px-14 md:pt-20"
             }`}
           >
