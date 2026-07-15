@@ -7,6 +7,7 @@ import {
 } from "pdf-lib";
 import type { Activity } from "@/types/activity";
 import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
+import { getUserDisplayName } from "@/lib/userProfile";
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
@@ -36,6 +37,13 @@ function formatDate(dateValue?: string) {
     month: "short",
     day: "numeric",
   });
+}
+
+
+function formatActivityVisibility(value?: Activity["visibility"]) {
+  if (value === "club") return "My Club";
+  if (value === "everyone") return "Everyone";
+  return "Private";
 }
 
 function dataUrlToArrayBuffer(dataUrl: string) {
@@ -304,6 +312,7 @@ async function addOriginalPdfPages(pdfDocument: PDFDocument, activity: Activity)
 }
 
 async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
+  const creatorDisplayName = await getUserDisplayName(activity.createdBy);
   const page = pdfDocument.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
 
   const titleFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
@@ -374,9 +383,21 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
     label: "Positions Involved",
     value: activity.positionsInvolved || "—",
     x: PAGE_MARGIN,
-    y: y - twoColumnHeight,
-    width: twoColumnWidth,
-    height: twoColumnHeight,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+
+  drawMetadataBox({
+    page,
+    label: "Activity Visibility",
+    value: formatActivityVisibility(activity.visibility),
+    x: PAGE_MARGIN + threeColumnWidth + columnGap,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
     labelFont,
     valueFont,
   });
@@ -388,15 +409,15 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
       activity.numberOfPlayers === ""
         ? "—"
         : String(activity.numberOfPlayers),
-    x: PAGE_MARGIN + twoColumnWidth + columnGap,
-    y: y - twoColumnHeight,
-    width: twoColumnWidth,
-    height: twoColumnHeight,
+    x: PAGE_MARGIN + threeColumnWidth * 2 + columnGap * 2,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
     labelFont,
     valueFont,
   });
 
-  y -= twoColumnHeight + 18;
+  y -= compactBoxHeight + 18;
 
   const creatorFrames = getActivityCreatorFrames(activity.creatorState);
   if (activity.creatorState && creatorFrames.length > 0) {
@@ -459,7 +480,7 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
   drawMetadataBox({
     page,
     label: "Created By",
-    value: activity.createdBy || "—",
+    value: creatorDisplayName,
     x: PAGE_MARGIN,
     y: y - twoColumnHeight,
     width: twoColumnWidth,

@@ -12,13 +12,19 @@ import {
 } from "@/lib/supabaseActivities";
 import type { Activity } from "@/types/activity";
 import { canManageActivity } from "@/lib/activityPermissions";
-import { getCurrentUserProfile, type UserProfile } from "@/lib/userProfile";
+import {
+  getCurrentUserProfile,
+  getUserDisplayName,
+  type UserProfile,
+} from "@/lib/userProfile";
+import { supabase } from "@/lib/supabaseClient";
 import type {
   SearchFilterValues,
   SearchSortValue,
 } from "@/components/SearchPageClient";
 
 type SearchResultsPanelProps = {
+  myActivitiesOnly: boolean;
   includeHidden: boolean;
   filters: SearchFilterValues;
   sortValue: SearchSortValue;
@@ -188,6 +194,7 @@ function PreviewFallback() {
 }
 
 export default function SearchResultsPanel({
+  myActivitiesOnly,
   includeHidden,
   filters,
   sortValue,
@@ -205,6 +212,9 @@ export default function SearchResultsPanel({
   const [isLoadingActivities, setIsLoadingActivities] = useState(true);
   const [selectedPreviewFailed, setSelectedPreviewFailed] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [creatorDisplayName, setCreatorDisplayName] = useState("—");
   const [restoredSelectedActivityId, setRestoredSelectedActivityId] = useState<
     string | null
   >(null);
@@ -235,9 +245,29 @@ export default function SearchResultsPanel({
   }, []);
 
   const searchableActivities = useMemo(() => {
-    if (includeHidden) return activities;
-    return activities.filter((activity) => !activity.hidden);
-  }, [activities, includeHidden]);
+    const visibilityFilteredActivities = includeHidden
+      ? activities
+      : activities.filter((activity) => !activity.hidden);
+
+    if (!myActivitiesOnly) {
+      return visibilityFilteredActivities;
+    }
+
+    return visibilityFilteredActivities.filter((activity) => {
+      const createdBy = safeLower(activity.createdBy);
+
+      return (
+        Boolean(createdBy) &&
+        (createdBy === currentUserEmail || createdBy === currentUserId)
+      );
+    });
+  }, [
+    activities,
+    includeHidden,
+    myActivitiesOnly,
+    currentUserEmail,
+    currentUserId,
+  ]);
 
   const filteredActivities = useMemo(() => {
     if (!hasSearched) return [];
@@ -346,6 +376,29 @@ export default function SearchResultsPanel({
   useEffect(() => {
     let isMounted = true;
 
+    async function loadCurrentUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setCurrentUserEmail(safeLower(user?.email));
+      setCurrentUserId(safeLower(user?.id));
+    }
+
+    loadCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
     async function loadCurrentProfile() {
       try {
         const profile = await getCurrentUserProfile();
@@ -442,6 +495,24 @@ export default function SearchResultsPanel({
   useEffect(() => {
     setSelectedPreviewFailed(false);
   }, [selectedActivity?.id, selectedActivity?.previewDataUrl]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCreatorDisplayName() {
+      const displayName = await getUserDisplayName(selectedActivity?.createdBy);
+
+      if (isMounted) {
+        setCreatorDisplayName(displayName);
+      }
+    }
+
+    loadCreatorDisplayName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedActivity?.createdBy]);
 
   async function handleDownload() {
     if (!selectedActivity) return;
@@ -844,16 +915,14 @@ export default function SearchResultsPanel({
                 </div>
               </div>
 
-              {selectedActivity.fileName && (
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Imported File
-                  </div>
-                  <div className="break-words text-slate-600">
-                    {selectedActivity.fileName}
-                  </div>
+              <div>
+                <div className="font-semibold text-slate-700">
+                  Created By
                 </div>
-              )}
+                <div className="break-words text-slate-600">
+                  {creatorDisplayName}
+                </div>
+              </div>
             </div>
 
             {downloadMessage && (

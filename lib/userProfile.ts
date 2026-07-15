@@ -132,3 +132,40 @@ export async function markCurrentUserPasswordChanged() {
 export function isAdminProfile(profile?: UserProfile | null) {
   return profile?.role === "admin";
 }
+
+
+export async function getUserDisplayName(identifier?: string | null) {
+  const normalizedIdentifier = String(identifier ?? "").trim();
+
+  if (!normalizedIdentifier) {
+    return "—";
+  }
+
+  let query = supabase
+    .from("profiles")
+    .select("id, name, email")
+    .limit(1);
+
+  query = normalizedIdentifier.includes("@")
+    ? query.ilike("email", normalizedIdentifier)
+    : query.eq("id", normalizedIdentifier);
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    console.error("Unable to load user display name.", {
+      identifier: normalizedIdentifier,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+
+    return normalizedIdentifier;
+  }
+
+  const profile = data as Pick<UserProfile, "id" | "name" | "email"> | null;
+  const profileName = profile?.name?.trim();
+
+  return profileName || profile?.email || normalizedIdentifier;
+}

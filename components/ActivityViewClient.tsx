@@ -23,7 +23,11 @@ import {
 import type { Activity, ActivityCreatorFrame } from "@/types/activity";
 import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
 import { canManageActivity, isActivityOwner } from "@/lib/activityPermissions";
-import { getCurrentUserProfile, type UserProfile } from "@/lib/userProfile";
+import {
+  getCurrentUserProfile,
+  getUserDisplayName,
+  type UserProfile,
+} from "@/lib/userProfile";
 
 type ActivityViewClientProps = {
   activityId: string;
@@ -855,6 +859,7 @@ export default function ActivityViewClient({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isCreatingCopy, setIsCreatingCopy] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
+  const [creatorDisplayName, setCreatorDisplayName] = useState("—");
 
   async function recordActivityOpen(activityIdToRecord: string) {
     const { data } = await supabase.auth.getSession();
@@ -866,6 +871,24 @@ export default function ActivityViewClient({
 
     recordRecentActivityOpen(userId, activityIdToRecord);
   }
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCreatorDisplayName() {
+      const displayName = await getUserDisplayName(activity?.createdBy);
+
+      if (isMounted) {
+        setCreatorDisplayName(displayName);
+      }
+    }
+
+    loadCreatorDisplayName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activity?.createdBy]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1420,23 +1443,12 @@ export default function ActivityViewClient({
                   </div>
                 </div>
 
-                {activity.fileName && (
-                  <div>
-                    <div className="font-semibold text-slate-700">
-                      Imported File
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {activity.fileName}
-                    </div>
-                  </div>
-                )}
-
                 <div>
                   <div className="font-semibold text-slate-700">
                     Created By
                   </div>
                   <div className="mt-1 text-slate-600">
-                    {activity.createdBy}
+                    {creatorDisplayName}
                   </div>
                 </div>
               </div>

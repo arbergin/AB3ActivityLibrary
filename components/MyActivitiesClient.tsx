@@ -12,6 +12,7 @@ import {
 } from "@/lib/supabaseActivities";
 import { supabase } from "@/lib/supabaseClient";
 import type { Activity } from "@/types/activity";
+import { getUserDisplayName } from "@/lib/userProfile";
 
 type SortOption = "updated_desc" | "updated_asc" | "name_asc" | "name_desc";
 type PageSize = 10 | 20 | 30;
@@ -129,6 +130,7 @@ export default function MyActivitiesClient() {
   const [sortOption, setSortOption] = useState<SortOption>("updated_desc");
   const [pageSize, setPageSize] = useState<PageSize>(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [creatorDisplayName, setCreatorDisplayName] = useState("—");
 
   useEffect(() => {
     let isMounted = true;
@@ -243,6 +245,24 @@ export default function MyActivitiesClient() {
   useEffect(() => {
     setSelectedPreviewFailed(false);
   }, [selectedActivity?.id, selectedActivity?.previewDataUrl]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCreatorDisplayName() {
+      const displayName = await getUserDisplayName(selectedActivity?.createdBy);
+
+      if (isMounted) {
+        setCreatorDisplayName(displayName);
+      }
+    }
+
+    loadCreatorDisplayName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedActivity?.createdBy]);
 
   function handleSelectActivity(activity: Activity) {
     setSelectedActivity(activity);
@@ -693,16 +713,14 @@ export default function MyActivitiesClient() {
                       </div>
                     </div>
 
-                    {selectedActivity.fileName && (
-                      <div>
-                        <div className="font-semibold text-slate-700">
-                          Imported File
-                        </div>
-                        <div className="break-words text-slate-600">
-                          {selectedActivity.fileName}
-                        </div>
+                    <div>
+                      <div className="font-semibold text-slate-700">
+                        Created By
                       </div>
-                    )}
+                      <div className="break-words text-slate-600">
+                        {creatorDisplayName}
+                      </div>
+                    </div>
                   </div>
 
                   {downloadMessage ? (
