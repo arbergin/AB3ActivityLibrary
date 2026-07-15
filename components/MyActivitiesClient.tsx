@@ -41,6 +41,12 @@ function getUpdatedDateValue(activity: Activity) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
+function formatActivityVisibility(value?: Activity["visibility"]) {
+  if (value === "club") return "My Club";
+  if (value === "everyone") return "Everyone";
+  return "Private";
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
 
@@ -638,12 +644,23 @@ export default function MyActivitiesClient() {
 
                     </div>
 
-                    <div>
-                      <div className="font-semibold text-slate-700">
-                        Positions Involved
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Positions Involved
+                        </div>
+                        <div className="break-words text-slate-600">
+                          {selectedActivity.positionsInvolved || "—"}
+                        </div>
                       </div>
-                      <div className="break-words text-slate-600">
-                        {selectedActivity.positionsInvolved || "—"}
+
+                      <div>
+                        <div className="font-semibold text-slate-700">
+                          Activity Visibility
+                        </div>
+                        <div className="text-slate-600">
+                          {formatActivityVisibility(selectedActivity.visibility)}
+                        </div>
                       </div>
                     </div>
 

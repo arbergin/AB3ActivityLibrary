@@ -29,6 +29,12 @@ type ActivityViewClientProps = {
   activityId: string;
 };
 
+function formatActivityVisibility(value?: Activity["visibility"]) {
+  if (value === "club") return "My Club";
+  if (value === "everyone") return "Everyone";
+  return "Private";
+}
+
 function formatDate(dateValue?: string) {
   if (!dateValue) {
     return "—";
@@ -1365,12 +1371,23 @@ export default function ActivityViewClient({
                   </div>
                 </div>
 
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Positions Involved
+                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Positions Involved
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {activity.positionsInvolved || "—"}
+                    </div>
                   </div>
-                  <div className="mt-1 text-slate-600">
-                    {activity.positionsInvolved || "—"}
+
+                  <div>
+                    <div className="font-semibold text-slate-700">
+                      Activity Visibility
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {formatActivityVisibility(activity.visibility)}
+                    </div>
                   </div>
                 </div>
 
