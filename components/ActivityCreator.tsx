@@ -17,9 +17,10 @@ type ToolType =
   | "textBox"
   | "line"
   | "freehand"
+  | "dribble"
   | "eraser";
 
-type ObjectToolType = Exclude<ToolType, "line" | "freehand" | "eraser">;
+type ObjectToolType = Exclude<ToolType, "line" | "freehand" | "dribble" | "eraser">;
 
 type PitchBackgroundType =
   | "pitchGreen"
@@ -55,6 +56,7 @@ type PitchLine = {
   arrow: boolean;
   color: string;
   lineWidth: number;
+  lineStyle: "standard" | "dribble";
 };
 
 type PanState = {
@@ -122,6 +124,7 @@ const tools: { type: ToolType; label: string; shortLabel: string }[] = [
   { type: "textBox", label: "Text", shortLabel: "Text" },
   { type: "line", label: "Line", shortLabel: "Line" },
   { type: "freehand", label: "Free Draw", shortLabel: "Free" },
+  { type: "dribble", label: "Dribble Line", shortLabel: "Dribble" },
   { type: "eraser", label: "Erase", shortLabel: "Erase" },
 ];
 
@@ -136,7 +139,7 @@ const objectToolTypes: ToolType[] = [
   "textBox",
 ];
 
-const drawToolTypes: ToolType[] = ["line", "freehand", "eraser"];
+const drawToolTypes: ToolType[] = ["line", "freehand", "dribble", "eraser"];
 
 const presetColors = [
   { label: "Blue", value: "#2563eb" },
@@ -349,19 +352,17 @@ function ToolIcon({
 
   if (type === "freehand") {
     return (
-      <svg
-        viewBox="0 0 32 32"
-        className="h-7 w-7"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M4 20C8 8 12 26 16 15C20 4 23 24 28 11"
-          stroke={lineColor}
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" aria-hidden="true">
+        <path d="M4 20C8 8 12 26 16 15C20 4 23 24 28 11" stroke={lineColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (type === "dribble") {
+    return (
+      <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" aria-hidden="true">
+        <path d="M2 16C4.5 8 7.5 8 10 16C12.5 24 15.5 24 18 16C20.5 8 23.5 8 26 16C27.5 21 28.5 21 29.5 18" stroke={lineColor} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M25.5 16.5L29.5 18L27.8 22" stroke={lineColor} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
@@ -956,7 +957,7 @@ function normalizeCreatorState(
         []
       ),
       lines: (creatorState.lines ?? [])
-        .map((rawLine) => {
+        .map<PitchLine>((rawLine) => {
           const line = rawLine as Record<string, unknown>;
           const points = Array.isArray(line.points) ? line.points : [];
 
@@ -971,9 +972,10 @@ function normalizeCreatorState(
               };
             }),
             dashed: Boolean(line.dashed ?? line.isDashed),
-            arrow: Boolean(line.arrow ?? line.isArrow),
+            arrow: line.lineStyle === "dribble" ? true : Boolean(line.arrow ?? line.isArrow),
             color: colorToCss(line.color, "#111827"),
             lineWidth: getFiniteNumber(line.lineWidth, 4),
+            lineStyle: line.lineStyle === "dribble" ? "dribble" : "standard",
           };
         })
         .filter((line) => line.points.length >= 2),
@@ -1054,7 +1056,7 @@ function normalizeCreatorState(
       []
     ),
     lines: (creatorState.lines ?? [])
-      .map((rawLine) => {
+      .map<PitchLine>((rawLine) => {
         const line = rawLine as Record<string, unknown>;
         const points = Array.isArray(line.points) ? line.points : [];
 
@@ -1069,9 +1071,10 @@ function normalizeCreatorState(
             };
           }),
           dashed: Boolean(line.dashed),
-          arrow: Boolean(line.arrow),
+          arrow: line.lineStyle === "dribble" ? true : Boolean(line.arrow),
           color: typeof line.color === "string" ? line.color : defaultState.settings.lineColor,
           lineWidth: getFiniteNumber(line.lineWidth, 4),
+          lineStyle: line.lineStyle === "dribble" ? "dribble" : "standard",
         };
       })
       .filter((line) => line.points.length >= 2),
@@ -1443,6 +1446,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             isArrow: line.arrow,
             color: line.color,
             lineWidth: line.lineWidth,
+            lineStyle: line.lineStyle,
           })),
         };
       }),
@@ -1478,6 +1482,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         isArrow: line.arrow,
         color: line.color,
         lineWidth: line.lineWidth,
+        lineStyle: line.lineStyle,
       })),
     }),
     [
@@ -1731,13 +1736,18 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context.lineCap = "round";
     context.lineJoin = "round";
 
-    if (line.dashed) {
+    if (line.lineStyle !== "dribble" && line.dashed) {
       context.setLineDash([previewLineWidth * 2.5, previewLineWidth * 2]);
     }
 
     context.beginPath();
 
-    line.points.forEach((point, index) => {
+    const previewPoints =
+      line.lineStyle === "dribble"
+        ? getDribblePolylinePoints(line.points)
+        : line.points;
+
+    previewPoints.forEach((point, index) => {
       const x = (point.x / 100) * canvasWidth;
       const y = (point.y / 100) * canvasHeight;
 
@@ -1751,26 +1761,48 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     context.stroke();
 
-    if (line.arrow && line.points.length >= 2) {
-      const endPoint = line.points[line.points.length - 1];
-      const previousPoint = line.points[line.points.length - 2];
+    if ((line.arrow || line.lineStyle === "dribble") && line.points.length >= 2) {
+      const arrowPoints =
+        line.lineStyle === "dribble"
+          ? getDribblePolylinePoints(line.points)
+          : line.points;
+      const endPoint = arrowPoints[arrowPoints.length - 1];
+      const directionStart =
+        line.lineStyle === "dribble"
+          ? line.points[0]
+          : arrowPoints[arrowPoints.length - 2] ??
+            line.points[line.points.length - 2];
+      const underlyingEnd = line.points[line.points.length - 1];
       const endX = (endPoint.x / 100) * canvasWidth;
       const endY = (endPoint.y / 100) * canvasHeight;
-      const previousX = (previousPoint.x / 100) * canvasWidth;
-      const previousY = (previousPoint.y / 100) * canvasHeight;
-      const angle = Math.atan2(endY - previousY, endX - previousX);
+      const startX = (directionStart.x / 100) * canvasWidth;
+      const startY = (directionStart.y / 100) * canvasHeight;
+      const underlyingEndX = (underlyingEnd.x / 100) * canvasWidth;
+      const underlyingEndY = (underlyingEnd.y / 100) * canvasHeight;
+      const angle = Math.atan2(
+        underlyingEndY - startY,
+        underlyingEndX - startX
+      );
+      const arrowExtension =
+        line.lineStyle === "dribble" ? canvasWidth * 0.036 : 0;
+      const tipX = endX + arrowExtension * Math.cos(angle);
+      const tipY = endY + arrowExtension * Math.sin(angle);
       const arrowLength = canvasWidth * 0.03;
       const arrowAngle = Math.PI / 6;
 
       context.beginPath();
+      if (line.lineStyle === "dribble") {
+        context.moveTo(endX, endY);
+        context.lineTo(tipX, tipY);
+      }
       context.moveTo(
-        endX - arrowLength * Math.cos(angle - arrowAngle),
-        endY - arrowLength * Math.sin(angle - arrowAngle)
+        tipX - arrowLength * Math.cos(angle - arrowAngle),
+        tipY - arrowLength * Math.sin(angle - arrowAngle)
       );
-      context.lineTo(endX, endY);
+      context.lineTo(tipX, tipY);
       context.lineTo(
-        endX - arrowLength * Math.cos(angle + arrowAngle),
-        endY - arrowLength * Math.sin(angle + arrowAngle)
+        tipX - arrowLength * Math.cos(angle + arrowAngle),
+        tipY - arrowLength * Math.sin(angle + arrowAngle)
       );
       context.stroke();
     }
@@ -2427,7 +2459,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       setSelectedObjectId(null);
     }
 
-    if (selectedTool === "line" || selectedTool === "freehand") {
+    if (selectedTool === "line" || selectedTool === "freehand" || selectedTool === "dribble") {
       setActiveLinePoints([point]);
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
@@ -2475,7 +2507,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return;
     }
 
-    if (selectedTool === "freehand" && activeLinePoints.length > 0) {
+    if ((selectedTool === "freehand" || selectedTool === "dribble") && activeLinePoints.length > 0) {
       setActiveLinePoints((currentPoints) => [...currentPoints, point]);
       return;
     }
@@ -2509,7 +2541,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     }
 
     if (
-      (selectedTool === "line" || selectedTool === "freehand") &&
+      (selectedTool === "line" || selectedTool === "freehand" || selectedTool === "dribble") &&
       activeLinePoints.length > 1
     ) {
       saveHistorySnapshot();
@@ -2519,10 +2551,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         {
           id: makeId(),
           points: activeLinePoints,
-          dashed: isDashed,
-          arrow: isArrow,
+          dashed: selectedTool === "dribble" ? false : isDashed,
+          arrow: selectedTool === "dribble" ? true : isArrow,
           color: lineColor,
           lineWidth,
+          lineStyle: selectedTool === "dribble" ? "dribble" : "standard",
         },
       ]);
     }
@@ -2805,27 +2838,78 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
   }
 
+  function getDribblePolylinePoints(points: { x: number; y: number }[]) {
+    if (points.length < 2) return points;
+
+    const wavelength = 4.2;
+    const amplitude = 1.15;
+    const sampleStep = 0.45;
+    const output: { x: number; y: number }[] = [];
+    let travelled = 0;
+
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const start = points[index];
+      const end = points[index + 1];
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 0.001) continue;
+
+      const normalX = -dy / length;
+      const normalY = dx / length;
+      const steps = Math.max(1, Math.ceil(length / sampleStep));
+
+      for (let step = 0; step <= steps; step += 1) {
+        if (index > 0 && step === 0) continue;
+        const t = step / steps;
+        const distance = travelled + length * t;
+        const offset = Math.sin((distance / wavelength) * Math.PI * 2) * amplitude;
+        output.push({
+          x: start.x + dx * t + normalX * offset,
+          y: start.y + dy * t + normalY * offset,
+        });
+      }
+
+      travelled += length;
+    }
+
+    return output;
+  }
+
   function renderLine(line: PitchLine, isPreview = false) {
     if (line.points.length < 2) {
       return null;
     }
 
-    const points = line.points.map((point) => `${point.x},${point.y}`).join(" ");
+    const renderedPoints = line.lineStyle === "dribble" ? getDribblePolylinePoints(line.points) : line.points;
+    const points = renderedPoints.map((point) => `${point.x},${point.y}`).join(" ");
 
-    const end = line.points[line.points.length - 1];
-    const previous = line.points[line.points.length - 2];
-    const angle = Math.atan2(end.y - previous.y, end.x - previous.x);
+    const end = renderedPoints[renderedPoints.length - 1];
+    const directionStart =
+      line.lineStyle === "dribble"
+        ? line.points[0]
+        : renderedPoints[renderedPoints.length - 2] ??
+          line.points[line.points.length - 2];
+    const angle = Math.atan2(
+      line.points[line.points.length - 1].y - directionStart.y,
+      line.points[line.points.length - 1].x - directionStart.x
+    );
+    const arrowExtension = line.lineStyle === "dribble" ? 3.6 : 0;
+    const arrowTip = {
+      x: end.x + arrowExtension * Math.cos(angle),
+      y: end.y + arrowExtension * Math.sin(angle),
+    };
     const arrowLength = 2.5;
     const arrowAngle = Math.PI / 6;
 
     const arrowPoint1 = {
-      x: end.x - arrowLength * Math.cos(angle - arrowAngle),
-      y: end.y - arrowLength * Math.sin(angle - arrowAngle),
+      x: arrowTip.x - arrowLength * Math.cos(angle - arrowAngle),
+      y: arrowTip.y - arrowLength * Math.sin(angle - arrowAngle),
     };
 
     const arrowPoint2 = {
-      x: end.x - arrowLength * Math.cos(angle + arrowAngle),
-      y: end.y - arrowLength * Math.sin(angle + arrowAngle),
+      x: arrowTip.x - arrowLength * Math.cos(angle + arrowAngle),
+      y: arrowTip.y - arrowLength * Math.sin(angle + arrowAngle),
     };
 
     const strokeColor = isPreview ? lineColor : line.color;
@@ -2842,20 +2926,34 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeDasharray={line.dashed ? `${dashLength} ${dashGap}` : undefined}
+          strokeDasharray={line.lineStyle !== "dribble" && line.dashed ? `${dashLength} ${dashGap}` : undefined}
           opacity={isPreview ? 0.75 : 1}
         />
 
-        {line.arrow && (
-          <polyline
-            points={`${arrowPoint1.x},${arrowPoint1.y} ${end.x},${end.y} ${arrowPoint2.x},${arrowPoint2.y}`}
-            fill="none"
-            stroke={strokeColor}
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={isPreview ? 0.75 : 1}
-          />
+        {(line.arrow || line.lineStyle === "dribble") && (
+          <>
+            {line.lineStyle === "dribble" && (
+              <line
+                x1={end.x}
+                y1={end.y}
+                x2={arrowTip.x}
+                y2={arrowTip.y}
+                stroke={strokeColor}
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                opacity={isPreview ? 0.75 : 1}
+              />
+            )}
+            <polyline
+              points={`${arrowPoint1.x},${arrowPoint1.y} ${arrowTip.x},${arrowTip.y} ${arrowPoint2.x},${arrowPoint2.y}`}
+              fill="none"
+              stroke={strokeColor}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={isPreview ? 0.75 : 1}
+            />
+          </>
         )}
       </g>
     );
@@ -3915,9 +4013,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                       id: "preview",
                       points: activeLinePoints,
                       dashed: isDashed,
-                      arrow: isArrow,
+                      arrow: selectedTool === "dribble" ? true : isArrow,
                       color: lineColor,
                       lineWidth,
+                      lineStyle: selectedTool === "dribble" ? "dribble" : "standard",
                     },
                     true
                   )}

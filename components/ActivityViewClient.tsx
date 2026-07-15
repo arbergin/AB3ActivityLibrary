@@ -74,6 +74,7 @@ type PreviewLine = {
   arrow: boolean;
   color: string;
   lineWidth: number;
+  lineStyle: "standard" | "dribble";
 };
 
 const PREVIEW_ASSETS = {
@@ -336,9 +337,10 @@ function getCreatorStateLines(activity: Activity): PreviewLine[] {
         id: getStringValue(rawLine.id, crypto.randomUUID()),
         points,
         dashed: Boolean(rawLine.dashed ?? rawLine.isDashed),
-        arrow: Boolean(rawLine.arrow ?? rawLine.isArrow),
+        arrow: getStringValue(rawLine.lineStyle) === "dribble" ? true : Boolean(rawLine.arrow ?? rawLine.isArrow),
         color: colorToCss(rawLine.color, "#111827"),
         lineWidth: getNumberValue(rawLine.lineWidth, 4),
+        lineStyle: getStringValue(rawLine.lineStyle) === "dribble" ? "dribble" : "standard",
       };
     })
     .filter((line): line is PreviewLine => Boolean(line));
@@ -438,23 +440,75 @@ function CodedPitchBackground({
   );
 }
 
-function renderPreviewLine(line: PreviewLine) {
-  const points = line.points.map((point) => `${point.x},${point.y}`).join(" ");
+function getDribblePolylinePoints(points: { x: number; y: number }[]) {
+  if (points.length < 2) return points;
 
-  const end = line.points[line.points.length - 1];
-  const previous = line.points[line.points.length - 2];
-  const angle = Math.atan2(end.y - previous.y, end.x - previous.x);
+  const wavelength = 4.2;
+  const amplitude = 1.15;
+  const sampleStep = 0.45;
+  const output: { x: number; y: number }[] = [];
+  let travelled = 0;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 0.001) continue;
+
+    const normalX = -dy / length;
+    const normalY = dx / length;
+    const steps = Math.max(1, Math.ceil(length / sampleStep));
+
+    for (let step = 0; step <= steps; step += 1) {
+      if (index > 0 && step === 0) continue;
+      const t = step / steps;
+      const distance = travelled + length * t;
+      const offset = Math.sin((distance / wavelength) * Math.PI * 2) * amplitude;
+      output.push({
+        x: start.x + dx * t + normalX * offset,
+        y: start.y + dy * t + normalY * offset,
+      });
+    }
+
+    travelled += length;
+  }
+
+  return output;
+}
+
+function renderPreviewLine(line: PreviewLine) {
+  const renderedPoints = line.lineStyle === "dribble" ? getDribblePolylinePoints(line.points) : line.points;
+  const points = renderedPoints.map((point) => `${point.x},${point.y}`).join(" ");
+
+  const end = renderedPoints[renderedPoints.length - 1];
+  const directionStart =
+    line.lineStyle === "dribble"
+      ? line.points[0]
+      : renderedPoints[renderedPoints.length - 2] ??
+        line.points[line.points.length - 2];
+  const underlyingEnd = line.points[line.points.length - 1];
+  const angle = Math.atan2(
+    underlyingEnd.y - directionStart.y,
+    underlyingEnd.x - directionStart.x
+  );
+  const arrowExtension = line.lineStyle === "dribble" ? 3.0 : 0;
+  const arrowTip = {
+    x: end.x + arrowExtension * Math.cos(angle),
+    y: end.y + arrowExtension * Math.sin(angle),
+  };
   const arrowLength = clamp(1.1 + line.lineWidth * 0.18, 1.3, 2.1);
   const arrowAngle = Math.PI / 6;
 
   const arrowPoint1 = {
-    x: end.x - arrowLength * Math.cos(angle - arrowAngle),
-    y: end.y - arrowLength * Math.sin(angle - arrowAngle),
+    x: arrowTip.x - arrowLength * Math.cos(angle - arrowAngle),
+    y: arrowTip.y - arrowLength * Math.sin(angle - arrowAngle),
   };
 
   const arrowPoint2 = {
-    x: end.x - arrowLength * Math.cos(angle + arrowAngle),
-    y: end.y - arrowLength * Math.sin(angle + arrowAngle),
+    x: arrowTip.x - arrowLength * Math.cos(angle + arrowAngle),
+    y: arrowTip.y - arrowLength * Math.sin(angle + arrowAngle),
   };
 
   const strokeWidth = Math.max(0.14, line.lineWidth * 0.1375);
@@ -470,18 +524,31 @@ function renderPreviewLine(line: PreviewLine) {
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeDasharray={line.dashed ? `${dashLength} ${dashGap}` : undefined}
+        strokeDasharray={line.lineStyle !== "dribble" && line.dashed ? `${dashLength} ${dashGap}` : undefined}
       />
 
-      {line.arrow && (
-        <polyline
-          points={`${arrowPoint1.x},${arrowPoint1.y} ${end.x},${end.y} ${arrowPoint2.x},${arrowPoint2.y}`}
-          fill="none"
-          stroke={line.color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      {(line.arrow || line.lineStyle === "dribble") && (
+        <>
+          {line.lineStyle === "dribble" && (
+            <line
+              x1={end.x}
+              y1={end.y}
+              x2={arrowTip.x}
+              y2={arrowTip.y}
+              stroke={line.color}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+            />
+          )}
+          <polyline
+            points={`${arrowPoint1.x},${arrowPoint1.y} ${arrowTip.x},${arrowTip.y} ${arrowPoint2.x},${arrowPoint2.y}`}
+            fill="none"
+            stroke={line.color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </>
       )}
     </g>
   );

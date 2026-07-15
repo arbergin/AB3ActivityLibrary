@@ -50,6 +50,8 @@ export type ActivityCreatorObject = {
   rotationDegrees?: number;
 };
 
+export type ActivityCreatorLineStyle = "standard" | "dribble";
+
 export type ActivityCreatorLine = {
   id: string;
   points: ActivityCreatorLinePoint[];
@@ -67,6 +69,7 @@ export type ActivityCreatorLine = {
   isArrow?: boolean;
 
   lineWidth?: number;
+  lineStyle?: ActivityCreatorLineStyle;
   color: string | ActivityCreatorColorObject;
 };
 
