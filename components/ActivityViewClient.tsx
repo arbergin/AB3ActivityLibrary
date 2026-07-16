@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import ActivityDownloadButton from "@/components/ActivityDownloadButton";
 import AppHeader from "@/components/AppHeader";
 import ProtectedPage from "@/components/ProtectedPage";
 import {
   deleteStoredActivity,
   getStoredActivityById,
 } from "@/lib/activityStorage";
-import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
 import { mockActivities } from "@/lib/mockActivities";
 import { recordRecentActivityOpen } from "@/lib/recentActivityViews";
 import { supabase } from "@/lib/supabaseClient";
@@ -971,28 +971,6 @@ export default function ActivityViewClient({
     };
   }, [activityId]);
 
-  async function handleDownload() {
-    if (!activity) {
-      return;
-    }
-
-    setActionMessage("");
-    setShowDeleteConfirm(false);
-
-    if (!activity.previewDataUrl) {
-      setDownloadMessage("No imported file is available for this activity.");
-      return;
-    }
-
-    try {
-      await downloadActivityAsPdf(activity);
-      setDownloadMessage("PDF export download started.");
-    } catch (error) {
-      console.error("PDF export failed.", error);
-      setDownloadMessage("The PDF export could not be created.");
-    }
-  }
-
   async function handleCreateCopy() {
     if (!activity || activitySource !== "supabase") {
       return;
@@ -1167,13 +1145,10 @@ export default function ActivityViewClient({
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white"
-                  >
-                    Download
-                  </button>
+                  <ActivityDownloadButton
+                    activity={activity}
+                    onMessage={setDownloadMessage}
+                  />
 
                   {showCreateCopy && (
                     <button

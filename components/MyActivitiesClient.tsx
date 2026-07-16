@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
+import ActivityDownloadButton from "@/components/ActivityDownloadButton";
 import { getActivityCreatorFrameCount } from "@/lib/activityCreatorFrames";
 import {
   deleteSupabaseActivity,
@@ -275,26 +275,6 @@ export default function MyActivitiesClient() {
     setDownloadMessage("");
   }
 
-  async function handleDownload() {
-    if (!selectedActivity) return;
-
-    setDeleteMessage("");
-    setShowDeleteConfirm(false);
-
-    if (!selectedActivity.previewDataUrl) {
-      setDownloadMessage("No imported file is available for this activity.");
-      return;
-    }
-
-    try {
-      await downloadActivityAsPdf(selectedActivity);
-      setDownloadMessage("PDF export download started.");
-    } catch (error) {
-      console.error("PDF export failed.", error);
-      setDownloadMessage("The PDF export could not be created.");
-    }
-  }
-
 
   async function handleCreateCopy() {
     if (!selectedActivity || isCreatingCopy) return;
@@ -533,13 +513,10 @@ export default function MyActivitiesClient() {
 
                 {selectedActivity && (
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={handleDownload}
-                      className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#17345f]"
-                    >
-                      Download
-                    </button>
+                    <ActivityDownloadButton
+                    activity={selectedActivity}
+                    onMessage={setDownloadMessage}
+                  />
 
                     <button
                       type="button"
