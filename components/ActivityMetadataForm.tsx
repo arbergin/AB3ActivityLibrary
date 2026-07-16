@@ -15,6 +15,7 @@ import {
   updateSupabaseActivity,
 } from "@/lib/supabaseActivities";
 import type { Activity, ActivityCreatorState, ActivityVisibility } from "@/types/activity";
+import ActivityDetailsEditor from "@/components/ActivityDetailsEditor";
 
 
 const defaultDropdownOptions: ActivityFormDropdownOptions = {
@@ -319,6 +320,41 @@ export default function ActivityMetadataForm({
     );
   }
 
+  function renderActivityDetailsSection() {
+    return (
+      <div className="grid gap-1">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold">Activity Details</span>
+
+          <button
+            type="button"
+            onClick={() =>
+              setIsDetailsExpanded((currentValue) => !currentValue)
+            }
+            disabled={isSaving}
+            className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isDetailsExpanded ? "Collapse" : "Expand"}
+          </button>
+        </div>
+
+        <ActivityDetailsEditor
+          value={activityDetails}
+          onChange={setActivityDetails}
+          disabled={isSaving}
+          expanded={isDetailsExpanded}
+          placeholder="Describe setup, rules, coaching points, progressions, or constraints."
+        />
+
+        {isDetailsExpanded && (
+          <div className="text-xs text-slate-500">
+            Expanded for easier editing. Click Collapse when you are done.
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <form
       onSubmit={handleSaveActivity}
@@ -408,6 +444,10 @@ export default function ActivityMetadataForm({
           </div>
         )}
 
+      {isDetailsExpanded && (
+        <div className="mt-4">{renderActivityDetailsSection()}</div>
+      )}
+
       <div className="mt-4 grid gap-4">
         <label className="grid gap-1">
           <span className="text-sm font-semibold">
@@ -463,37 +503,7 @@ export default function ActivityMetadataForm({
           </label>
         </div>
 
-        <label className="grid gap-1">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold">Activity Details</span>
-
-            <button
-              type="button"
-              onClick={() =>
-                setIsDetailsExpanded((currentValue) => !currentValue)
-              }
-              disabled={isSaving}
-              className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isDetailsExpanded ? "Collapse" : "Expand"}
-            </button>
-          </div>
-
-          <textarea
-            value={activityDetails}
-            onChange={(event) => setActivityDetails(event.target.value)}
-            className={`rounded-lg border border-slate-300 px-3 py-2 transition-[min-height] duration-200 ${
-              isDetailsExpanded ? "min-h-[420px]" : "min-h-32"
-            }`}
-            placeholder="Describe setup, rules, coaching points, progressions, or constraints."
-          />
-
-          {isDetailsExpanded && (
-            <div className="text-xs text-slate-500">
-              Expanded for easier editing. Click Collapse when you are done.
-            </div>
-          )}
-        </label>
+        {!isDetailsExpanded && renderActivityDetailsSection()}
 
         {formError && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">

@@ -18,6 +18,7 @@ import {
   type UserProfile,
 } from "@/lib/userProfile";
 import { supabase } from "@/lib/supabaseClient";
+import ActivityDetailsMarkdown from "@/components/ActivityDetailsMarkdown";
 import type {
   SearchFilterValues,
   SearchSortValue,
@@ -890,9 +891,10 @@ export default function SearchResultsPanel({
                 <div className="font-semibold text-slate-700">
                   Activity Details
                 </div>
-                <div className="whitespace-pre-line break-words text-slate-600">
-                  {selectedActivity.activityDetails || "—"}
-                </div>
+                <ActivityDetailsMarkdown
+                  value={selectedActivity.activityDetails}
+                  className="text-slate-600"
+                />
               </div>
 
               <div className="grid min-w-0 gap-3 sm:grid-cols-2">

@@ -23,6 +23,7 @@ import {
 import type { Activity, ActivityCreatorFrame } from "@/types/activity";
 import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
 import { canManageActivity, isActivityOwner } from "@/lib/activityPermissions";
+import ActivityDetailsMarkdown from "@/components/ActivityDetailsMarkdown";
 import {
   getCurrentUserProfile,
   getUserDisplayName,
@@ -1418,9 +1419,10 @@ export default function ActivityViewClient({
                   <div className="font-semibold text-slate-700">
                     Activity Details
                   </div>
-                  <div className="mt-1 whitespace-pre-line break-words text-slate-600">
-                    {activity.activityDetails || "—"}
-                  </div>
+                  <ActivityDetailsMarkdown
+                    value={activity.activityDetails}
+                    className="mt-1 text-slate-600"
+                  />
                 </div>
 
                 <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">

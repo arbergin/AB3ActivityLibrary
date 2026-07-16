@@ -8,6 +8,7 @@ import {
 import type { Activity } from "@/types/activity";
 import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
 import { getUserDisplayName } from "@/lib/userProfile";
+import { parseActivityDetailsMarkdown } from "@/lib/activityDetailsMarkdown";
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
@@ -318,6 +319,8 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
   const titleFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
   const labelFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
   const valueFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
+  const boldValueFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
+  const italicValueFont = await pdfDocument.embedFont(StandardFonts.HelveticaOblique);
 
   const contentWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
   let y = PAGE_HEIGHT - PAGE_MARGIN;
@@ -453,27 +456,36 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
 
   y -= 20;
 
-  const detailsText = activity.activityDetails || "—";
-  const detailsLines = wrapText(detailsText, valueFont, 12, contentWidth);
+  const detailsBlocks = parseActivityDetailsMarkdown(activity.activityDetails || "—");
+  const detailsFontSize = 12;
   const detailsLineHeight = 16;
 
-  detailsLines.forEach((line) => {
-    if (y < 120) {
-      return;
+  for (const block of detailsBlocks) {
+    if (y < 120) break;
+    if (block.type === "blank") { y -= detailsLineHeight / 2; continue; }
+    const bulletIndent = block.type === "bullet" ? 14 : 0;
+    if (block.type === "bullet") {
+      page.drawText("•", { x: PAGE_MARGIN, y, size: detailsFontSize, font: valueFont, color: rgb(0.1, 0.15, 0.22) });
     }
-
-    if (line) {
-      page.drawText(line, {
-        x: PAGE_MARGIN,
-        y,
-        size: 12,
-        font: valueFont,
-        color: rgb(0.1, 0.15, 0.22),
-      });
+    let currentX = PAGE_MARGIN + bulletIndent;
+    for (const run of block.runs) {
+      const runFont = run.bold ? boldValueFont : run.italic ? italicValueFont : valueFont;
+      for (const word of run.text.split(/(\s+)/)) {
+        const wordWidth = runFont.widthOfTextAtSize(word, detailsFontSize);
+        if (currentX + wordWidth > PAGE_MARGIN + contentWidth && currentX > PAGE_MARGIN + bulletIndent) {
+          y -= detailsLineHeight; currentX = PAGE_MARGIN + bulletIndent; if (y < 120) break;
+        }
+        if (word && y >= 120) {
+          page.drawText(word, { x: currentX, y, size: detailsFontSize, font: runFont, color: rgb(0.1, 0.15, 0.22) });
+          if (run.underline && word.trim()) {
+            page.drawLine({ start: { x: currentX, y: y - 1.5 }, end: { x: currentX + wordWidth, y: y - 1.5 }, thickness: 0.7, color: rgb(0.1, 0.15, 0.22) });
+          }
+        }
+        currentX += wordWidth;
+      }
     }
-
     y -= detailsLineHeight;
-  });
+  }
 
   y -= 14;
 

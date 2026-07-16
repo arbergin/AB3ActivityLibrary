@@ -15,6 +15,7 @@ import type { DropdownField } from "@/lib/dropdownTypes";
 import type { Activity } from "@/types/activity";
 import { canManageActivity } from "@/lib/activityPermissions";
 import { getCurrentUserProfile, type UserProfile } from "@/lib/userProfile";
+import ActivityDetailsEditor from "@/components/ActivityDetailsEditor";
 
 type ActivityEditClientProps = {
   activityId: string;
@@ -241,6 +242,7 @@ function MetadataOnlyEditor({
   const [dropdownFields, setDropdownFields] = useState<DropdownField[]>([]);
   const [isLoadingDropdowns, setIsLoadingDropdowns] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [formMessage, setFormMessage] = useState("");
   const [formError, setFormError] = useState("");
 
@@ -351,6 +353,44 @@ function MetadataOnlyEditor({
     }
   }
 
+  function renderActivityDetailsSection() {
+    return (
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-slate-700">
+            Activity Details
+          </span>
+
+          <button
+            type="button"
+            onClick={() =>
+              setIsDetailsExpanded((currentValue) => !currentValue)
+            }
+            disabled={isSaving}
+            className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isDetailsExpanded ? "Collapse" : "Expand"}
+          </button>
+        </div>
+
+        <ActivityDetailsEditor
+          value={formValues.activityDetails}
+          onChange={(value) => updateField("activityDetails", value)}
+          disabled={isSaving}
+          expanded={isDetailsExpanded}
+          rows={8}
+          placeholder="Describe setup, rules, coaching points, progressions, or constraints."
+        />
+
+        {isDetailsExpanded && (
+          <div className="text-xs text-slate-500">
+            Expanded for easier editing. Click Collapse when you are done.
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
       <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -359,6 +399,10 @@ function MetadataOnlyEditor({
           This imported PNG/PDF can keep its original preview file while you
           update the searchable metadata.
         </p>
+
+        {isDetailsExpanded && (
+          <div className="mt-6">{renderActivityDetailsSection()}</div>
+        )}
 
         <div className="mt-6 grid gap-5">
           <label className="grid gap-2">
@@ -469,17 +513,7 @@ function MetadataOnlyEditor({
             </label>
           </div>
 
-          <label className="grid gap-2">
-            <span className="text-sm font-semibold text-slate-700">
-              Activity Details
-            </span>
-            <textarea
-              value={formValues.activityDetails}
-              onChange={(event) => updateField("activityDetails", event.target.value)}
-              rows={8}
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
+          {!isDetailsExpanded && renderActivityDetailsSection()}
         </div>
 
         {formError && (

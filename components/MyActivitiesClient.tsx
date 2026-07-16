@@ -13,6 +13,8 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import type { Activity } from "@/types/activity";
 import { getUserDisplayName } from "@/lib/userProfile";
+import ActivityDetailsMarkdown from "@/components/ActivityDetailsMarkdown";
+import { stripActivityDetailsMarkdown } from "@/lib/activityDetailsMarkdown";
 
 type SortOption = "updated_desc" | "updated_asc" | "name_asc" | "name_desc";
 type PageSize = 10 | 20 | 30;
@@ -492,10 +494,8 @@ export default function MyActivitiesClient() {
                                 {getActivityName(activity)}
                               </div>
                               <div className="mt-1 line-clamp-2 max-w-xl whitespace-pre-line text-sm text-slate-500">
-                                {renderMultilineText(
-                                  activity.activityDetails,
-                                  "No activity details provided.",
-                                )}
+                                {stripActivityDetailsMarkdown(activity.activityDetails) ||
+                                  "No activity details provided."}
                               </div>
                             </div>
                           </td>
@@ -688,9 +688,10 @@ export default function MyActivitiesClient() {
                       <div className="font-semibold text-slate-700">
                         Activity Details
                       </div>
-                      <div className="whitespace-pre-line break-words text-slate-600">
-                        {renderMultilineText(selectedActivity.activityDetails)}
-                      </div>
+                      <ActivityDetailsMarkdown
+                        value={selectedActivity.activityDetails}
+                        className="text-slate-600"
+                      />
                     </div>
 
                     <div className="grid min-w-0 gap-3 sm:grid-cols-2">
