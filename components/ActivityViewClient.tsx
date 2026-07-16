@@ -8,7 +8,6 @@ import ProtectedPage from "@/components/ProtectedPage";
 import {
   deleteStoredActivity,
   getStoredActivityById,
-  updateStoredActivityHidden,
 } from "@/lib/activityStorage";
 import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
 import { mockActivities } from "@/lib/mockActivities";
@@ -18,11 +17,10 @@ import {
   deleteSupabaseActivity,
   duplicateSupabaseActivity,
   getSupabaseActivityById,
-  updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
 import type { Activity, ActivityCreatorFrame } from "@/types/activity";
 import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
-import { canManageActivity, isActivityOwner } from "@/lib/activityPermissions";
+import { canManageActivity } from "@/lib/activityPermissions";
 import ActivityDetailsMarkdown from "@/components/ActivityDetailsMarkdown";
 import {
   getCurrentUserProfile,
@@ -1015,57 +1013,6 @@ export default function ActivityViewClient({
     }
   }
 
-  async function handleToggleHidden() {
-    if (!activity) {
-      return;
-    }
-
-    setDownloadMessage("");
-    setShowDeleteConfirm(false);
-    setActionMessage("");
-
-    if (activitySource === "supabase") {
-      try {
-        const updatedActivity = await updateSupabaseActivityHidden(
-          activity.id,
-          !activity.hidden
-        );
-
-        setActivity(updatedActivity);
-        setActionMessage(
-          updatedActivity.hidden
-            ? "Activity hidden. Check Include hidden activities on Search to view it again."
-            : "Activity is visible again."
-        );
-        return;
-      } catch (error) {
-        console.error("Supabase hide/unhide failed.", error);
-        setActionMessage("This activity could not be updated in Supabase.");
-        return;
-      }
-    }
-
-    const updatedActivity = updateStoredActivityHidden(
-      activity.id,
-      !activity.hidden
-    );
-
-    if (!updatedActivity) {
-      setActionMessage(
-        "Only imported activities can be hidden for now. Sample activities are read-only."
-      );
-      return;
-    }
-
-    setActivity(updatedActivity);
-    setActivitySource("local");
-
-    setActionMessage(
-      updatedActivity.hidden
-        ? "Activity hidden. Check Include hidden activities on Search to view it again."
-        : "Activity is visible again."
-    );
-  }
 
   function handleDeleteClick() {
     setDownloadMessage("");
@@ -1119,8 +1066,7 @@ export default function ActivityViewClient({
     activitySource !== "supabase" || canManageActivity(activity, currentProfile);
   const showCreateCopy =
     activitySource === "supabase" &&
-    Boolean(currentProfile) &&
-    !isActivityOwner(activity, currentProfile);
+    Boolean(currentProfile);
 
   if (!hasLoaded) {
     return (
@@ -1221,6 +1167,14 @@ export default function ActivityViewClient({
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white"
+                  >
+                    Download
+                  </button>
+
                   {showCreateCopy && (
                     <button
                       type="button"
@@ -1232,14 +1186,6 @@ export default function ActivityViewClient({
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    className="rounded-lg bg-[#0d2140] px-3 py-1.5 text-sm font-semibold text-white"
-                  >
-                    Download
-                  </button>
-
                   {canManageCurrentActivity && (
                     <>
                       <Link
@@ -1248,14 +1194,6 @@ export default function ActivityViewClient({
                       >
                         {activity.creatorState ? "Edit Activity" : "Edit Metadata"}
                       </Link>
-
-                      <button
-                        type="button"
-                        onClick={handleToggleHidden}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
-                      >
-                        {activity.hidden ? "Unhide" : "Hide"}
-                      </button>
 
                       <button
                         type="button"

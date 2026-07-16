@@ -1278,7 +1278,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     [initialCreatorState, normalizedInitialCreatorState]
   );
   const pitchRef = useRef<HTMLDivElement | null>(null);
-  const hasLoadedUserSettingsRef = useRef(false);
+  const [hasLoadedUserSettings, setHasLoadedUserSettings] = useState(false);
 
   const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
   const [mobileToolGroup, setMobileToolGroup] =
@@ -1396,99 +1396,114 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     try {
       const savedValue = window.localStorage.getItem(USER_CREATOR_SETTINGS_KEY);
 
-      if (savedValue && !initialActivity) {
+      if (savedValue) {
         const savedSettings = JSON.parse(
           savedValue
         ) as Partial<PersistedCreatorUserSettings>;
 
         if (typeof savedSettings.toolbarOnLeft === "boolean") {
           setIsToolbarOnLeft(savedSettings.toolbarOnLeft);
+        } else {
+          const isDesktopDevice =
+            window.matchMedia("(min-width: 1024px)").matches &&
+            window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+          setIsToolbarOnLeft(isDesktopDevice);
         }
 
         if (typeof savedSettings.showAnimationDurations === "boolean") {
           setShowAnimationDurations(savedSettings.showAnimationDurations);
         }
 
-        if (isPitchBackground(savedSettings.selectedPitchBackground)) {
-          setSelectedPitchBackground(savedSettings.selectedPitchBackground);
-        }
+        if (!initialActivity) {
+          if (isPitchBackground(savedSettings.selectedPitchBackground)) {
+            setSelectedPitchBackground(savedSettings.selectedPitchBackground);
+          }
 
-        if (isPlayerDisplayMode(savedSettings.playerDisplayMode)) {
-          setPlayerDisplayMode(savedSettings.playerDisplayMode);
-        }
+          if (isPlayerDisplayMode(savedSettings.playerDisplayMode)) {
+            setPlayerDisplayMode(savedSettings.playerDisplayMode);
+          }
 
-        if (typeof savedSettings.team1Color === "string") {
-          setTeam1Color(savedSettings.team1Color);
-        }
+          if (typeof savedSettings.team1Color === "string") {
+            setTeam1Color(savedSettings.team1Color);
+          }
 
-        if (typeof savedSettings.team2Color === "string") {
-          setTeam2Color(savedSettings.team2Color);
-        }
+          if (typeof savedSettings.team2Color === "string") {
+            setTeam2Color(savedSettings.team2Color);
+          }
 
-        if (isPlayerShape(savedSettings.team1Shape)) {
-          setTeam1Shape(savedSettings.team1Shape);
-        }
+          if (isPlayerShape(savedSettings.team1Shape)) {
+            setTeam1Shape(savedSettings.team1Shape);
+          }
 
-        if (isPlayerShape(savedSettings.team2Shape)) {
-          setTeam2Shape(savedSettings.team2Shape);
-        }
+          if (isPlayerShape(savedSettings.team2Shape)) {
+            setTeam2Shape(savedSettings.team2Shape);
+          }
 
-        if (typeof savedSettings.coneColor === "string") {
-          setConeColor(savedSettings.coneColor);
-        }
+          if (typeof savedSettings.coneColor === "string") {
+            setConeColor(savedSettings.coneColor);
+          }
 
-        if (typeof savedSettings.lineColor === "string") {
-          setLineColor(savedSettings.lineColor);
-        }
+          if (typeof savedSettings.lineColor === "string") {
+            setLineColor(savedSettings.lineColor);
+          }
 
-        if (
-          typeof savedSettings.lineWidth === "number" &&
-          Number.isFinite(savedSettings.lineWidth)
-        ) {
-          setLineWidth(clamp(savedSettings.lineWidth, 1, 12));
-        }
+          if (
+            typeof savedSettings.lineWidth === "number" &&
+            Number.isFinite(savedSettings.lineWidth)
+          ) {
+            setLineWidth(clamp(savedSettings.lineWidth, 1, 12));
+          }
 
-        if (
-          typeof savedSettings.playerDefaultSize === "number" &&
-          Number.isFinite(savedSettings.playerDefaultSize)
-        ) {
-          setPlayerDefaultSize(
-            clamp(savedSettings.playerDefaultSize, 24, 72)
-          );
-        }
+          if (
+            typeof savedSettings.playerDefaultSize === "number" &&
+            Number.isFinite(savedSettings.playerDefaultSize)
+          ) {
+            setPlayerDefaultSize(
+              clamp(savedSettings.playerDefaultSize, 24, 72)
+            );
+          }
 
-        if (
-          typeof savedSettings.coneDefaultSize === "number" &&
-          Number.isFinite(savedSettings.coneDefaultSize)
-        ) {
-          setConeDefaultSize(clamp(savedSettings.coneDefaultSize, 14, 52));
-        }
+          if (
+            typeof savedSettings.coneDefaultSize === "number" &&
+            Number.isFinite(savedSettings.coneDefaultSize)
+          ) {
+            setConeDefaultSize(clamp(savedSettings.coneDefaultSize, 14, 52));
+          }
 
-        if (
-          typeof savedSettings.mannequinDefaultSize === "number" &&
-          Number.isFinite(savedSettings.mannequinDefaultSize)
-        ) {
-          setMannequinDefaultSize(
-            clamp(savedSettings.mannequinDefaultSize, 12, 110)
-          );
-        }
+          if (
+            typeof savedSettings.mannequinDefaultSize === "number" &&
+            Number.isFinite(savedSettings.mannequinDefaultSize)
+          ) {
+            setMannequinDefaultSize(
+              clamp(savedSettings.mannequinDefaultSize, 12, 110)
+            );
+          }
 
-        if (
-          typeof savedSettings.ballDefaultSize === "number" &&
-          Number.isFinite(savedSettings.ballDefaultSize)
-        ) {
-          setBallDefaultSize(clamp(savedSettings.ballDefaultSize, 14, 64));
+          if (
+            typeof savedSettings.ballDefaultSize === "number" &&
+            Number.isFinite(savedSettings.ballDefaultSize)
+          ) {
+            setBallDefaultSize(clamp(savedSettings.ballDefaultSize, 14, 64));
+          }
         }
+      } else {
+        const isDesktopDevice =
+          window.matchMedia("(min-width: 1024px)").matches &&
+          window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+        setIsToolbarOnLeft(isDesktopDevice);
       }
     } catch (error) {
       console.error("Unable to load saved Activity Creator settings.", error);
     } finally {
-      hasLoadedUserSettingsRef.current = true;
+      setHasLoadedUserSettings(true);
     }
   }, [initialActivity]);
 
+
   useEffect(() => {
-    if (!hasLoadedUserSettingsRef.current) {
+    if (!hasLoadedUserSettings) {
       return;
     }
 
@@ -1530,6 +1545,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     coneDefaultSize,
     mannequinDefaultSize,
     ballDefaultSize,
+    hasLoadedUserSettings,
   ]);
 
   useEffect(() => {
