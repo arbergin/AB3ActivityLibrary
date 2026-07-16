@@ -1143,77 +1143,6 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  {resetPasswordUser && (
-                    <form
-                      onSubmit={handleResetPassword}
-                      className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
-                          <h4 className="font-bold text-amber-900">
-                            Reset Password
-                          </h4>
-                          <p className="mt-1 text-sm text-amber-800">
-                            Reset password for {resetPasswordUser.email}.
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setResetPasswordUserId(undefined)}
-                          className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-800"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-
-                      <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
-                        <label className="grid gap-1">
-                          <span className="text-sm font-semibold text-amber-900">
-                            New Temporary Password
-                          </span>
-                          <input
-                            type="text"
-                            value={resetPasswordValue}
-                            onChange={(event) =>
-                              setResetPasswordValue(event.target.value)
-                            }
-                            disabled={isResettingPassword}
-                            className="rounded-lg border border-amber-300 px-3 py-2 disabled:bg-slate-100"
-                            placeholder="Minimum 6 characters"
-                          />
-                        </label>
-
-                        <div className="flex items-end">
-                          <button
-                            type="submit"
-                            disabled={isResettingPassword}
-                            className="w-full rounded-lg bg-amber-700 px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isResettingPassword
-                              ? "Resetting..."
-                              : "Reset Password"}
-                          </button>
-                        </div>
-                      </div>
-
-                      <label className="mt-4 flex items-start gap-3 text-sm text-amber-900">
-                        <input
-                          type="checkbox"
-                          checked={resetMustChangePassword}
-                          onChange={(event) =>
-                            setResetMustChangePassword(event.target.checked)
-                          }
-                          disabled={isResettingPassword}
-                          className="mt-1"
-                        />
-                        <span>
-                          Require this user to reset password on next login
-                        </span>
-                      </label>
-                    </form>
-                  )}
-
                   {deleteUser && (
                     <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4">
                       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1249,7 +1178,7 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
+                  <div className="relative mt-5 overflow-visible rounded-lg border border-slate-200">
                     <div className="grid grid-cols-[1.4fr_1.25fr_1fr_0.9fr_0.75fr_0.75fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
                       <div>Name / Edit</div>
                       <div>Email / Role</div>
@@ -1277,7 +1206,7 @@ export default function SettingsPage() {
                         return (
                           <div
                             key={userProfile.id}
-                            className="grid grid-cols-[1.4fr_1.25fr_1fr_0.9fr_0.75fr_0.75fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
+                            className="relative grid grid-cols-[1.4fr_1.25fr_1fr_0.9fr_0.75fr_0.75fr] items-center border-t border-slate-200 px-4 py-4 text-sm"
                           >
                             <div className="grid gap-2">
                               <div className="flex gap-2">
@@ -1366,12 +1295,17 @@ export default function SettingsPage() {
                               )}
                             </div>
 
-                            <div className="grid justify-items-start gap-2">
+                            <div className="relative grid justify-items-start gap-2">
                               {userProfile.must_change_password ? (
-                                <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-red-700">Required</span>
+                                <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-red-700">
+                                  Required
+                                </span>
                               ) : (
-                                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">Complete</span>
+                                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+                                  Complete
+                                </span>
                               )}
+
                               <button
                                 type="button"
                                 onClick={() => openResetPassword(userProfile.id)}
@@ -1380,6 +1314,86 @@ export default function SettingsPage() {
                               >
                                 Reset Password
                               </button>
+
+                              {resetPasswordUserId === userProfile.id &&
+                                resetPasswordUser && (
+                                  <form
+                                    onSubmit={handleResetPassword}
+                                    className="absolute bottom-full right-0 z-50 mb-2 w-[min(72rem,calc(100vw-4rem))] rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-xl"
+                                  >
+                                    <div className="flex flex-wrap items-start justify-between gap-4">
+                                      <div>
+                                        <h4 className="font-bold text-amber-900">
+                                          Reset Password
+                                        </h4>
+                                        <p className="mt-1 text-sm text-amber-800">
+                                          Reset password for {resetPasswordUser.email}.
+                                        </p>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setResetPasswordUserId(undefined)
+                                        }
+                                        className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-800"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+
+                                    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
+                                      <label className="grid gap-1">
+                                        <span className="text-sm font-semibold text-amber-900">
+                                          New Temporary Password
+                                        </span>
+                                        <input
+                                          type="text"
+                                          value={resetPasswordValue}
+                                          onChange={(event) =>
+                                            setResetPasswordValue(
+                                              event.target.value
+                                            )
+                                          }
+                                          disabled={isResettingPassword}
+                                          className="rounded-lg border border-amber-300 px-3 py-2 disabled:bg-slate-100"
+                                          placeholder="Minimum 6 characters"
+                                          autoFocus
+                                        />
+                                      </label>
+
+                                      <div className="flex items-end">
+                                        <button
+                                          type="submit"
+                                          disabled={isResettingPassword}
+                                          className="w-full rounded-lg bg-amber-700 px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          {isResettingPassword
+                                            ? "Resetting..."
+                                            : "Reset Password"}
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <label className="mt-4 flex items-start gap-3 text-sm text-amber-900">
+                                      <input
+                                        type="checkbox"
+                                        checked={resetMustChangePassword}
+                                        onChange={(event) =>
+                                          setResetMustChangePassword(
+                                            event.target.checked
+                                          )
+                                        }
+                                        disabled={isResettingPassword}
+                                        className="mt-1"
+                                      />
+                                      <span>
+                                        Require this user to reset password on
+                                        next login
+                                      </span>
+                                    </label>
+                                  </form>
+                                )}
                             </div>
 
                             <div className="flex flex-wrap gap-2">
