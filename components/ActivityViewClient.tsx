@@ -1180,7 +1180,7 @@ export default function ActivityViewClient({
                       type="button"
                       onClick={handleCreateCopy}
                       disabled={isCreatingCopy}
-                      className="rounded-lg border border-[#0d2140] bg-white px-3 py-1.5 text-sm font-semibold text-[#0d2140] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isCreatingCopy ? "Creating Copy..." : "Create Copy"}
                     </button>
@@ -1190,7 +1190,7 @@ export default function ActivityViewClient({
                     <>
                       <Link
                         href={`/activity/${activity.id}/edit`}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+                        className="rounded-lg border border-[#0d2140] bg-white px-3 py-1.5 text-sm font-semibold text-[#0d2140]"
                       >
                         {activity.creatorState ? "Edit Activity" : "Edit Metadata"}
                       </Link>

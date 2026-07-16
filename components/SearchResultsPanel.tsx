@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
 import { getActivityCreatorFrameCount } from "@/lib/activityCreatorFrames";
 import {
   deleteSupabaseActivity,
+  duplicateSupabaseActivity,
   getSupabaseActivities,
-  updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
 import type { Activity } from "@/types/activity";
 import { canManageActivity } from "@/lib/activityPermissions";
@@ -26,7 +26,6 @@ import type {
 
 type SearchResultsPanelProps = {
   myActivitiesOnly: boolean;
-  includeHidden: boolean;
   filters: SearchFilterValues;
   sortValue: SearchSortValue;
   hasSearched: boolean;
@@ -196,7 +195,6 @@ function PreviewFallback() {
 
 export default function SearchResultsPanel({
   myActivitiesOnly,
-  includeHidden,
   filters,
   sortValue,
   hasSearched,
@@ -210,6 +208,7 @@ export default function SearchResultsPanel({
   const [downloadMessage, setDownloadMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isCreatingCopy, setIsCreatingCopy] = useState(false);
   const [isLoadingActivities, setIsLoadingActivities] = useState(true);
   const [selectedPreviewFailed, setSelectedPreviewFailed] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
@@ -219,6 +218,7 @@ export default function SearchResultsPanel({
   const [restoredSelectedActivityId, setRestoredSelectedActivityId] = useState<
     string | null
   >(null);
+  const activityRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const loadActivities = useCallback(async () => {
     setIsLoadingActivities(true);
@@ -246,15 +246,15 @@ export default function SearchResultsPanel({
   }, []);
 
   const searchableActivities = useMemo(() => {
-    const visibilityFilteredActivities = includeHidden
-      ? activities
-      : activities.filter((activity) => !activity.hidden);
+    const visibleActivitiesOnly = activities.filter(
+      (activity) => !activity.hidden
+    );
 
     if (!myActivitiesOnly) {
-      return visibilityFilteredActivities;
+      return visibleActivitiesOnly;
     }
 
-    return visibilityFilteredActivities.filter((activity) => {
+    return visibleActivitiesOnly.filter((activity) => {
       const createdBy = safeLower(activity.createdBy);
 
       return (
@@ -264,7 +264,6 @@ export default function SearchResultsPanel({
     });
   }, [
     activities,
-    includeHidden,
     myActivitiesOnly,
     currentUserEmail,
     currentUserId,
@@ -515,6 +514,75 @@ export default function SearchResultsPanel({
     };
   }, [selectedActivity?.createdBy]);
 
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      return Boolean(
+        target.closest(
+          'input, textarea, select, button, [contenteditable="true"], [role="textbox"]'
+        )
+      );
+    }
+
+    function handleArrowNavigation(event: KeyboardEvent) {
+      if (
+        !selectedActivity ||
+        visibleActivities.length === 0 ||
+        isTypingTarget(event.target)
+      ) {
+        return;
+      }
+
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+        return;
+      }
+
+      const currentIndex = visibleActivities.findIndex(
+        (activity) => activity.id === selectedActivity.id
+      );
+
+      if (currentIndex === -1) {
+        return;
+      }
+
+      const nextIndex =
+        event.key === "ArrowDown"
+          ? Math.min(currentIndex + 1, visibleActivities.length - 1)
+          : Math.max(currentIndex - 1, 0);
+
+      if (nextIndex === currentIndex) {
+        event.preventDefault();
+        return;
+      }
+
+      event.preventDefault();
+
+      const nextActivity = visibleActivities[nextIndex];
+
+      setSelectedActivity(nextActivity);
+      setSelectedPreviewFailed(false);
+      setDownloadMessage("");
+      setActionMessage("");
+      setShowDeleteConfirm(false);
+
+      window.requestAnimationFrame(() => {
+        activityRowRefs.current[nextActivity.id]?.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        });
+      });
+    }
+
+    window.addEventListener("keydown", handleArrowNavigation);
+
+    return () => {
+      window.removeEventListener("keydown", handleArrowNavigation);
+    };
+  }, [selectedActivity, visibleActivities]);
+
   async function handleDownload() {
     if (!selectedActivity) return;
 
@@ -543,29 +611,22 @@ export default function SearchResultsPanel({
     setShowDeleteConfirm(false);
   }
 
-  async function handleToggleHidden() {
-    if (!selectedActivity) return;
+
+  async function handleCreateCopy() {
+    if (!selectedActivity || isCreatingCopy) return;
 
     setDownloadMessage("");
-    setShowDeleteConfirm(false);
     setActionMessage("");
+    setShowDeleteConfirm(false);
+    setIsCreatingCopy(true);
 
     try {
-      await updateSupabaseActivityHidden(
-        selectedActivity.id,
-        !selectedActivity.hidden
-      );
-
-      await loadActivities();
-      setActionMessage(
-        !selectedActivity.hidden
-          ? "Activity hidden. Check Include hidden activities to view it again."
-          : "Activity is visible again."
-      );
-      router.refresh();
+      const copiedActivity = await duplicateSupabaseActivity(selectedActivity.id);
+      router.push(`/activity/${copiedActivity.id}/edit`);
     } catch (error) {
-      console.error("Supabase hide/unhide failed.", error);
-      setActionMessage("This activity could not be updated in Supabase.");
+      console.error("Supabase activity copy failed.", error);
+      setActionMessage("This activity could not be copied. Please try again.");
+      setIsCreatingCopy(false);
     }
   }
 
@@ -657,6 +718,10 @@ export default function SearchResultsPanel({
               return (
                 <div
                   key={activity.id}
+                  ref={(element) => {
+                    activityRowRefs.current[activity.id] = element;
+                  }}
+                  tabIndex={-1}
                   onClick={() => handleSelectActivity(activity)}
                   className={`cursor-pointer border-t border-slate-200 px-4 py-4 text-sm lg:grid lg:grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] lg:items-center ${
                     isSelected ? "bg-slate-100" : "bg-white hover:bg-slate-50"
@@ -746,22 +811,23 @@ export default function SearchResultsPanel({
                 Download
               </button>
 
+              <button
+                type="button"
+                onClick={handleCreateCopy}
+                disabled={isCreatingCopy}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isCreatingCopy ? "Creating Copy..." : "Create Copy"}
+              </button>
+
               {canManageSelectedActivity && (
                 <>
                   <Link
                     href={`/activity/${selectedActivity.id}/edit`}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
+                    className="rounded-lg border border-[#0d2140] bg-white px-3 py-1.5 text-sm font-semibold text-[#0d2140]"
                   >
                     {selectedActivity.creatorState ? "Edit" : "Edit Metadata"}
                   </Link>
-
-                  <button
-                    type="button"
-                    onClick={handleToggleHidden}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700"
-                  >
-                    {selectedActivity.hidden ? "Unhide" : "Hide"}
-                  </button>
 
                   <button
                     type="button"

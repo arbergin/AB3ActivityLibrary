@@ -41,8 +41,6 @@ type PersistedSearchPageState = {
   appliedFilters: SearchFilterValues;
   myActivitiesOnly: boolean;
   appliedMyActivitiesOnly: boolean;
-  includeHidden: boolean;
-  appliedIncludeHidden: boolean;
   sortValue: SearchSortValue;
   hasSearched: boolean;
   searchMessage: string;
@@ -88,12 +86,10 @@ function hasSearchCriteria(filters: SearchFilterValues) {
 
 export default function SearchPageClient() {
   const [myActivitiesOnly, setMyActivitiesOnly] = useState(false);
-  const [includeHidden, setIncludeHidden] = useState(false);
   const [filters, setFilters] = useState<SearchFilterValues>(emptyFilters);
   const [appliedFilters, setAppliedFilters] =
     useState<SearchFilterValues>(emptyFilters);
   const [appliedMyActivitiesOnly, setAppliedMyActivitiesOnly] = useState(false);
-  const [appliedIncludeHidden, setAppliedIncludeHidden] = useState(false);
   const [sortValue, setSortValue] =
     useState<SearchSortValue>("activityNameAsc");
   const [hasSearched, setHasSearched] = useState(false);
@@ -108,8 +104,6 @@ export default function SearchPageClient() {
     setAppliedFilters(emptyFilters);
     setMyActivitiesOnly(false);
     setAppliedMyActivitiesOnly(false);
-    setIncludeHidden(false);
-    setAppliedIncludeHidden(false);
     setSortValue("activityNameAsc");
     setHasSearched(false);
     setSearchMessage("");
@@ -122,14 +116,12 @@ export default function SearchPageClient() {
       setHasSearched(false);
       setSearchMessage("Enter at least one search criteria before searching.");
       setAppliedFilters(emptyFilters);
-      setAppliedIncludeHidden(false);
       setRefreshKey((current) => current + 1);
       return;
     }
 
     setAppliedFilters(filters);
     setAppliedMyActivitiesOnly(myActivitiesOnly);
-    setAppliedIncludeHidden(includeHidden);
     setHasSearched(true);
     setSearchMessage("");
     setRefreshKey((current) => current + 1);
@@ -162,14 +154,6 @@ export default function SearchPageClient() {
 
         if (typeof savedState.appliedMyActivitiesOnly === "boolean") {
           setAppliedMyActivitiesOnly(savedState.appliedMyActivitiesOnly);
-        }
-
-        if (typeof savedState.includeHidden === "boolean") {
-          setIncludeHidden(savedState.includeHidden);
-        }
-
-        if (typeof savedState.appliedIncludeHidden === "boolean") {
-          setAppliedIncludeHidden(savedState.appliedIncludeHidden);
         }
 
         if (isSearchSortValue(savedState.sortValue)) {
@@ -208,8 +192,6 @@ export default function SearchPageClient() {
       appliedFilters,
       myActivitiesOnly,
       appliedMyActivitiesOnly,
-      includeHidden,
-      appliedIncludeHidden,
       sortValue,
       hasSearched,
       searchMessage,
@@ -225,8 +207,6 @@ export default function SearchPageClient() {
     appliedFilters,
     myActivitiesOnly,
     appliedMyActivitiesOnly,
-    includeHidden,
-    appliedIncludeHidden,
     sortValue,
     hasSearched,
     searchMessage,
@@ -242,8 +222,6 @@ export default function SearchPageClient() {
           onFiltersChange={setFilters}
           myActivitiesOnly={myActivitiesOnly}
           onMyActivitiesOnlyChange={setMyActivitiesOnly}
-          includeHidden={includeHidden}
-          onIncludeHiddenChange={setIncludeHidden}
           sortValue={sortValue}
           onSortValueChange={setSortValue}
           onSearch={handleSearch}
@@ -255,7 +233,6 @@ export default function SearchPageClient() {
       <div className="min-w-0">
         <SearchResultsPanel
           myActivitiesOnly={appliedMyActivitiesOnly}
-          includeHidden={appliedIncludeHidden}
           filters={appliedFilters}
           sortValue={sortValue}
           hasSearched={hasSearched}

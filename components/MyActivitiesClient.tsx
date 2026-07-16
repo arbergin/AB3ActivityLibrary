@@ -7,8 +7,8 @@ import { downloadActivityAsPdf } from "@/lib/downloadActivityPdf";
 import { getActivityCreatorFrameCount } from "@/lib/activityCreatorFrames";
 import {
   deleteSupabaseActivity,
+  duplicateSupabaseActivity,
   getSupabaseActivities,
-  updateSupabaseActivityHidden,
 } from "@/lib/supabaseActivities";
 import { supabase } from "@/lib/supabaseClient";
 import type { Activity } from "@/types/activity";
@@ -127,6 +127,7 @@ export default function MyActivitiesClient() {
   const [deleteMessage, setDeleteMessage] = useState("");
   const [downloadMessage, setDownloadMessage] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCreatingCopy, setIsCreatingCopy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("updated_desc");
@@ -294,36 +295,24 @@ export default function MyActivitiesClient() {
     }
   }
 
-  async function handleToggleHidden() {
-    if (!selectedActivity) return;
+
+  async function handleCreateCopy() {
+    if (!selectedActivity || isCreatingCopy) return;
 
     setDeleteMessage("");
     setDownloadMessage("");
     setShowDeleteConfirm(false);
+    setIsCreatingCopy(true);
 
     try {
-      const updatedActivity = await updateSupabaseActivityHidden(
-        selectedActivity.id,
-        !selectedActivity.hidden,
-      );
-
-      setActivities((currentActivities) =>
-        currentActivities.map((activity) =>
-          activity.id === updatedActivity.id ? updatedActivity : activity,
-        ),
-      );
-      setSelectedActivity(updatedActivity);
-      setDeleteMessage(
-        updatedActivity.hidden
-          ? "Activity hidden. It will still appear here because it is one of your activities."
-          : "Activity is visible again.",
-      );
-      router.refresh();
+      const copiedActivity = await duplicateSupabaseActivity(selectedActivity.id);
+      router.push(`/activity/${copiedActivity.id}/edit`);
     } catch (error) {
-      console.error("Unable to update activity visibility.", error);
+      console.error("Unable to create activity copy.", error);
       setDeleteMessage(
-        "This activity visibility could not be updated. Refresh the page and try again.",
+        "This activity could not be copied. Refresh the page and try again.",
       );
+      setIsCreatingCopy(false);
     }
   }
 
@@ -552,20 +541,21 @@ export default function MyActivitiesClient() {
                       Download
                     </button>
 
+                    <button
+                      type="button"
+                      onClick={handleCreateCopy}
+                      disabled={isCreatingCopy}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isCreatingCopy ? "Creating Copy..." : "Create Copy"}
+                    </button>
+
                     <Link
                       href={`/activity/${selectedActivity.id}/edit`}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      className="rounded-lg border border-[#0d2140] bg-white px-3 py-1.5 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-50"
                     >
                       Edit
                     </Link>
-
-                    <button
-                      type="button"
-                      onClick={handleToggleHidden}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      {selectedActivity.hidden ? "Unhide" : "Hide"}
-                    </button>
 
                     <button
                       type="button"

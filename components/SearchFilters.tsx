@@ -22,8 +22,6 @@ type SearchFiltersProps = {
   onFiltersChange: (filters: SearchFilterValues) => void;
   myActivitiesOnly: boolean;
   onMyActivitiesOnlyChange: (myActivitiesOnly: boolean) => void;
-  includeHidden: boolean;
-  onIncludeHiddenChange: (includeHidden: boolean) => void;
   sortValue: SearchSortValue;
   onSortValueChange: (sortValue: SearchSortValue) => void;
   onSearch: () => void;
@@ -36,8 +34,6 @@ export default function SearchFilters({
   onFiltersChange,
   myActivitiesOnly,
   onMyActivitiesOnlyChange,
-  includeHidden,
-  onIncludeHiddenChange,
   sortValue,
   onSortValueChange,
   onSearch,
@@ -108,15 +104,6 @@ export default function SearchFilters({
             My Activities Only
           </label>
 
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={includeHidden}
-              onChange={(event) => onIncludeHiddenChange(event.target.checked)}
-              className="h-4 w-4"
-            />
-            Include hidden activities
-          </label>
         </div>
       </div>
 
