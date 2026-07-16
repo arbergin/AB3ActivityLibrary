@@ -2899,6 +2899,24 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
   }
 
+  function updatePlayerShape(
+    objectId: string,
+    playerShape: PlayerShape
+  ) {
+    saveHistorySnapshot();
+
+    setObjects((currentObjects) =>
+      currentObjects.map((object) =>
+        object.id === objectId
+          ? {
+              ...object,
+              playerShape,
+            }
+          : object
+      )
+    );
+  }
+
   function updatePlayerNumber(objectId: string, label: string) {
     saveHistorySnapshot();
 
@@ -3507,6 +3525,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const supportsPlayerFields =
       selectedObject.type === "team1" || selectedObject.type === "team2";
 
+    const selectedPlayerShape =
+      selectedObject.playerShape ??
+      (selectedObject.type === "team1" ? team1Shape : team2Shape);
+
     const colorValue =
       selectedObject.type === "textBox"
         ? selectedObject.textColor ?? "#111827"
@@ -3612,6 +3634,30 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs"
               />
             </div>
+          </div>
+        )}
+
+        {supportsPlayerFields && (
+          <div className="mt-2">
+            <label className="block text-[11px] font-semibold text-slate-600">
+              Shape
+            </label>
+
+            <select
+              value={selectedPlayerShape}
+              onChange={(event) =>
+                updatePlayerShape(
+                  selectedObject.id,
+                  event.target.value as PlayerShape
+                )
+              }
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs"
+            >
+              <option value="circle">Circle</option>
+              <option value="triangle">Triangle</option>
+              <option value="square">Square</option>
+              <option value="diamond">Diamond</option>
+            </select>
           </div>
         )}
 
