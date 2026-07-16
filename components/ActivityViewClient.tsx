@@ -1207,6 +1207,35 @@ export default function ActivityViewClient({
                 </div>
               </div>
 
+              {showDeleteConfirm && (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  <div className="font-semibold">
+                    Delete this activity permanently?
+                  </div>
+                  <div className="mt-1">
+                    This removes the activity and its uploaded file.
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmDelete}
+                      className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
+                    >
+                      Delete Activity
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-6 flex min-h-[520px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-slate-500">
                 {activity.previewDataUrl &&
                 activity.fileType === "application/pdf" ? (
@@ -1250,35 +1279,6 @@ export default function ActivityViewClient({
               {actionMessage && (
                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
                   {actionMessage}
-                </div>
-              )}
-
-              {showDeleteConfirm && (
-                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                  <div className="font-semibold">
-                    Delete this activity permanently?
-                  </div>
-                  <div className="mt-1">
-                    This removes the activity and its uploaded file.
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleConfirmDelete}
-                      className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
-                    >
-                      Delete Activity
-                    </button>
-                  </div>
                 </div>
               )}
 

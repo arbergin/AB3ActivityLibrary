@@ -569,6 +569,38 @@ export default function MyActivitiesClient() {
                 )}
               </div>
 
+              {showDeleteConfirm ? (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  <div className="font-semibold">
+                    Delete this activity permanently?
+                  </div>
+                  <div className="mt-1">
+                    This removes the activity and its uploaded file from
+                    Supabase.
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      disabled={isDeleting}
+                      className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmDelete}
+                      disabled={isDeleting}
+                      className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isDeleting ? "Deleting..." : "Delete Activity"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {!selectedActivity ? (
                 <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
                   Select an activity to see activity details.
@@ -729,38 +761,6 @@ export default function MyActivitiesClient() {
                       }
                     >
                       {deleteMessage}
-                    </div>
-                  ) : null}
-
-                  {showDeleteConfirm ? (
-                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                      <div className="font-semibold">
-                        Delete this activity permanently?
-                      </div>
-                      <div className="mt-1">
-                        This removes the activity and its uploaded file from
-                        Supabase.
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap justify-end gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setShowDeleteConfirm(false)}
-                          disabled={isDeleting}
-                          className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Cancel
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleConfirmDelete}
-                          disabled={isDeleting}
-                          className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isDeleting ? "Deleting..." : "Delete Activity"}
-                        </button>
-                      </div>
                     </div>
                   ) : null}
 

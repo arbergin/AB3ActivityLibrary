@@ -842,6 +842,35 @@ export default function SearchResultsPanel({
           )}
         </div>
 
+        {showDeleteConfirm && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="font-semibold">
+              Delete this activity permanently?
+            </div>
+            <div className="mt-1">
+              This removes the activity and its uploaded file from Supabase.
+            </div>
+
+            <div className="mt-4 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
+              >
+                Delete Activity
+              </button>
+            </div>
+          </div>
+        )}
+
         {!selectedActivity ? (
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
             Search for an activity, then select a result to see activity
@@ -996,35 +1025,6 @@ export default function SearchResultsPanel({
             {downloadMessage && (
               <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
                 {downloadMessage}
-              </div>
-            )}
-
-            {showDeleteConfirm && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                <div className="font-semibold">
-                  Delete this activity permanently?
-                </div>
-                <div className="mt-1">
-                  This removes the activity and its uploaded file from Supabase.
-                </div>
-
-                <div className="mt-4 flex flex-wrap justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleConfirmDelete}
-                    className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white"
-                  >
-                    Delete Activity
-                  </button>
-                </div>
               </div>
             )}
 
