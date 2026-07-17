@@ -1222,12 +1222,11 @@ function getInitialFrames(
       };
     });
 
-    const requestedActiveId = initialCreatorState.activeFrameId;
-    const activeFrameId = normalizedFrames.some((frame) => frame.id === requestedActiveId)
-      ? requestedActiveId
-      : normalizedFrames[0].id;
-
-    return { frames: normalizedFrames, activeFrameId };
+    // Always open an existing activity on the first tab.
+    return {
+      frames: normalizedFrames,
+      activeFrameId: normalizedFrames[0].id,
+    };
   }
 
   const firstFrameId = makeId();
@@ -1255,10 +1254,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       "frames" in initialCreatorState &&
       initialCreatorState.frames.length > 0
     ) {
-      const activeFrame =
-        initialCreatorState.frames.find(
-          (frame) => frame.id === initialCreatorState.activeFrameId
-        ) ?? initialCreatorState.frames[0];
+      // Edit mode should always initialize the pitch from Tab 1,
+      // regardless of which tab was active when the activity was last saved.
+      const activeFrame = initialCreatorState.frames[0];
 
       return normalizeCreatorState({
         schemaVersion: 2,
