@@ -33,7 +33,7 @@ type ActivityMetadataFormProps = {
   initialActivity?: Activity;
   getPreviewDataUrl?: () => Promise<string | undefined>;
   onCancel?: () => void;
-  onSaved?: (activity: Activity) => void;
+  onSaved?: (activity: Activity) => boolean | void;
 };
 
 export default function ActivityMetadataForm({
@@ -216,8 +216,11 @@ export default function ActivityMetadataForm({
         saveStoredActivity(savedActivity);
       }
 
-      onSaved?.(savedActivity);
-      router.push(`/activity/${savedSupabaseActivity.id}`);
+      const shouldUseDefaultNavigation = onSaved?.(savedActivity) !== false;
+
+      if (shouldUseDefaultNavigation) {
+        router.push(`/activity/${savedSupabaseActivity.id}`);
+      }
     } catch (error) {
       console.error("Supabase save failed. Saving locally instead.", error);
 
@@ -229,8 +232,12 @@ export default function ActivityMetadataForm({
           "Supabase update failed, so the activity was updated locally in this browser."
         );
 
-        onSaved?.(activityToUse);
-        router.push(`/activity/${activityToUse.id}`);
+        const shouldUseDefaultNavigation = onSaved?.(activityToUse) !== false;
+
+        if (shouldUseDefaultNavigation) {
+          router.push(`/activity/${activityToUse.id}`);
+        }
+
         return;
       }
 
@@ -240,8 +247,11 @@ export default function ActivityMetadataForm({
         "Supabase save failed, so the activity was saved locally in this browser."
       );
 
-      onSaved?.(newActivity);
-      router.push(`/activity/${newActivity.id}`);
+      const shouldUseDefaultNavigation = onSaved?.(newActivity) !== false;
+
+      if (shouldUseDefaultNavigation) {
+        router.push(`/activity/${newActivity.id}`);
+      }
     } finally {
       setIsSaving(false);
     }

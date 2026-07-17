@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toPng } from "html-to-image";
 import type { PointerEvent, ReactNode, WheelEvent } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
@@ -1245,6 +1246,7 @@ function getInitialFrames(
 }
 
 export default function ActivityCreator({ initialActivity }: ActivityCreatorProps) {
+  const router = useRouter();
   const initialCreatorState = getInitialCreatorState(initialActivity);
   const normalizedInitialCreatorState = useMemo(() => {
     if (
@@ -1311,6 +1313,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [isToolbarOnLeft, setIsToolbarOnLeft] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
+  const [showUnsavedChangesPrompt, setShowUnsavedChangesPrompt] = useState(false);
+  const [pendingNavigationUrl, setPendingNavigationUrl] = useState<string | null>(null);
+
+  const savedCreatorStateSnapshotRef = useRef<string | null>(null);
+  const allowNavigationRef = useRef(false);
 
   const [team1Color, setTeam1Color] = useState(
     normalizedInitialCreatorState.settings.team1Color
@@ -1719,6 +1726,139 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     ]
   );
 
+
+  const serializedCreatorState = useMemo(
+    () => JSON.stringify(creatorState),
+    [creatorState]
+  );
+
+  const hasUnsavedChanges =
+    savedCreatorStateSnapshotRef.current !== null &&
+    serializedCreatorState !== savedCreatorStateSnapshotRef.current;
+
+  useEffect(() => {
+    if (!hasLoadedUserSettings || savedCreatorStateSnapshotRef.current !== null) {
+      return;
+    }
+
+    savedCreatorStateSnapshotRef.current = serializedCreatorState;
+  }, [hasLoadedUserSettings, serializedCreatorState]);
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!hasUnsavedChanges || allowNavigationRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    function handleDocumentClick(event: MouseEvent) {
+      if (!hasUnsavedChanges || allowNavigationRef.current) {
+        return;
+      }
+
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const link = target.closest("a[href]");
+
+      if (!(link instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      if (
+        link.target === "_blank" ||
+        link.hasAttribute("download") ||
+        link.dataset.skipUnsavedWarning === "true"
+      ) {
+        return;
+      }
+
+      const destination = new URL(link.href, window.location.href);
+      const current = new URL(window.location.href);
+
+      if (
+        destination.origin !== current.origin ||
+        destination.href === current.href ||
+        (destination.pathname === current.pathname &&
+          destination.search === current.search &&
+          destination.hash !== current.hash)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      setPendingNavigationUrl(
+        `${destination.pathname}${destination.search}${destination.hash}`
+      );
+      setShowUnsavedChangesPrompt(true);
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleDocumentClick, true);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleDocumentClick, true);
+    };
+  }, [hasUnsavedChanges]);
+
+  function continuePendingNavigation() {
+    const destination = pendingNavigationUrl;
+
+    setShowUnsavedChangesPrompt(false);
+    setPendingNavigationUrl(null);
+
+    if (!destination) {
+      return;
+    }
+
+    allowNavigationRef.current = true;
+    router.push(destination);
+  }
+
+  function leaveWithoutSaving() {
+    continuePendingNavigation();
+  }
+
+  function saveBeforeLeaving() {
+    setShowUnsavedChangesPrompt(false);
+    setIsSavePanelOpen(true);
+  }
+
+  function handleActivitySaved() {
+    savedCreatorStateSnapshotRef.current = serializedCreatorState;
+
+    if (pendingNavigationUrl) {
+      window.setTimeout(() => {
+        continuePendingNavigation();
+      }, 0);
+
+      return false;
+    }
+
+    allowNavigationRef.current = true;
+    return true;
+  }
+
   function switchFrame(frameId: string) {
     if (frameId === activeFrameId) {
       return;
@@ -1824,7 +1964,13 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   function openSavePanel() {
     setSelectedObjectId(null);
     setActiveLinePoints([]);
+    setPendingNavigationUrl(null);
     setIsSavePanelOpen(true);
+  }
+
+  function closeSavePanel() {
+    setIsSavePanelOpen(false);
+    setPendingNavigationUrl(null);
   }
 
   async function waitForNextPaint() {
@@ -4475,12 +4621,65 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         </div>
       </section>
 
+
+      {showUnsavedChangesPrompt && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unsaved-activity-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <h2
+              id="unsaved-activity-title"
+              className="text-xl font-bold text-slate-900"
+            >
+              Save this activity?
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              You have changes that have not been saved. Save the activity before
+              leaving this page?
+            </p>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={saveBeforeLeaving}
+                className="rounded-lg bg-[#0d2140] px-4 py-3 font-bold text-white hover:bg-[#142f57]"
+              >
+                Save Activity
+              </button>
+
+              <button
+                type="button"
+                onClick={leaveWithoutSaving}
+                className="rounded-lg border border-red-300 bg-white px-4 py-3 font-bold text-red-700 hover:bg-red-50"
+              >
+                Leave Without Saving
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUnsavedChangesPrompt(false);
+                  setPendingNavigationUrl(null);
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Keep Editing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isSavePanelOpen && (
         <div className="fixed inset-0 z-[100]">
           <button
             type="button"
             aria-label="Close save panel"
-            onClick={() => setIsSavePanelOpen(false)}
+            onClick={closeSavePanel}
             className="absolute inset-0 bg-slate-900/40"
           />
 
@@ -4497,7 +4696,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
               <button
                 type="button"
-                onClick={() => setIsSavePanelOpen(false)}
+                onClick={closeSavePanel}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-bold text-slate-600 hover:bg-slate-50"
                 title="Close"
               >
@@ -4511,6 +4710,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 creatorState={creatorState}
                 initialActivity={initialActivity}
                 getPreviewDataUrl={getCreatorPreviewDataUrl}
+                onSaved={handleActivitySaved}
               />
             </div>
           </aside>
