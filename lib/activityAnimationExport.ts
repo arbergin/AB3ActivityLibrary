@@ -771,38 +771,159 @@ async function renderFrames(activity: Activity) {
   return output;
 }
 
-function limitMp4Frames(
-  rendered: { canvas: HTMLCanvasElement; durationMs: number }[],
-  maxFrames = 60
+type RenderedAnimationFrame = {
+  canvas: HTMLCanvasElement;
+  durationMs: number;
+};
+
+function distributeSamplesByDuration(
+  durationsMs: number[],
+  remainingSamples: number
 ) {
-  if (rendered.length <= maxFrames) {
-    return rendered;
+  const allocations = new Array(durationsMs.length).fill(0);
+
+  if (remainingSamples <= 0 || durationsMs.length === 0) {
+    return allocations;
   }
 
-  const output: { canvas: HTMLCanvasElement; durationMs: number }[] = [];
-  const step = rendered.length / maxFrames;
+  const totalDuration = durationsMs.reduce(
+    (sum, duration) => sum + Math.max(1, duration),
+    0
+  );
 
-  for (let outputIndex = 0; outputIndex < maxFrames; outputIndex += 1) {
-    const startIndex = Math.floor(outputIndex * step);
-    const endIndex = Math.min(
-      rendered.length,
-      Math.floor((outputIndex + 1) * step)
-    );
+  const rawAllocations = durationsMs.map((duration) => {
+    const exact =
+      (Math.max(1, duration) / Math.max(1, totalDuration)) *
+      remainingSamples;
 
-    const sourceFrame = rendered[startIndex];
-    let combinedDurationMs = 0;
+    return {
+      base: Math.floor(exact),
+      remainder: exact - Math.floor(exact),
+    };
+  });
+
+  let allocated = 0;
+
+  rawAllocations.forEach((allocation, index) => {
+    allocations[index] = allocation.base;
+    allocated += allocation.base;
+  });
+
+  const order = rawAllocations
+    .map((allocation, index) => ({
+      index,
+      remainder: allocation.remainder,
+    }))
+    .sort((a, b) => b.remainder - a.remainder);
+
+  let cursor = 0;
+
+  while (allocated < remainingSamples && order.length > 0) {
+    allocations[order[cursor % order.length].index] += 1;
+    allocated += 1;
+    cursor += 1;
+  }
+
+  return allocations;
+}
+
+function getAdaptiveMp4RenderSteps(
+  frames: ActivityCreatorFrame[],
+  maxOutputFrames = 60,
+  minimumSamplesPerTransition = 3
+) {
+  if (frames.length < 2) {
+    return getAnimationRenderSteps(frames);
+  }
+
+  const transitionCount = frames.length - 1;
+  const safeMinimumSamples = Math.max(1, minimumSamplesPerTransition);
+  const requiredMinimum =
+    1 + transitionCount * safeMinimumSamples;
+
+  // If there are so many user-created frames that the preferred minimum
+  // cannot fit inside the endpoint limit, preserve every transition with
+  // at least one sample and distribute the rest by duration.
+  const baseSamplesPerTransition =
+    requiredMinimum <= maxOutputFrames
+      ? safeMinimumSamples
+      : 1;
+
+  const baseFrameCount =
+    1 + transitionCount * baseSamplesPerTransition;
+
+  const transitionDurations = frames.slice(1).map((frame) =>
+    Math.max(MIN_DURATION, frame.durationMs ?? 1500)
+  );
+
+  const extraSamples = distributeSamplesByDuration(
+    transitionDurations,
+    Math.max(0, maxOutputFrames - baseFrameCount)
+  );
+
+  const steps: {
+    frame: ActivityCreatorFrame;
+    durationMs: number;
+  }[] = [
+    {
+      frame: frames[0],
+      durationMs: Math.max(
+        MIN_DURATION,
+        frames[0].durationMs ?? 1500
+      ),
+    },
+  ];
+
+  for (
+    let transitionIndex = 0;
+    transitionIndex < transitionCount;
+    transitionIndex += 1
+  ) {
+    const previousFrame = frames[transitionIndex];
+    const targetFrame = frames[transitionIndex + 1];
+    const transitionDuration =
+      transitionDurations[transitionIndex];
+
+    const sampleCount =
+      baseSamplesPerTransition +
+      (extraSamples[transitionIndex] ?? 0);
+
+    const sampleDuration =
+      transitionDuration / Math.max(1, sampleCount);
 
     for (
-      let sourceIndex = startIndex;
-      sourceIndex < Math.max(endIndex, startIndex + 1);
-      sourceIndex += 1
+      let sampleIndex = 1;
+      sampleIndex <= sampleCount;
+      sampleIndex += 1
     ) {
-      combinedDurationMs += rendered[sourceIndex]?.durationMs ?? 0;
+      steps.push({
+        frame: interpolateFrame(
+          previousFrame,
+          targetFrame,
+          sampleIndex / sampleCount
+        ),
+        durationMs: sampleDuration,
+      });
     }
+  }
 
+  return steps.slice(0, maxOutputFrames);
+}
+
+async function renderMp4Frames(activity: Activity) {
+  const frames = getActivityCreatorFrames(activity.creatorState);
+
+  if (frames.length < 2) {
+    throw new Error("This activity does not contain an animation.");
+  }
+
+  const cache = new Map<string, HTMLImageElement>();
+  const output: RenderedAnimationFrame[] = [];
+
+  for (const step of getAdaptiveMp4RenderSteps(frames)) {
     output.push({
-      canvas: sourceFrame.canvas,
-      durationMs: Math.max(1, combinedDurationMs),
+      canvas: await renderFrame(activity, step.frame, cache),
+      durationMs: step.durationMs,
     });
   }
 
@@ -869,7 +990,7 @@ export async function downloadActivityAnimationAsGif(activity: Activity) {
 }
 
 export async function downloadActivityAnimationAsMp4(activity: Activity) {
-  const rendered = limitMp4Frames(await renderFrames(activity));
+  const rendered = await renderMp4Frames(activity);
   const response = await fetch("/api/animation/mp4", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
