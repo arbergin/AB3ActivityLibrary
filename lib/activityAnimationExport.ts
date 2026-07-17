@@ -15,6 +15,10 @@ const WIDTH = 600;
 const HEIGHT = 800;
 const MIN_DURATION = 250;
 
+const GIF_DURATION_MULTIPLIER = 0.08;
+const GIF_MIN_FRAME_DELAY_MS = 20;
+const GIF_FINAL_FRAME_HOLD_MS = 100;
+
 const MP4_UPLOAD_WIDTH = 360;
 const MP4_UPLOAD_HEIGHT = 480;
 const MP4_JPEG_QUALITY = 0.70;
@@ -967,11 +971,26 @@ function downloadBlob(blob: Blob, fileName: string) {
   window.URL.revokeObjectURL(url);
 }
 
+function getGifFrameDelayMs(
+  durationMs: number,
+  isFinalFrame: boolean
+) {
+  if (isFinalFrame) {
+    return GIF_FINAL_FRAME_HOLD_MS;
+  }
+
+  return Math.max(
+    GIF_MIN_FRAME_DELAY_MS,
+    Math.round(durationMs * GIF_DURATION_MULTIPLIER)
+  );
+}
+
 export async function downloadActivityAnimationAsGif(activity: Activity) {
   const frames = await renderFrames(activity);
   const gif = GIFEncoder();
 
-  for (const frame of frames) {
+  for (let index = 0; index < frames.length; index += 1) {
+    const frame = frames[index];
     const context = frame.canvas.getContext("2d", { willReadFrequently: true });
     if (!context) throw new Error("The GIF frame could not be read.");
 
@@ -980,7 +999,10 @@ export async function downloadActivityAnimationAsGif(activity: Activity) {
     const indexed = applyPalette(imageData.data, palette);
     gif.writeFrame(indexed, WIDTH, HEIGHT, {
       palette,
-      delay: frame.durationMs,
+      delay: getGifFrameDelayMs(
+        frame.durationMs,
+        index === frames.length - 1
+      ),
     });
   }
 
