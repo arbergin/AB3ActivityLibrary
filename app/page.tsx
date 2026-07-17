@@ -43,77 +43,53 @@ function DashboardActionIcon({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-function ActivityToolsCard() {
+function DashboardPrimaryActions() {
+  const actions = [
+    {
+      href: "/create",
+      title: "Create Activities",
+      description: "Build new editable soccer activities on the pitch.",
+      icon: "/create.png",
+      iconAlt: "Create Activities",
+    },
+    {
+      href: "/search",
+      title: "Search Activities",
+      description:
+        "Find activities by name, location, game phase, category, positions, players, or details.",
+      icon: "/search.png",
+      iconAlt: "Search Activities",
+    },
+    {
+      href: "/import",
+      title: "Import Activities",
+      description:
+        "Import a single PNG or PDF, or upload multiple activities in bulk.",
+      icon: "/import_single_activity.png",
+      iconAlt: "Import Activities",
+    },
+  ];
+
   return (
-    <section className="grid h-72 grid-rows-2 gap-4 rounded-xl bg-white p-6 shadow-sm">
-      <Link
-        href="/create"
-        className="flex min-h-0 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
-      >
-        <div className="min-w-0">
-          <div className="text-lg font-bold">Create Activity</div>
-          <p className="mt-2 text-sm leading-5 text-slate-600">
-            Build a new editable activity on the pitch.
-          </p>
-        </div>
+    <section className="grid gap-4 md:grid-cols-3">
+      {actions.map((action) => (
+        <Link
+          key={action.href}
+          href={action.href}
+          className="flex min-h-44 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <div className="min-w-0">
+            <div className="text-xl font-bold text-slate-900">
+              {action.title}
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {action.description}
+            </p>
+          </div>
 
-        <DashboardActionIcon src="/create.png" alt="Create Activity" />
-      </Link>
-
-      <Link
-        href="/search"
-        className="flex min-h-0 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
-      >
-        <div className="min-w-0">
-          <div className="text-lg font-bold">Search Library</div>
-          <p className="mt-2 text-sm leading-5 text-slate-600">
-            Find activities by name, field location, game phase, category,
-            positions, number of players, or details.
-          </p>
-        </div>
-
-        <DashboardActionIcon src="/search.png" alt="Search Library" />
-      </Link>
-    </section>
-  );
-}
-
-function ImportOptionsCard() {
-  return (
-    <section className="grid h-72 grid-rows-2 gap-4 rounded-xl bg-white p-6 shadow-sm">
-      <Link
-        href="/import"
-        className="flex min-h-0 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
-      >
-        <div className="min-w-0">
-          <div className="text-lg font-bold">Import Single Activity</div>
-          <p className="mt-2 text-sm leading-5 text-slate-600">
-            Upload single PNG or PDF activity file and add searchable metadata.
-          </p>
-        </div>
-
-        <DashboardActionIcon
-          src="/import_single_activity.png"
-          alt="Import Single Activity"
-        />
-      </Link>
-
-      <Link
-        href="/import/bulk"
-        className="flex min-h-0 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
-      >
-        <div className="min-w-0">
-          <div className="text-lg font-bold">Import Bulk Activities</div>
-          <p className="mt-2 text-sm leading-5 text-slate-600">
-            Upload multiple PNG or PDF activities with .csv file.
-          </p>
-        </div>
-
-        <DashboardActionIcon
-          src="/import_bulk_activities.png"
-          alt="Import Bulk Activities"
-        />
-      </Link>
+          <DashboardActionIcon src={action.icon} alt={action.iconAlt} />
+        </Link>
+      ))}
     </section>
   );
 }
@@ -280,37 +256,25 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="contents lg:grid lg:grid-rows-[288px_auto] lg:gap-6">
-                <ActivityToolsCard />
+            <DashboardPrimaryActions />
 
-                <div className="order-3 lg:order-none">
-                  <ActivityList
-                    title="My Activities"
-                    titleHref="/my-activities"
-                    emptyMessage="No activities created by you yet."
-                    activities={createdActivities}
-                    isLoading={isLoadingDashboard}
-                    currentProfile={currentProfile}
-                  />
-                </div>
-              </div>
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <ActivityList
+                title="My Activities"
+                titleHref="/my-activities"
+                emptyMessage="No activities created by you yet."
+                activities={createdActivities}
+                isLoading={isLoadingDashboard}
+                currentProfile={currentProfile}
+              />
 
-              <div className="contents lg:grid lg:grid-rows-[288px_auto] lg:gap-6">
-                <div className="order-2 lg:order-none">
-                  <ImportOptionsCard />
-                </div>
-
-                <div className="order-4 lg:order-none">
-                  <ActivityList
-                    title="Recent Activities"
-                    emptyMessage="No recently opened activities yet."
-                    activities={openedActivities}
-                    isLoading={isLoadingDashboard}
-                    currentProfile={currentProfile}
-                  />
-                </div>
-              </div>
+              <ActivityList
+                title="Recent Activities"
+                emptyMessage="No recently opened activities yet."
+                activities={openedActivities}
+                isLoading={isLoadingDashboard}
+                currentProfile={currentProfile}
+              />
             </div>
           </section>
         </div>

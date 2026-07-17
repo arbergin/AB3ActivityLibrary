@@ -235,17 +235,17 @@ export default function AppHeader() {
             </Link>
 
             <Link
-              href="/import"
-              className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
-            >
-              Import
-            </Link>
-
-            <Link
               href="/search"
               className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
             >
               Search
+            </Link>
+
+            <Link
+              href="/import"
+              className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
+            >
+              Import
             </Link>
           </nav>
 
