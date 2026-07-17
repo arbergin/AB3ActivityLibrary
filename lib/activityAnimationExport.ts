@@ -98,34 +98,36 @@ function getPitch(state: ActivityCreatorState): Pitch {
 }
 
 function getSettings(state: ActivityCreatorState): Settings {
-  if ("schemaVersion" in state && state.schemaVersion >= 2) {
+  const settings = state.settings;
+
+  if ("team1DefaultColor" in settings) {
     return {
-      team1Color: colorToCss(state.settings.team1DefaultColor, "#2563eb"),
-      team2Color: colorToCss(state.settings.team2DefaultColor, "#dc2626"),
-      coneColor: colorToCss(state.settings.coneDefaultColor, "#f97316"),
+      team1Color: colorToCss(settings.team1DefaultColor, "#2563eb"),
+      team2Color: colorToCss(settings.team2DefaultColor, "#dc2626"),
+      coneColor: colorToCss(settings.coneDefaultColor, "#f97316"),
       playerTextColor: colorToCss(
-        state.settings.playerTextDefaultColor,
+        settings.playerTextDefaultColor,
         "#ffffff"
       ),
       playerDisplayMode:
-        state.settings.playerDisplayMode === "name" ||
-        state.settings.playerDisplayMode === "both" ||
-        state.settings.playerDisplayMode === "none"
-          ? state.settings.playerDisplayMode
+        settings.playerDisplayMode === "name" ||
+        settings.playerDisplayMode === "both" ||
+        settings.playerDisplayMode === "none"
+          ? settings.playerDisplayMode
           : "number",
     };
   }
 
   return {
-    team1Color: state.settings.team1Color ?? "#2563eb",
-    team2Color: state.settings.team2Color ?? "#dc2626",
-    coneColor: state.settings.coneColor ?? "#f97316",
+    team1Color: settings.team1Color ?? "#2563eb",
+    team2Color: settings.team2Color ?? "#dc2626",
+    coneColor: settings.coneColor ?? "#f97316",
     playerTextColor: "#ffffff",
     playerDisplayMode:
-      state.settings.playerDisplayMode === "name" ||
-      state.settings.playerDisplayMode === "both" ||
-      state.settings.playerDisplayMode === "none"
-        ? state.settings.playerDisplayMode
+      settings.playerDisplayMode === "name" ||
+      settings.playerDisplayMode === "both" ||
+      settings.playerDisplayMode === "none"
+        ? settings.playerDisplayMode
         : "number",
   };
 }
