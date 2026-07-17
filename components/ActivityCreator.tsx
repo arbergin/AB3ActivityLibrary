@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toPng } from "html-to-image";
-import type { PointerEvent, ReactNode, WheelEvent } from "react";
+import type { MouseEvent as ReactMouseEvent, PointerEvent, ReactNode, WheelEvent } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
 import type { Activity, ActivityCreatorState } from "@/types/activity";
 
@@ -67,6 +67,13 @@ type PanState = {
   startClientY: number;
   startPanX: number;
   startPanY: number;
+};
+
+type PopOutDragState = {
+  startClientX: number;
+  startClientY: number;
+  startLeft: number;
+  startTop: number;
 };
 
 type HistorySnapshot = {
@@ -500,6 +507,68 @@ function SaveIcon() {
         stroke="currentColor"
         strokeWidth="2.5"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function PinIcon({ pinned }: { pinned: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className="h-6 w-6"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M11 5H21L20 12L25 17V20H17V27L15 29V20H7V17L12 12L11 5Z"
+        stroke="currentColor"
+        strokeWidth="2.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill={pinned ? "currentColor" : "none"}
+      />
+    </svg>
+  );
+}
+
+function MovieCameraIcon() {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className="h-6 w-6"
+      fill="none"
+      aria-hidden="true"
+    >
+      <rect
+        x="5"
+        y="10"
+        width="16"
+        height="13"
+        rx="2.5"
+        stroke="currentColor"
+        strokeWidth="2.4"
+      />
+      <path
+        d="M21 14.5L27 11.5V21.5L21 18.5"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle
+        cx="10"
+        cy="7"
+        r="3"
+        stroke="currentColor"
+        strokeWidth="2.2"
+      />
+      <circle
+        cx="18"
+        cy="7"
+        r="3"
+        stroke="currentColor"
+        strokeWidth="2.2"
       />
     </svg>
   );
@@ -1278,6 +1347,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     [initialCreatorState, normalizedInitialCreatorState]
   );
   const pitchRef = useRef<HTMLDivElement | null>(null);
+  const pitchSectionRef = useRef<HTMLElement | null>(null);
+  const controlBarRef = useRef<HTMLElement | null>(null);
+  const [pinnedControlBarHeight, setPinnedControlBarHeight] = useState(0);
   const [hasLoadedUserSettings, setHasLoadedUserSettings] = useState(false);
 
   const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
@@ -1301,6 +1373,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   );
   const [isPlayingAnimation, setIsPlayingAnimation] = useState(false);
   const [playbackFrameIndex, setPlaybackFrameIndex] = useState(0);
+  const [showActivityTabs, setShowActivityTabs] = useState(false);
   const [showAnimationDurations, setShowAnimationDurations] = useState(false);
   const [isDashed, setIsDashed] = useState(false);
   const [isArrow, setIsArrow] = useState(false);
@@ -1311,6 +1384,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [message, setMessage] = useState("");
   const [showToolbarSettings, setShowToolbarSettings] = useState(false);
   const [isToolbarOnLeft, setIsToolbarOnLeft] = useState(false);
+  const [isControlBarPinned, setIsControlBarPinned] = useState(false);
+  const [isPitchPoppedOut, setIsPitchPoppedOut] = useState(false);
+  const [popOutPosition, setPopOutPosition] = useState({ left: 24, top: 24 });
+  const [popOutDragState, setPopOutDragState] =
+    useState<PopOutDragState | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [selectedObjectIds, setSelectedObjectIds] = useState<string[]>([]);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
@@ -1385,6 +1463,107 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [panState, setPanState] = useState<PanState | null>(null);
   const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<HistorySnapshot[]>([]);
+
+  useEffect(() => {
+    if (!popOutDragState) {
+      return;
+    }
+
+    const activeDragState = popOutDragState;
+
+    function handlePopOutPointerMove(event: globalThis.PointerEvent) {
+      const pitchSection = pitchSectionRef.current;
+
+      if (!pitchSection) {
+        return;
+      }
+
+      const rect = pitchSection.getBoundingClientRect();
+      const maximumLeft = Math.max(
+        0,
+        window.innerWidth - Math.min(rect.width, window.innerWidth)
+      );
+      const maximumTop = Math.max(0, window.innerHeight - 56);
+
+      setPopOutPosition({
+        left: clamp(
+          activeDragState.startLeft +
+            (event.clientX - activeDragState.startClientX),
+          0,
+          maximumLeft
+        ),
+        top: clamp(
+          activeDragState.startTop +
+            (event.clientY - activeDragState.startClientY),
+          0,
+          maximumTop
+        ),
+      });
+    }
+
+    function handlePopOutPointerUp() {
+      setPopOutDragState(null);
+    }
+
+    window.addEventListener("pointermove", handlePopOutPointerMove);
+    window.addEventListener("pointerup", handlePopOutPointerUp);
+    window.addEventListener("pointercancel", handlePopOutPointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePopOutPointerMove);
+      window.removeEventListener("pointerup", handlePopOutPointerUp);
+      window.removeEventListener("pointercancel", handlePopOutPointerUp);
+    };
+  }, [popOutDragState]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setPan((currentPan) => clampPanToZoom(currentPan, zoom));
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [zoom, isPitchPoppedOut]);
+
+  useEffect(() => {
+    if (!isPitchPoppedOut) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isPitchPoppedOut]);
+
+  useEffect(() => {
+    const controlBar = controlBarRef.current;
+
+    if (!controlBar || !isControlBarPinned) {
+      setPinnedControlBarHeight(0);
+      return;
+    }
+
+    const measuredControlBar = controlBar;
+
+    function updatePinnedControlBarHeight() {
+      setPinnedControlBarHeight(
+        measuredControlBar.getBoundingClientRect().height
+      );
+    }
+
+    updatePinnedControlBarHeight();
+
+    const resizeObserver = new ResizeObserver(updatePinnedControlBarHeight);
+    resizeObserver.observe(measuredControlBar);
+    window.addEventListener("resize", updatePinnedControlBarHeight);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updatePinnedControlBarHeight);
+    };
+  }, [isControlBarPinned, showActivityTabs]);
 
   useEffect(() => {
     setFrames((currentFrames) =>
@@ -2053,6 +2232,95 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     setIsPlayingAnimation((current) => !current);
   }
 
+  function preservePitchViewportAcrossLayoutChange(
+    previousPitchRect: DOMRect | undefined
+  ) {
+    if (!previousPitchRect || previousPitchRect.width <= 0 || previousPitchRect.height <= 0) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const nextPitchRect = pitchRef.current?.getBoundingClientRect();
+
+        if (!nextPitchRect || nextPitchRect.width <= 0 || nextPitchRect.height <= 0) {
+          return;
+        }
+
+        setPan((currentPan) =>
+          clampPanToZoom(
+            {
+              x:
+                currentPan.x *
+                (nextPitchRect.width / previousPitchRect.width),
+              y:
+                currentPan.y *
+                (nextPitchRect.height / previousPitchRect.height),
+            },
+            zoom
+          )
+        );
+      });
+    });
+  }
+
+  function openPitchPopOut() {
+    const previousPitchRect = pitchRef.current?.getBoundingClientRect();
+
+    setPopOutPosition({ left: 24, top: 24 });
+    setPopOutDragState(null);
+    setIsPitchPoppedOut(true);
+
+    preservePitchViewportAcrossLayoutChange(previousPitchRect);
+  }
+
+  function startDraggingPitchPopOut(
+    event: PointerEvent<HTMLDivElement>
+  ) {
+    if (!isPitchPoppedOut || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+
+    setPopOutDragState({
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startLeft: popOutPosition.left,
+      startTop: popOutPosition.top,
+    });
+  }
+
+  function returnPitchToPage() {
+    const previousPitchRect = pitchRef.current?.getBoundingClientRect();
+    const pitchSection = pitchSectionRef.current;
+
+    if (pitchSection) {
+      // A resized pop-out can retain an internal scroll offset. Clear it before
+      // restoring the normal page layout so the pitch does not return shifted.
+      pitchSection.scrollLeft = 0;
+      pitchSection.scrollTop = 0;
+      pitchSection.style.width = "";
+      pitchSection.style.height = "";
+    }
+
+    setPopOutDragState(null);
+    setPopOutPosition({ left: 24, top: 24 });
+    setIsPitchPoppedOut(false);
+
+    preservePitchViewportAcrossLayoutChange(previousPitchRect);
+
+    // Reset once more after React applies the non-pop-out layout.
+    window.requestAnimationFrame(() => {
+      const restoredPitchSection = pitchSectionRef.current;
+
+      if (restoredPitchSection) {
+        restoredPitchSection.scrollLeft = 0;
+        restoredPitchSection.scrollTop = 0;
+      }
+    });
+  }
+
   function openSavePanel() {
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
@@ -2649,14 +2917,18 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const exportPanX = pan.x * (canvasWidth / editorPitchWidth);
     const exportPanY = pan.y * (canvasHeight / editorPitchHeight);
 
+    const firstFrame = frames[0];
+    const previewLines =
+      firstFrame?.id === activeFrameId ? lines : firstFrame?.lines ?? lines;
+    const previewObjects =
+      firstFrame?.id === activeFrameId ? objects : firstFrame?.objects ?? objects;
+
+    // Match the editor exactly: the background, lines, and objects all share
+    // one top-left anchored transform layer.
     context.save();
-    context.translate(
-      canvasWidth / 2 + exportPanX,
-      canvasHeight / 2 + exportPanY
-    );
+    context.translate(exportPanX, exportPanY);
     context.rotate((pitchRotationDegrees * Math.PI) / 180);
     context.scale(zoom, zoom);
-    context.translate(-canvasWidth / 2, -canvasHeight / 2);
 
     drawCanonicalPitchBackground(
       context,
@@ -2664,14 +2936,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       canvasHeight,
       selectedPitchBackground
     );
-
-    context.restore();
-
-    const firstFrame = frames[0];
-    const previewLines =
-      firstFrame?.id === activeFrameId ? lines : firstFrame?.lines ?? lines;
-    const previewObjects =
-      firstFrame?.id === activeFrameId ? objects : firstFrame?.objects ?? objects;
 
     previewLines.forEach((line) => {
       drawPreviewLine(context, line, canvasWidth, canvasHeight);
@@ -2696,6 +2960,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         );
       }
     }
+
+    context.restore();
 
     return canvas.toDataURL("image/png");
   }
@@ -2772,9 +3038,26 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return { x: 0, y: 0 };
     }
 
+    // The complete pitch layer transforms from its upper-left corner. Convert
+    // the pointer into that layer's untransformed coordinate system.
+    let localX = clientX - rect.left - pan.x;
+    let localY = clientY - rect.top - pan.y;
+
+    // Undo pitch rotation before undoing zoom.
+    const rotationRadians = (-pitchRotationDegrees * Math.PI) / 180;
+    const rotatedX =
+      localX * Math.cos(rotationRadians) -
+      localY * Math.sin(rotationRadians);
+    const rotatedY =
+      localX * Math.sin(rotationRadians) +
+      localY * Math.cos(rotationRadians);
+
+    localX = rotatedX / zoom;
+    localY = rotatedY / zoom;
+
     return {
-      x: clamp(((clientX - rect.left) / rect.width) * 100, 0, 100),
-      y: clamp(((clientY - rect.top) / rect.height) * 100, 0, 100),
+      x: clamp((localX / rect.width) * 100, 0, 100),
+      y: clamp((localY / rect.height) * 100, 0, 100),
     };
   }
 
@@ -2782,12 +3065,47 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     return getPitchPointFromClient(event.clientX, event.clientY);
   }
 
+  function getPanBounds(forZoom: number) {
+    const rect = pitchRef.current?.getBoundingClientRect();
+
+    if (!rect || forZoom <= 1) {
+      return {
+        minX: 0,
+        maxX: 0,
+        minY: 0,
+        maxY: 0,
+      };
+    }
+
+    return {
+      minX: rect.width * (1 - forZoom),
+      maxX: 0,
+      minY: rect.height * (1 - forZoom),
+      maxY: 0,
+    };
+  }
+
+  function clampPanToZoom(
+    nextPan: { x: number; y: number },
+    forZoom: number
+  ) {
+    const bounds = getPanBounds(forZoom);
+
+    return {
+      x: clamp(nextPan.x, bounds.minX, bounds.maxX),
+      y: clamp(nextPan.y, bounds.minY, bounds.maxY),
+    };
+  }
+
   function changeZoom(nextZoom: number) {
     if (isZoomLocked) {
       return;
     }
 
-    setZoom(clamp(nextZoom, 0.5, 3));
+    const clampedZoom = clamp(nextZoom, 0.5, 3);
+
+    setZoom(clampedZoom);
+    setPan((currentPan) => clampPanToZoom(currentPan, clampedZoom));
   }
 
   function resetView() {
@@ -2804,7 +3122,14 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     event.preventDefault();
 
     const zoomDirection = event.deltaY < 0 ? 0.1 : -0.1;
-    setZoom((currentZoom) => clamp(currentZoom + zoomDirection, 0.5, 3));
+
+    setZoom((currentZoom) => {
+      const nextZoom = clamp(currentZoom + zoomDirection, 0.5, 3);
+
+      setPan((currentPan) => clampPanToZoom(currentPan, nextZoom));
+
+      return nextZoom;
+    });
   }
 
   function getObjectFillColor(type: ObjectToolType) {
@@ -3011,10 +3336,19 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     }
 
     if (panState) {
-      setPan({
-        x: panState.startPanX + (event.clientX - panState.startClientX),
-        y: panState.startPanY + (event.clientY - panState.startClientY),
-      });
+      setPan(
+        clampPanToZoom(
+          {
+            x:
+              panState.startPanX +
+              (event.clientX - panState.startClientX),
+            y:
+              panState.startPanY +
+              (event.clientY - panState.startClientY),
+          },
+          zoom
+        )
+      );
       return;
     }
 
@@ -3154,6 +3488,15 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     setSelectedObjectIds([objectId]);
     setSelectedObjectId(objectId);
     setMessage("");
+  }
+
+  function openObjectEditorFromContextMenu(
+    event: ReactMouseEvent<HTMLElement>,
+    objectId: string
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    openObjectEditor(objectId);
   }
 
   function updateObjectSize(objectId: string, size: number) {
@@ -3367,7 +3710,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return;
     }
 
-    selectObject(objectId, false);
+    // A normal click highlights the object for moving/deleting, but does not
+    // open its properties. Properties open only by double-click or right-click.
+    setSelectedObjectIds([objectId]);
+    setSelectedObjectId(null);
+
     saveHistorySnapshot();
     setDraggingObjectId(objectId);
   }
@@ -3576,6 +3923,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             event.stopPropagation();
             openObjectEditor(object.id);
           }}
+          onContextMenu={(event) =>
+            openObjectEditorFromContextMenu(event, object.id)
+          }
           className="flex items-center justify-center border-2 border-black font-bold shadow-sm"
           style={{
             width: `${size}px`,
@@ -3647,6 +3997,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           event.stopPropagation();
           openObjectEditor(object.id);
         }}
+          onContextMenu={(event) =>
+            openObjectEditorFromContextMenu(event, object.id)
+          }
         className={`absolute z-20 flex touch-none items-center justify-center bg-transparent p-0 ${
           isObjectSelected(object.id)
             ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
@@ -3709,6 +4062,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           event.stopPropagation();
           openObjectEditor(object.id);
         }}
+          onContextMenu={(event) =>
+            openObjectEditorFromContextMenu(event, object.id)
+          }
         className={`absolute z-20 flex touch-none items-center justify-center bg-transparent p-0 ${
           isObjectSelected(object.id)
             ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
@@ -3758,6 +4114,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           event.stopPropagation();
           openObjectEditor(object.id);
         }}
+          onContextMenu={(event) =>
+            openObjectEditorFromContextMenu(event, object.id)
+          }
         className={`absolute z-20 flex touch-none items-center justify-center whitespace-pre-wrap break-words rounded-lg border border-slate-500/40 bg-white/70 px-2 py-1 text-center font-bold leading-tight shadow-sm ${
           isObjectSelected(object.id)
             ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
@@ -4044,9 +4403,17 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
   return (
     <div className="grid gap-2">
-      <section className="rounded-xl bg-white p-2 shadow-sm md:p-3">
-        <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="flex flex-wrap items-center gap-2">
+      <section
+        ref={controlBarRef}
+        className={`rounded-xl bg-white p-2 shadow-sm md:p-3 ${
+          isControlBarPinned
+            ? "sticky top-[72px] z-[60] border border-slate-200 shadow-lg"
+            : ""
+        }`}
+      >
+        {showActivityTabs && (
+          <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-wrap items-center gap-2">
             <div className="mr-1 text-xs font-bold uppercase tracking-wide text-slate-500">
               Activity Tabs
             </div>
@@ -4112,10 +4479,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               {isPlayingAnimation ? "Stop Animation" : "Play Animation"}
             </button>
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            New tabs copy the most recent tab and preserve object IDs so movement can animate between tabs. Animation plays once and stops on the final tab.
-          </p>
-        </div>
+            <p className="mt-2 text-xs text-slate-500">
+              New tabs copy the most recent tab and preserve object IDs so movement can animate between tabs. Animation plays once and stops on the final tab.
+            </p>
+          </div>
+        )}
         <div className="md:hidden">
           <div className="grid grid-cols-3 gap-2">
             <button
@@ -4563,6 +4931,21 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
           <button
             type="button"
+            onClick={() => setShowActivityTabs((current) => !current)}
+            aria-expanded={showActivityTabs}
+            className={`flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border text-[11px] font-bold transition ${
+              showActivityTabs
+                ? "border-[#0d2140] bg-[#0d2140] text-white"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+            title={showActivityTabs ? "Hide Activity Tabs" : "Show Activity Tabs"}
+          >
+            <MovieCameraIcon />
+            <span className="leading-none">Animate</span>
+          </button>
+
+          <button
+            type="button"
             onClick={undoPitchChange}
             disabled={undoStack.length === 0}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -4586,6 +4969,24 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           >
             Save
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsControlBarPinned((current) => !current)}
+            aria-pressed={isControlBarPinned}
+            title={
+              isControlBarPinned
+                ? "Unpin controls from top"
+                : "Pin controls to top"
+            }
+            className={`ml-auto flex h-12 w-12 items-center justify-center rounded-lg border transition ${
+              isControlBarPinned
+                ? "border-sky-500 bg-sky-500 text-white shadow-sm"
+                : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <PinIcon pinned={isControlBarPinned} />
+          </button>
         </div>
 
 
@@ -4596,13 +4997,64 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         )}
       </section>
 
-      <section className="overflow-hidden rounded-xl bg-white p-1 shadow-sm md:p-2">
+      <section
+        ref={pitchSectionRef}
+        className={
+          isPitchPoppedOut
+            ? "fixed z-[220] h-[calc(100vh-3rem)] w-[calc(100vw-3rem)] min-h-[520px] min-w-[720px] resize overflow-auto rounded-2xl border border-slate-300 bg-white p-2 shadow-2xl"
+            : "overflow-hidden rounded-xl bg-white p-1 shadow-sm md:p-2"
+        }
+        style={
+          isPitchPoppedOut
+            ? {
+                left: `${popOutPosition.left}px`,
+                top: `${popOutPosition.top}px`,
+              }
+            : undefined
+        }
+      >
+        {isPitchPoppedOut && (
+          <div
+            onPointerDown={startDraggingPitchPopOut}
+            className={`sticky top-0 z-[240] mb-2 flex cursor-move touch-none items-center justify-between rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 shadow-sm ${
+              popOutDragState ? "select-none bg-slate-200" : ""
+            }`}
+            title="Drag to move the pop-out window"
+          >
+            <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <span aria-hidden="true">⋮⋮</span>
+              <span>Activity Pitch</span>
+              <span className="text-xs font-medium text-slate-500">
+                Drag this bar to move
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={returnPitchToPage}
+              className="rounded-lg border border-sky-600 bg-sky-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-sky-700"
+            >
+              Return
+            </button>
+          </div>
+        )}
+
         <div
-          className="relative mx-auto flex max-w-full justify-center overflow-visible rounded-xl border border-slate-200 bg-slate-100"
+          className={`relative mx-auto flex max-w-full justify-center rounded-xl border border-slate-200 bg-slate-100 ${
+            isPitchPoppedOut ? "overflow-hidden" : "overflow-visible"
+          }`}
           onWheel={handleWheel}
         >
           {isToolbarOnLeft && (
-            <div className="absolute left-3 top-16 z-40 hidden max-h-[calc(100%-5rem)] grid-cols-2 gap-1.5 overflow-y-auto rounded-xl border border-slate-300 bg-white/95 p-2 shadow-lg backdrop-blur md:grid">
+            <div
+              className="absolute left-3 z-30 hidden max-h-[calc(100%-5rem)] grid-cols-2 gap-1.5 overflow-y-auto rounded-xl border border-slate-300 bg-white/95 p-2 shadow-lg backdrop-blur md:grid"
+              style={{
+                top: isControlBarPinned
+                  ? `${pinnedControlBarHeight + 12}px`
+                  : "4rem",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => setShowToolbarSettings((current) => !current)}
@@ -4636,7 +5088,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               </label>
             </div>
           )}
-          <div className="absolute left-2 top-2 z-50 flex flex-col gap-1 md:left-3 md:top-3 md:flex-row md:gap-2">
+          <div className="absolute left-2 top-2 z-20 flex flex-col gap-1 md:left-3 md:top-3 md:flex-row md:gap-2">
             <button
               type="button"
               onClick={() => setIsZoomLocked((current) => !current)}
@@ -4688,7 +5140,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             </button>
           </div>
 
-          <div className="absolute right-2 top-2 z-50 md:right-3 md:top-3">
+          <div className="absolute right-2 top-2 z-20 flex flex-col items-end gap-2 md:right-3 md:top-3">
             <button
               type="button"
               onClick={clearPitch}
@@ -4698,10 +5150,22 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               <SmallTrashIcon />
               <span className="hidden sm:inline">Clear</span>
             </button>
+
+            <button
+              type="button"
+              onClick={openPitchPopOut}
+              disabled={isPitchPoppedOut}
+              className="flex h-9 items-center justify-center rounded-lg border border-sky-300 bg-white px-3 text-xs font-bold text-sky-700 shadow-sm hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
+              title="Pop out pitch and toolbar"
+            >
+              Pop Out
+            </button>
           </div>
 
           <div
             className={`flex min-h-[420px] w-full justify-center overflow-visible ${
+              isPitchPoppedOut ? "min-h-[calc(100vh-9rem)]" : ""
+            } ${
               isToolbarOnLeft
                 ? "md:pl-[12rem] md:pr-[6rem]"
                 : "h-[70vh] pt-14 md:h-auto md:px-14 md:pt-20"
@@ -4717,7 +5181,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 setActiveLinePoints([]);
                 setPanState(null);
               }}
-              className={`relative aspect-[3/4] max-w-full touch-none overflow-visible rounded-xl bg-white shadow-inner ${
+              className={`relative aspect-[3/4] max-w-full touch-none overflow-hidden rounded-xl bg-white shadow-inner ${
                 isToolbarOnLeft
                   ? "h-auto w-full"
                   : "h-full max-h-full w-auto md:h-auto md:w-full"
@@ -4728,38 +5192,43 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 transform: "none",
               }}
             >
-              <CodedPitchBackground
-                background={selectedPitchBackground}
-                zoom={zoom}
-                panX={pan.x}
-                panY={pan.y}
-                rotationDegrees={pitchRotationDegrees}
-              />
-
-              <svg
-                className="absolute inset-0 z-10 h-full w-full"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
+              <div
+                className="absolute inset-0"
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) rotate(${pitchRotationDegrees}deg) scale(${zoom})`,
+                  transformOrigin: "top left",
+                }}
               >
-                {displayedLines.map((line) => renderLine(line))}
+                <CodedPitchBackground
+                  background={selectedPitchBackground}
+                />
 
-                {activeLinePoints.length > 1 &&
-                  renderLine(
-                    {
-                      id: "preview",
-                      points: activeLinePoints,
-                      dashed: isDashed,
-                      arrow: selectedTool === "dribble" ? true : isArrow,
-                      color: lineColor,
-                      lineWidth,
-                      lineStyle: selectedTool === "dribble" ? "dribble" : "standard",
-                    },
-                    true
-                  )}
-              </svg>
+                <svg
+                  className="absolute inset-0 z-10 h-full w-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  {displayedLines.map((line) => renderLine(line))}
 
-              {displayedObjects.map((object) => renderObject(object))}
-              {!isPlayingAnimation && renderSelectedObjectPitchControls()}
+                  {activeLinePoints.length > 1 &&
+                    renderLine(
+                      {
+                        id: "preview",
+                        points: activeLinePoints,
+                        dashed: isDashed,
+                        arrow: selectedTool === "dribble" ? true : isArrow,
+                        color: lineColor,
+                        lineWidth,
+                        lineStyle:
+                          selectedTool === "dribble" ? "dribble" : "standard",
+                      },
+                      true
+                    )}
+                </svg>
+
+                {displayedObjects.map((object) => renderObject(object))}
+                {!isPlayingAnimation && renderSelectedObjectPitchControls()}
+              </div>
             </div>
           </div>
         </div>
