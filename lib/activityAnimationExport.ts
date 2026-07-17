@@ -14,6 +14,10 @@ import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
 const WIDTH = 600;
 const HEIGHT = 800;
 const MIN_DURATION = 250;
+
+const MP4_UPLOAD_WIDTH = 360;
+const MP4_UPLOAD_HEIGHT = 480;
+const MP4_JPEG_QUALITY = 0.70;
 const ASSETS = {
   ball: "/activity-assets/soccer_ball.png",
   mannequin: "/activity-assets/mannequin.png",
@@ -767,6 +771,32 @@ async function renderFrames(activity: Activity) {
   return output;
 }
 
+function canvasToCompressedMp4Frame(canvas: HTMLCanvasElement) {
+  const compressedCanvas = document.createElement("canvas");
+  compressedCanvas.width = MP4_UPLOAD_WIDTH;
+  compressedCanvas.height = MP4_UPLOAD_HEIGHT;
+
+  const context = compressedCanvas.getContext("2d");
+  if (!context) {
+    throw new Error("The browser could not prepare the MP4 frame.");
+  }
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, MP4_UPLOAD_WIDTH, MP4_UPLOAD_HEIGHT);
+  context.drawImage(
+    canvas,
+    0,
+    0,
+    MP4_UPLOAD_WIDTH,
+    MP4_UPLOAD_HEIGHT
+  );
+
+  return compressedCanvas.toDataURL(
+    "image/jpeg",
+    MP4_JPEG_QUALITY
+  );
+}
+
 function downloadBlob(blob: Blob, fileName: string) {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -806,7 +836,9 @@ export async function downloadActivityAnimationAsMp4(activity: Activity) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      frames: rendered.map((frame) => frame.canvas.toDataURL("image/png")),
+      frames: rendered.map((frame) =>
+        canvasToCompressedMp4Frame(frame.canvas)
+      ),
       durationsMs: rendered.map((frame) => frame.durationMs),
       activityName: activity.activityName,
     }),

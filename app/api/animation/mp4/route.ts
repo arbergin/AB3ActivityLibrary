@@ -28,14 +28,23 @@ function sanitizeFileName(value: string) {
     .toLowerCase();
 }
 
-function dataUrlToBuffer(dataUrl: string) {
-  const match = dataUrl.match(/^data:image\/png;base64,(.+)$/);
+function parseImageDataUrl(dataUrl: string) {
+  const match = dataUrl.match(
+    /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/
+  );
 
   if (!match) {
     throw new Error("One or more animation frames are invalid.");
   }
 
-  return Buffer.from(match[1], "base64");
+  const format = match[1] === "jpg" ? "jpeg" : match[1];
+  const extension =
+    format === "jpeg" ? "jpg" : format === "webp" ? "webp" : "png";
+
+  return {
+    buffer: Buffer.from(match[2], "base64"),
+    extension,
+  };
 }
 
 function escapeConcatPath(filePath: string) {
@@ -146,12 +155,13 @@ export async function POST(request: Request) {
     const framePaths: string[] = [];
 
     for (let index = 0; index < frames.length; index += 1) {
+      const parsedFrame = parseImageDataUrl(frames[index]);
       const framePath = path.join(
         workDirectory,
-        `frame-${String(index).padStart(3, "0")}.png`
+        `frame-${String(index).padStart(3, "0")}.${parsedFrame.extension}`
       );
 
-      await writeFile(framePath, dataUrlToBuffer(frames[index]));
+      await writeFile(framePath, parsedFrame.buffer);
       framePaths.push(framePath);
     }
 
