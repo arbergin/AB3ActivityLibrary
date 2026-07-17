@@ -4,6 +4,8 @@ import {
   rgb,
   type PDFPage,
   type PDFFont,
+  type PDFEmbeddedPage,
+  type PDFImage,
 } from "pdf-lib";
 import type { Activity } from "@/types/activity";
 import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
@@ -514,22 +516,436 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
   });
 }
 
-export async function downloadActivityAsPdf(activity: Activity) {
+
+export type ActivityPdfLayout = "full-page" | "half-page";
+
+type EmbeddedActivityPreview =
+  | {
+      kind: "png";
+      image: PDFImage;
+      width: number;
+      height: number;
+    }
+  | {
+      kind: "pdf";
+      image: PDFEmbeddedPage;
+      width: number;
+      height: number;
+    };
+
+async function embedActivityPreview(
+  pdfDocument: PDFDocument,
+  activity: Activity
+): Promise<EmbeddedActivityPreview> {
+  if (!activity.previewDataUrl) {
+    throw new Error("No activity preview is available for this activity.");
+  }
+
+  const previewBytes = await fileSourceToArrayBuffer(activity.previewDataUrl);
+
+  if (activity.fileType === "image/png") {
+    const image = await pdfDocument.embedPng(previewBytes);
+
+    return {
+      kind: "png",
+      image,
+      width: image.width,
+      height: image.height,
+    };
+  }
+
+  if (activity.fileType === "application/pdf") {
+    const sourcePdf = await PDFDocument.load(previewBytes);
+    const sourcePage = sourcePdf.getPage(0);
+    const image = await pdfDocument.embedPage(sourcePage);
+
+    return {
+      kind: "pdf",
+      image,
+      width: sourcePage.getWidth(),
+      height: sourcePage.getHeight(),
+    };
+  }
+
+  throw new Error("Only PNG and PDF activities can be exported.");
+}
+
+function drawEmbeddedActivityPreview({
+  page,
+  preview,
+  x,
+  y,
+  width,
+  height,
+}: {
+  page: PDFPage;
+  preview: EmbeddedActivityPreview;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}) {
+  if (preview.kind === "png") {
+    page.drawImage(preview.image, {
+      x,
+      y,
+      width,
+      height,
+    });
+    return;
+  }
+
+  page.drawPage(preview.image, {
+    x,
+    y,
+    width,
+    height,
+  });
+}
+
+async function addHalfPageActivityLayout(
+  pdfDocument: PDFDocument,
+  activity: Activity
+) {
+  const creatorDisplayName = await getUserDisplayName(activity.createdBy);
+  const preview = await embedActivityPreview(pdfDocument, activity);
+
+  const titleFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
+  const labelFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
+  const valueFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
+  const boldValueFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
+  const italicValueFont = await pdfDocument.embedFont(StandardFonts.HelveticaOblique);
+
+  const contentWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
+  const pageBottom = PAGE_MARGIN;
+  const detailsFontSize = 11;
+  const detailsLineHeight = 14;
+  const sectionGap = 12;
+
+  let page = pdfDocument.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let y = PAGE_HEIGHT - PAGE_MARGIN;
+
+  function drawPageTitle(isContinuation = false) {
+    page.drawText(
+      isContinuation
+        ? `${activity.activityName || "Untitled Activity"} — Continued`
+        : activity.activityName || "Untitled Activity",
+      {
+        x: PAGE_MARGIN,
+        y,
+        size: isContinuation ? 16 : 20,
+        font: titleFont,
+        color: rgb(0.05, 0.13, 0.25),
+      }
+    );
+
+    y -= isContinuation ? 28 : 32;
+  }
+
+  function addContinuationPage() {
+    page = pdfDocument.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    y = PAGE_HEIGHT - PAGE_MARGIN;
+    drawPageTitle(true);
+  }
+
+  function ensureSpace(requiredHeight: number) {
+    if (y - requiredHeight < pageBottom) {
+      addContinuationPage();
+    }
+  }
+
+  drawPageTitle(false);
+
+  // Keep the activity image in roughly the upper half of page one.
+  const maxPreviewHeight = 330;
+  const maxPreviewWidth = contentWidth;
+  const previewScale = Math.min(
+    maxPreviewWidth / preview.width,
+    maxPreviewHeight / preview.height
+  );
+  const previewWidth = preview.width * previewScale;
+  const previewHeight = preview.height * previewScale;
+  const previewX = (PAGE_WIDTH - previewWidth) / 2;
+  const previewY = y - previewHeight;
+
+  drawEmbeddedActivityPreview({
+    page,
+    preview,
+    x: previewX,
+    y: previewY,
+    width: previewWidth,
+    height: previewHeight,
+  });
+
+  y = previewY - 18;
+
+  ensureSpace(24);
+  drawSectionLabel({
+    page,
+    label: "Activity Details",
+    x: PAGE_MARGIN,
+    y,
+    font: labelFont,
+  });
+  y -= 18;
+
+  const detailsBlocks = parseActivityDetailsMarkdown(
+    activity.activityDetails || "—"
+  );
+
+  for (const block of detailsBlocks) {
+    if (block.type === "blank") {
+      ensureSpace(detailsLineHeight / 2);
+      y -= detailsLineHeight / 2;
+      continue;
+    }
+
+    const bulletIndent = block.type === "bullet" ? 14 : 0;
+    let currentX = PAGE_MARGIN + bulletIndent;
+    let bulletDrawn = false;
+
+    ensureSpace(detailsLineHeight);
+
+    if (block.type === "bullet") {
+      page.drawText("•", {
+        x: PAGE_MARGIN,
+        y,
+        size: detailsFontSize,
+        font: valueFont,
+        color: rgb(0.1, 0.15, 0.22),
+      });
+      bulletDrawn = true;
+    }
+
+    for (const run of block.runs) {
+      const runFont = run.bold
+        ? boldValueFont
+        : run.italic
+          ? italicValueFont
+          : valueFont;
+
+      const words = run.text.split(/(\s+)/);
+
+      for (const word of words) {
+        if (!word) continue;
+
+        const wordWidth = runFont.widthOfTextAtSize(word, detailsFontSize);
+        const lineStartX = PAGE_MARGIN + bulletIndent;
+
+        if (
+          currentX + wordWidth > PAGE_MARGIN + contentWidth &&
+          currentX > lineStartX
+        ) {
+          y -= detailsLineHeight;
+          ensureSpace(detailsLineHeight);
+          currentX = lineStartX;
+
+          if (block.type === "bullet" && !bulletDrawn) {
+            page.drawText("•", {
+              x: PAGE_MARGIN,
+              y,
+              size: detailsFontSize,
+              font: valueFont,
+              color: rgb(0.1, 0.15, 0.22),
+            });
+            bulletDrawn = true;
+          }
+        }
+
+        page.drawText(word, {
+          x: currentX,
+          y,
+          size: detailsFontSize,
+          font: runFont,
+          color: rgb(0.1, 0.15, 0.22),
+        });
+
+        if (run.underline && word.trim()) {
+          page.drawLine({
+            start: { x: currentX, y: y - 1.5 },
+            end: { x: currentX + wordWidth, y: y - 1.5 },
+            thickness: 0.7,
+            color: rgb(0.1, 0.15, 0.22),
+          });
+        }
+
+        currentX += wordWidth;
+      }
+    }
+
+    y -= detailsLineHeight;
+  }
+
+  y -= sectionGap;
+
+  const columnGap = 10;
+  const threeColumnWidth = (contentWidth - columnGap * 2) / 3;
+  const compactBoxHeight = 48;
+  const rowGap = 10;
+
+  ensureSpace(22);
+  drawSectionLabel({
+    page,
+    label: "Activity Information",
+    x: PAGE_MARGIN,
+    y,
+    font: labelFont,
+  });
+  y -= 16;
+
+  ensureSpace(compactBoxHeight);
+
+  drawMetadataBox({
+    page,
+    label: "Field Location",
+    value: activity.fieldLocation || "—",
+    x: PAGE_MARGIN,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+
+  drawMetadataBox({
+    page,
+    label: "Game Phase",
+    value: activity.gamePhase || "—",
+    x: PAGE_MARGIN + threeColumnWidth + columnGap,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+
+  drawMetadataBox({
+    page,
+    label: "Category",
+    value: activity.category || "—",
+    x: PAGE_MARGIN + (threeColumnWidth + columnGap) * 2,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+
+  y -= compactBoxHeight + rowGap;
+  ensureSpace(compactBoxHeight);
+
+  drawMetadataBox({
+    page,
+    label: "Positions Involved",
+    value: activity.positionsInvolved || "—",
+    x: PAGE_MARGIN,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+
+  drawMetadataBox({
+    page,
+    label: "Activity Visibility",
+    value: formatActivityVisibility(activity.visibility),
+    x: PAGE_MARGIN + threeColumnWidth + columnGap,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+
+  drawMetadataBox({
+    page,
+    label: "Number of Players",
+    value:
+      activity.numberOfPlayers === ""
+        ? "—"
+        : String(activity.numberOfPlayers),
+    x: PAGE_MARGIN + (threeColumnWidth + columnGap) * 2,
+    y: y - compactBoxHeight,
+    width: threeColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+
+  y -= compactBoxHeight + rowGap;
+
+  const creatorFrames = getActivityCreatorFrames(activity.creatorState);
+
+  if (activity.creatorState && creatorFrames.length > 0) {
+    ensureSpace(44);
+    drawMetadataBox({
+      page,
+      label: "Activity Tabs",
+      value: creatorFrames
+        .map((frame, index) => `${index + 1}. ${frame.name}`)
+        .join(" • "),
+      x: PAGE_MARGIN,
+      y: y - compactBoxHeight,
+      width: contentWidth,
+      height: compactBoxHeight,
+      labelFont,
+      valueFont,
+    });
+    y -= compactBoxHeight + rowGap;
+  }
+
+  const twoColumnWidth = (contentWidth - columnGap) / 2;
+  ensureSpace(compactBoxHeight);
+
+  drawMetadataBox({
+    page,
+    label: "Created By",
+    value: creatorDisplayName,
+    x: PAGE_MARGIN,
+    y: y - compactBoxHeight,
+    width: twoColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+
+  drawMetadataBox({
+    page,
+    label: "Last Updated",
+    value: formatDate(activity.updatedAt),
+    x: PAGE_MARGIN + twoColumnWidth + columnGap,
+    y: y - compactBoxHeight,
+    width: twoColumnWidth,
+    height: compactBoxHeight,
+    labelFont,
+    valueFont,
+  });
+}
+
+export async function downloadActivityAsPdf(
+  activity: Activity,
+  layout: ActivityPdfLayout = "full-page"
+) {
   if (!activity.previewDataUrl) {
     throw new Error("No activity preview is available for this activity.");
   }
 
   const pdfDocument = await PDFDocument.create();
 
-  if (activity.fileType === "application/pdf") {
-    await addOriginalPdfPages(pdfDocument, activity);
-  } else if (activity.fileType === "image/png") {
-    await addPngPage(pdfDocument, activity);
+  if (layout === "half-page") {
+    await addHalfPageActivityLayout(pdfDocument, activity);
   } else {
-    throw new Error("Only PNG and PDF activities can be exported.");
-  }
+    if (activity.fileType === "application/pdf") {
+      await addOriginalPdfPages(pdfDocument, activity);
+    } else if (activity.fileType === "image/png") {
+      await addPngPage(pdfDocument, activity);
+    } else {
+      throw new Error("Only PNG and PDF activities can be exported.");
+    }
 
-  await addMetadataPage(pdfDocument, activity);
+    await addMetadataPage(pdfDocument, activity);
+  }
 
   const pdfBytes = await pdfDocument.save();
   const pdfBlob = new Blob([new Uint8Array(pdfBytes)], {
@@ -540,9 +956,13 @@ export async function downloadActivityAsPdf(activity: Activity) {
 
   const fileNameBase = sanitizeFileName(activity.activityName || "activity");
   const downloadLink = document.createElement("a");
+  const layoutSuffix =
+    layout === "half-page" ? "half_page" : "full_page";
 
   downloadLink.href = pdfUrl;
-  downloadLink.download = `${fileNameBase || "activity"}_with_metadata.pdf`;
+  downloadLink.download = `${
+    fileNameBase || "activity"
+  }_${layoutSuffix}.pdf`;
 
   document.body.appendChild(downloadLink);
   downloadLink.click();
@@ -550,3 +970,4 @@ export async function downloadActivityAsPdf(activity: Activity) {
 
   window.URL.revokeObjectURL(pdfUrl);
 }
+
