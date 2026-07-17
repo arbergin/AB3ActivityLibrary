@@ -1313,6 +1313,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [isToolbarOnLeft, setIsToolbarOnLeft] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
+  const [isMetadataFormDirty, setIsMetadataFormDirty] = useState(false);
+  const [showMetadataCloseWarning, setShowMetadataCloseWarning] = useState(false);
   const [showUnsavedChangesPrompt, setShowUnsavedChangesPrompt] = useState(false);
   const [pendingNavigationUrl, setPendingNavigationUrl] = useState<string | null>(null);
 
@@ -1965,10 +1967,25 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     setSelectedObjectId(null);
     setActiveLinePoints([]);
     setPendingNavigationUrl(null);
+    setIsMetadataFormDirty(false);
+    setShowMetadataCloseWarning(false);
     setIsSavePanelOpen(true);
   }
 
   function closeSavePanel() {
+    if (isMetadataFormDirty) {
+      setShowMetadataCloseWarning(true);
+      return;
+    }
+
+    setIsSavePanelOpen(false);
+    setPendingNavigationUrl(null);
+    setShowMetadataCloseWarning(false);
+  }
+
+  function closeSavePanelWithoutUpdating() {
+    setIsMetadataFormDirty(false);
+    setShowMetadataCloseWarning(false);
     setIsSavePanelOpen(false);
     setPendingNavigationUrl(null);
   }
@@ -2532,8 +2549,20 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
 
+    const editorPitchRect = pitchRef.current?.getBoundingClientRect();
+    const editorPitchWidth = editorPitchRect?.width || canvasWidth;
+    const editorPitchHeight = editorPitchRect?.height || canvasHeight;
+
+    // Pan is stored in on-screen CSS pixels. Scale it to the fixed export
+    // canvas so the preview uses the same visible pitch framing as the editor.
+    const exportPanX = pan.x * (canvasWidth / editorPitchWidth);
+    const exportPanY = pan.y * (canvasHeight / editorPitchHeight);
+
     context.save();
-    context.translate(canvasWidth / 2 + pan.x, canvasHeight / 2 + pan.y);
+    context.translate(
+      canvasWidth / 2 + exportPanX,
+      canvasHeight / 2 + exportPanY
+    );
     context.rotate((pitchRotationDegrees * Math.PI) / 180);
     context.scale(zoom, zoom);
     context.translate(-canvasWidth / 2, -canvasHeight / 2);
@@ -4674,6 +4703,47 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         </div>
       )}
 
+      {showMetadataCloseWarning && (
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-slate-900/55 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="metadata-close-warning-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <h2
+              id="metadata-close-warning-title"
+              className="text-xl font-bold text-slate-900"
+            >
+              Close without updating?
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              You changed the activity metadata, but those changes have not been
+              saved. Closing now will leave the saved activity unchanged.
+            </p>
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={() => setShowMetadataCloseWarning(false)}
+                className="rounded-lg bg-[#0d2140] px-4 py-3 font-bold text-white hover:bg-[#142f57]"
+              >
+                Keep Editing
+              </button>
+
+              <button
+                type="button"
+                onClick={closeSavePanelWithoutUpdating}
+                className="rounded-lg border border-red-300 bg-white px-4 py-3 font-bold text-red-700 hover:bg-red-50"
+              >
+                Close Without Updating
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isSavePanelOpen && (
         <div className="fixed inset-0 z-[100]">
           <button
@@ -4711,6 +4781,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 initialActivity={initialActivity}
                 getPreviewDataUrl={getCreatorPreviewDataUrl}
                 onSaved={handleActivitySaved}
+                onDirtyChange={setIsMetadataFormDirty}
               />
             </div>
           </aside>

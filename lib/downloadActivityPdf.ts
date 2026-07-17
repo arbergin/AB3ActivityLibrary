@@ -464,7 +464,7 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
 
   for (const block of detailsBlocks) {
     if (y < 120) break;
-    if (block.type === "blank") { y -= detailsLineHeight / 2; continue; }
+    if (block.type === "blank") { y -= detailsLineHeight; continue; }
     const bulletIndent = block.type === "bullet" ? 14 : 0;
     if (block.type === "bullet") {
       page.drawText("•", { x: PAGE_MARGIN, y, size: detailsFontSize, font: valueFont, color: rgb(0.1, 0.15, 0.22) });
@@ -517,7 +517,7 @@ async function addMetadataPage(pdfDocument: PDFDocument, activity: Activity) {
 }
 
 
-export type ActivityPdfLayout = "full-page" | "half-page";
+export type ActivityPdfLayout = "full-page" | "half-page" | "quarter-page";
 
 type EmbeddedActivityPreview =
   | {
@@ -695,8 +695,8 @@ async function addHalfPageActivityLayout(
 
   for (const block of detailsBlocks) {
     if (block.type === "blank") {
-      ensureSpace(detailsLineHeight / 2);
-      y -= detailsLineHeight / 2;
+      ensureSpace(detailsLineHeight);
+      y -= detailsLineHeight;
       continue;
     }
 
@@ -923,6 +923,241 @@ async function addHalfPageActivityLayout(
   });
 }
 
+
+async function addQuarterPageActivityLayout(
+  pdfDocument: PDFDocument,
+  activity: Activity
+) {
+  const creatorDisplayName = await getUserDisplayName(activity.createdBy);
+  const preview = await embedActivityPreview(pdfDocument, activity);
+
+  const titleFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
+  const labelFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
+  const valueFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
+  const boldValueFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
+  const italicValueFont = await pdfDocument.embedFont(StandardFonts.HelveticaOblique);
+
+  const contentWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
+  const pageBottom = PAGE_MARGIN;
+  const detailsFontSize = 11;
+  const detailsLineHeight = 14;
+
+  let page = pdfDocument.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let y = PAGE_HEIGHT - PAGE_MARGIN;
+
+  function drawPageTitle(isContinuation = false) {
+    page.drawText(
+      isContinuation
+        ? `${activity.activityName || "Untitled Activity"} — Activity Details Continued`
+        : activity.activityName || "Untitled Activity",
+      {
+        x: PAGE_MARGIN,
+        y,
+        size: isContinuation ? 16 : 20,
+        font: titleFont,
+        color: rgb(0.05, 0.13, 0.25),
+      }
+    );
+
+    y -= isContinuation ? 30 : 34;
+  }
+
+  function addContinuationPage() {
+    page = pdfDocument.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    y = PAGE_HEIGHT - PAGE_MARGIN;
+    drawPageTitle(true);
+  }
+
+  function ensureDetailsSpace(requiredHeight: number) {
+    if (y - requiredHeight < pageBottom) {
+      addContinuationPage();
+    }
+  }
+
+  drawPageTitle(false);
+
+  const topSectionTop = y;
+  const maxTopSectionHeight = 330;
+
+  const columnGap = 14;
+  const leftColumnWidth = 226;
+  const rightColumnX = PAGE_MARGIN + leftColumnWidth + columnGap;
+  const rightColumnWidth = contentWidth - leftColumnWidth - columnGap;
+
+  // Activity image in the upper-left quarter.
+  const previewScale = Math.min(
+    leftColumnWidth / preview.width,
+    maxTopSectionHeight / preview.height
+  );
+  const previewWidth = preview.width * previewScale;
+  const previewHeight = preview.height * previewScale;
+  const previewX = PAGE_MARGIN + (leftColumnWidth - previewWidth) / 2;
+  const previewY = topSectionTop - previewHeight;
+  const topSectionBottom = previewY;
+
+  drawEmbeddedActivityPreview({
+    page,
+    preview,
+    x: previewX,
+    y: previewY,
+    width: previewWidth,
+    height: previewHeight,
+  });
+
+  // Eight evenly spaced metadata boxes in the upper-right.
+  // The grid uses the rendered image height so the first and last rows
+  // align exactly with the top and bottom edges of the picture.
+  const boxColumnGap = 10;
+  const boxRowGap = 10;
+  const boxWidth = (rightColumnWidth - boxColumnGap) / 2;
+  const boxHeight = (previewHeight - boxRowGap * 3) / 4;
+
+  const metadataBoxes = [
+    {
+      label: "Field Location",
+      value: activity.fieldLocation || "—",
+    },
+    {
+      label: "Game Phase",
+      value: activity.gamePhase || "—",
+    },
+    {
+      label: "Positions Involved",
+      value: activity.positionsInvolved || "—",
+    },
+    {
+      label: "Category",
+      value: activity.category || "—",
+    },
+    {
+      label: "Number of Players",
+      value:
+        activity.numberOfPlayers === ""
+          ? "—"
+          : String(activity.numberOfPlayers),
+    },
+    {
+      label: "Activity Visibility",
+      value: formatActivityVisibility(activity.visibility),
+    },
+    {
+      label: "Created By",
+      value: creatorDisplayName,
+    },
+    {
+      label: "Last Updated",
+      value: formatDate(activity.updatedAt),
+    },
+  ];
+
+  metadataBoxes.forEach((box, index) => {
+    const row = Math.floor(index / 2);
+    const column = index % 2;
+    const boxX = rightColumnX + column * (boxWidth + boxColumnGap);
+    const boxY =
+      topSectionTop -
+      boxHeight -
+      row * (boxHeight + boxRowGap);
+
+    drawMetadataBox({
+      page,
+      label: box.label,
+      value: box.value,
+      x: boxX,
+      y: boxY,
+      width: boxWidth,
+      height: boxHeight,
+      labelFont,
+      valueFont,
+    });
+  });
+
+  // Activity Details use the full bottom half of page one.
+  y = topSectionBottom - 24;
+
+  drawSectionLabel({
+    page,
+    label: "Activity Details",
+    x: PAGE_MARGIN,
+    y,
+    font: labelFont,
+  });
+
+  y -= 20;
+
+  const detailsBlocks = parseActivityDetailsMarkdown(
+    activity.activityDetails || "—"
+  );
+
+  for (const block of detailsBlocks) {
+    if (block.type === "blank") {
+      ensureDetailsSpace(detailsLineHeight);
+      y -= detailsLineHeight;
+      continue;
+    }
+
+    const bulletIndent = block.type === "bullet" ? 14 : 0;
+    const lineStartX = PAGE_MARGIN + bulletIndent;
+    let currentX = lineStartX;
+
+    ensureDetailsSpace(detailsLineHeight);
+
+    if (block.type === "bullet") {
+      page.drawText("•", {
+        x: PAGE_MARGIN,
+        y,
+        size: detailsFontSize,
+        font: valueFont,
+        color: rgb(0.1, 0.15, 0.22),
+      });
+    }
+
+    for (const run of block.runs) {
+      const runFont = run.bold
+        ? boldValueFont
+        : run.italic
+          ? italicValueFont
+          : valueFont;
+
+      for (const word of run.text.split(/(\s+)/)) {
+        if (!word) continue;
+
+        const wordWidth = runFont.widthOfTextAtSize(word, detailsFontSize);
+
+        if (
+          currentX + wordWidth > PAGE_MARGIN + contentWidth &&
+          currentX > lineStartX
+        ) {
+          y -= detailsLineHeight;
+          ensureDetailsSpace(detailsLineHeight);
+          currentX = lineStartX;
+        }
+
+        page.drawText(word, {
+          x: currentX,
+          y,
+          size: detailsFontSize,
+          font: runFont,
+          color: rgb(0.1, 0.15, 0.22),
+        });
+
+        if (run.underline && word.trim()) {
+          page.drawLine({
+            start: { x: currentX, y: y - 1.5 },
+            end: { x: currentX + wordWidth, y: y - 1.5 },
+            thickness: 0.7,
+            color: rgb(0.1, 0.15, 0.22),
+          });
+        }
+
+        currentX += wordWidth;
+      }
+    }
+
+    y -= detailsLineHeight;
+  }
+}
+
 export async function downloadActivityAsPdf(
   activity: Activity,
   layout: ActivityPdfLayout = "full-page"
@@ -933,7 +1168,9 @@ export async function downloadActivityAsPdf(
 
   const pdfDocument = await PDFDocument.create();
 
-  if (layout === "half-page") {
+  if (layout === "quarter-page") {
+    await addQuarterPageActivityLayout(pdfDocument, activity);
+  } else if (layout === "half-page") {
     await addHalfPageActivityLayout(pdfDocument, activity);
   } else {
     if (activity.fileType === "application/pdf") {
@@ -957,7 +1194,11 @@ export async function downloadActivityAsPdf(
   const fileNameBase = sanitizeFileName(activity.activityName || "activity");
   const downloadLink = document.createElement("a");
   const layoutSuffix =
-    layout === "half-page" ? "half_page" : "full_page";
+    layout === "quarter-page"
+      ? "quarter_page"
+      : layout === "half-page"
+        ? "half_page"
+        : "full_page";
 
   downloadLink.href = pdfUrl;
   downloadLink.download = `${

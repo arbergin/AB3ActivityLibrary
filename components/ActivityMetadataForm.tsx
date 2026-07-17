@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getActivityFormDropdownOptions,
@@ -34,6 +34,7 @@ type ActivityMetadataFormProps = {
   getPreviewDataUrl?: () => Promise<string | undefined>;
   onCancel?: () => void;
   onSaved?: (activity: Activity) => boolean | void;
+  onDirtyChange?: (isDirty: boolean) => void;
 };
 
 export default function ActivityMetadataForm({
@@ -46,6 +47,7 @@ export default function ActivityMetadataForm({
   getPreviewDataUrl,
   onCancel,
   onSaved,
+  onDirtyChange,
 }: ActivityMetadataFormProps) {
   const router = useRouter();
 
@@ -79,9 +81,61 @@ export default function ActivityMetadataForm({
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+  const [isDetailsSuperExpanded, setIsDetailsSuperExpanded] = useState(false);
+  const [superExpandedSize, setSuperExpandedSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const [superResizeState, setSuperResizeState] = useState<{
+    startClientX: number;
+    startClientY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
   const [dropdownOptions, setDropdownOptions] = useState<ActivityFormDropdownOptions>(
     defaultDropdownOptions
   );
+
+  const initialMetadataSnapshotRef = useRef(
+    JSON.stringify({
+      visibility:
+        initialActivity?.visibility || (mode === "create" ? "club" : "private"),
+      activityName: initialActivity?.activityName || "",
+      fieldLocation: initialActivity?.fieldLocation || "",
+      gamePhase: initialActivity?.gamePhase || "",
+      category: initialActivity?.category || "",
+      positionsInvolved: initialActivity?.positionsInvolved || "",
+      numberOfPlayers:
+        initialActivity?.numberOfPlayers === "" ||
+        initialActivity?.numberOfPlayers === undefined
+          ? ""
+          : String(initialActivity.numberOfPlayers),
+      activityDetails: initialActivity?.activityDetails || "",
+    })
+  );
+
+  const currentMetadataSnapshot = JSON.stringify({
+    visibility,
+    activityName,
+    fieldLocation,
+    gamePhase,
+    category,
+    positionsInvolved,
+    numberOfPlayers,
+    activityDetails,
+  });
+
+  const hasUnsavedMetadataChanges =
+    currentMetadataSnapshot !== initialMetadataSnapshotRef.current;
+
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedMetadataChanges);
+
+    return () => {
+      onDirtyChange?.(false);
+    };
+  }, [hasUnsavedMetadataChanges, onDirtyChange]);
 
   useEffect(() => {
     let isMounted = true;
@@ -100,6 +154,66 @@ export default function ActivityMetadataForm({
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isDetailsSuperExpanded) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isDetailsSuperExpanded]);
+
+  useEffect(() => {
+    if (!superResizeState) {
+      return;
+    }
+
+    const resizeState = superResizeState;
+
+    function handlePointerMove(event: globalThis.PointerEvent) {
+      const maximumWidth = Math.max(360, window.innerWidth - 32);
+      const maximumHeight = Math.max(420, window.innerHeight - 32);
+
+      const nextWidth = Math.max(
+        360,
+        Math.min(
+          maximumWidth,
+          resizeState.startWidth +
+            (resizeState.startClientX - event.clientX)
+        )
+      );
+
+      const nextHeight = Math.max(
+        420,
+        Math.min(
+          maximumHeight,
+          resizeState.startHeight +
+            (resizeState.startClientY - event.clientY)
+        )
+      );
+
+      setSuperExpandedSize({ width: nextWidth, height: nextHeight });
+    }
+
+    function handlePointerUp() {
+      setSuperResizeState(null);
+      document.body.style.userSelect = "";
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      document.body.style.userSelect = "";
+    };
+  }, [superResizeState]);
 
   const { fieldLocationOptions, gamePhaseOptions, categoryOptions } =
     dropdownOptions;
@@ -216,6 +330,9 @@ export default function ActivityMetadataForm({
         saveStoredActivity(savedActivity);
       }
 
+      initialMetadataSnapshotRef.current = currentMetadataSnapshot;
+      onDirtyChange?.(false);
+
       const shouldUseDefaultNavigation = onSaved?.(savedActivity) !== false;
 
       if (shouldUseDefaultNavigation) {
@@ -232,6 +349,9 @@ export default function ActivityMetadataForm({
           "Supabase update failed, so the activity was updated locally in this browser."
         );
 
+        initialMetadataSnapshotRef.current = currentMetadataSnapshot;
+        onDirtyChange?.(false);
+
         const shouldUseDefaultNavigation = onSaved?.(activityToUse) !== false;
 
         if (shouldUseDefaultNavigation) {
@@ -246,6 +366,9 @@ export default function ActivityMetadataForm({
       setSaveMessage(
         "Supabase save failed, so the activity was saved locally in this browser."
       );
+
+      initialMetadataSnapshotRef.current = currentMetadataSnapshot;
+      onDirtyChange?.(false);
 
       const shouldUseDefaultNavigation = onSaved?.(newActivity) !== false;
 
@@ -336,29 +459,71 @@ export default function ActivityMetadataForm({
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm font-semibold">Activity Details</span>
 
-          <button
-            type="button"
-            onClick={() =>
-              setIsDetailsExpanded((currentValue) => !currentValue)
-            }
-            disabled={isSaving}
-            className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isDetailsExpanded ? "Collapse" : "Expand"}
-          </button>
+          <div className="flex items-center gap-2">
+            {!isDetailsSuperExpanded && (
+              <button
+                type="button"
+                onClick={() =>
+                  setIsDetailsExpanded((currentValue) => !currentValue)
+                }
+                disabled={isSaving}
+                className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDetailsExpanded ? "Collapse" : "Expand"}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                if (isDetailsSuperExpanded) {
+                  setIsDetailsSuperExpanded(false);
+                  setIsDetailsExpanded(false);
+                  setSuperExpandedSize(null);
+                  setSuperResizeState(null);
+                  return;
+                }
+
+                setSuperExpandedSize({
+                  width: Math.max(360, window.innerWidth - 64),
+                  height: Math.max(420, window.innerHeight - 64),
+                });
+                setIsDetailsExpanded(true);
+                setIsDetailsSuperExpanded(true);
+              }}
+              disabled={isSaving}
+              className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isDetailsSuperExpanded ? "Collapse" : "Super Expand"}
+            </button>
+          </div>
         </div>
 
-        <ActivityDetailsEditor
-          value={activityDetails}
-          onChange={setActivityDetails}
-          disabled={isSaving}
-          expanded={isDetailsExpanded}
-          placeholder="Describe setup, rules, coaching points, progressions, or constraints."
-        />
+        <div
+          className={
+            isDetailsSuperExpanded
+              ? "[&_[role='textbox']]:min-h-[62vh]"
+              : ""
+          }
+        >
+          <ActivityDetailsEditor
+            value={activityDetails}
+            onChange={setActivityDetails}
+            disabled={isSaving}
+            expanded={isDetailsExpanded}
+            placeholder="Describe setup, rules, coaching points, progressions, or constraints."
+          />
+        </div>
 
-        {isDetailsExpanded && (
+        {isDetailsExpanded && !isDetailsSuperExpanded && (
           <div className="text-xs text-slate-500">
             Expanded for easier editing. Click Collapse when you are done.
+          </div>
+        )}
+
+        {isDetailsSuperExpanded && (
+          <div className="text-xs text-slate-500">
+            Drag the upper-left corner of this window to resize it.
           </div>
         )}
       </div>
@@ -368,8 +533,46 @@ export default function ActivityMetadataForm({
   return (
     <form
       onSubmit={handleSaveActivity}
-      className="rounded-xl bg-white p-6 shadow-sm"
+      className={
+        isDetailsSuperExpanded
+          ? "fixed bottom-5 right-5 z-[160] min-h-[420px] min-w-[360px] overflow-auto rounded-2xl bg-white p-6 shadow-2xl sm:bottom-8 sm:right-8"
+          : "rounded-xl bg-white p-6 shadow-sm"
+      }
+      style={
+        isDetailsSuperExpanded
+          ? {
+              width: `${superExpandedSize?.width ?? Math.max(360, window.innerWidth - 64)}px`,
+              height: `${superExpandedSize?.height ?? Math.max(420, window.innerHeight - 64)}px`,
+              maxWidth: "calc(100vw - 2rem)",
+              maxHeight: "calc(100vh - 2rem)",
+            }
+          : undefined
+      }
     >
+      {isDetailsSuperExpanded && (
+        <div
+          role="separator"
+          aria-label="Resize expanded activity details"
+          title="Drag to resize"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            document.body.style.userSelect = "none";
+
+            setSuperResizeState({
+              startClientX: event.clientX,
+              startClientY: event.clientY,
+              startWidth:
+                superExpandedSize?.width ?? Math.max(360, window.innerWidth - 64),
+              startHeight:
+                superExpandedSize?.height ?? Math.max(420, window.innerHeight - 64),
+            });
+          }}
+          className="absolute left-0 top-0 z-20 h-8 w-8 cursor-nwse-resize"
+        >
+          <span className="absolute left-2 top-2 block h-4 w-4 border-l-2 border-t-2 border-slate-400" />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold">Activity Metadata</h2>
@@ -403,7 +606,13 @@ export default function ActivityMetadataForm({
           {onCancel && (
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => {
+              setIsDetailsSuperExpanded(false);
+              setIsDetailsExpanded(false);
+              setSuperExpandedSize(null);
+              setSuperResizeState(null);
+              onCancel();
+            }}
             disabled={isSaving}
             className="rounded-full px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             aria-label="Close metadata form"

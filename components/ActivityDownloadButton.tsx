@@ -15,7 +15,7 @@ type Props = {
   className?: string;
 };
 
-type ExportType = "pdf-full" | "pdf-half" | "gif" | "mp4";
+type ExportType = "pdf-full" | "pdf-half" | "pdf-quarter" | "gif" | "mp4";
 
 export default function ActivityDownloadButton({
   activity,
@@ -67,6 +67,9 @@ export default function ActivityDownloadButton({
       } else if (type === "pdf-half") {
         await downloadActivityAsPdf(activity, "half-page");
         onMessage?.("Half-page PDF export download started.");
+      } else if (type === "pdf-quarter") {
+        await downloadActivityAsPdf(activity, "quarter-page");
+        onMessage?.("Quarter-page PDF export download started.");
       } else if (type === "gif") {
         await downloadActivityAnimationAsGif(activity);
         onMessage?.("GIF animation download started.");
@@ -78,7 +81,9 @@ export default function ActivityDownloadButton({
       console.error(`${type.toUpperCase()} export failed.`, error);
 
       const fallback =
-        type === "pdf-full" || type === "pdf-half"
+        type === "pdf-full" ||
+        type === "pdf-half" ||
+        type === "pdf-quarter"
           ? "The PDF export could not be created."
           : type === "gif"
             ? "The GIF animation could not be created."
@@ -99,7 +104,9 @@ export default function ActivityDownloadButton({
       ? "Preparing Full PDF..."
       : activeExport === "pdf-half"
         ? "Preparing Half PDF..."
-        : activeExport === "gif"
+        : activeExport === "pdf-quarter"
+          ? "Preparing Quarter PDF..."
+          : activeExport === "gif"
           ? "Preparing GIF..."
           : activeExport === "mp4"
             ? "Preparing MP4..."
@@ -113,6 +120,10 @@ export default function ActivityDownloadButton({
     {
       type: "pdf-half",
       label: "PDF Export - Half Page",
+    },
+    {
+      type: "pdf-quarter",
+      label: "PDF Export - Quarter Page",
     },
     ...(hasAnimation
       ? [
