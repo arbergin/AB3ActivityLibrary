@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ActivityDownloadButton from "@/components/ActivityDownloadButton";
 import { getActivityCreatorFrameCount } from "@/lib/activityCreatorFrames";
@@ -134,6 +134,7 @@ export default function MyActivitiesClient() {
   const [pageSize, setPageSize] = useState<PageSize>(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [creatorDisplayName, setCreatorDisplayName] = useState("—");
+  const activityRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -266,6 +267,79 @@ export default function MyActivitiesClient() {
       isMounted = false;
     };
   }, [selectedActivity?.createdBy]);
+
+  useEffect(() => {
+    function isTypingOrControlTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      return Boolean(
+        target.closest(
+          'input, textarea, select, button, [contenteditable="true"], [role="textbox"], [role="menu"]'
+        )
+      );
+    }
+
+    function handleArrowNavigation(event: KeyboardEvent) {
+      if (
+        isTypingOrControlTarget(event.target) ||
+        sortedActivities.length === 0 ||
+        !selectedActivity ||
+        showDeleteConfirm
+      ) {
+        return;
+      }
+
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+        return;
+      }
+
+      const currentIndex = sortedActivities.findIndex(
+        (activity) => activity.id === selectedActivity.id
+      );
+
+      if (currentIndex < 0) {
+        return;
+      }
+
+      const nextIndex =
+        event.key === "ArrowDown"
+          ? Math.min(currentIndex + 1, sortedActivities.length - 1)
+          : Math.max(currentIndex - 1, 0);
+
+      // Stop the browser from scrolling even when already at the first/last item.
+      event.preventDefault();
+
+      if (nextIndex === currentIndex) {
+        return;
+      }
+
+      const nextActivity = sortedActivities[nextIndex];
+      const nextPage = Math.floor(nextIndex / pageSize) + 1;
+
+      setCurrentPage(nextPage);
+      handleSelectActivity(nextActivity);
+
+      window.setTimeout(() => {
+        activityRowRefs.current[nextActivity.id]?.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        });
+      }, 0);
+    }
+
+    window.addEventListener("keydown", handleArrowNavigation);
+
+    return () => {
+      window.removeEventListener("keydown", handleArrowNavigation);
+    };
+  }, [
+    pageSize,
+    selectedActivity,
+    showDeleteConfirm,
+    sortedActivities,
+  ]);
 
   function handleSelectActivity(activity: Activity) {
     setSelectedActivity(activity);
@@ -450,6 +524,11 @@ export default function MyActivitiesClient() {
                       return (
                         <tr
                           key={activity.id}
+                          ref={(element) => {
+                            activityRowRefs.current[activity.id] = element;
+                          }}
+                          tabIndex={isSelected ? 0 : -1}
+                          aria-selected={isSelected}
                           onClick={() => handleSelectActivity(activity)}
                           className={
                             isSelected
