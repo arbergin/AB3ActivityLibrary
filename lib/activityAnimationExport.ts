@@ -771,6 +771,44 @@ async function renderFrames(activity: Activity) {
   return output;
 }
 
+function limitMp4Frames(
+  rendered: { canvas: HTMLCanvasElement; durationMs: number }[],
+  maxFrames = 60
+) {
+  if (rendered.length <= maxFrames) {
+    return rendered;
+  }
+
+  const output: { canvas: HTMLCanvasElement; durationMs: number }[] = [];
+  const step = rendered.length / maxFrames;
+
+  for (let outputIndex = 0; outputIndex < maxFrames; outputIndex += 1) {
+    const startIndex = Math.floor(outputIndex * step);
+    const endIndex = Math.min(
+      rendered.length,
+      Math.floor((outputIndex + 1) * step)
+    );
+
+    const sourceFrame = rendered[startIndex];
+    let combinedDurationMs = 0;
+
+    for (
+      let sourceIndex = startIndex;
+      sourceIndex < Math.max(endIndex, startIndex + 1);
+      sourceIndex += 1
+    ) {
+      combinedDurationMs += rendered[sourceIndex]?.durationMs ?? 0;
+    }
+
+    output.push({
+      canvas: sourceFrame.canvas,
+      durationMs: Math.max(1, combinedDurationMs),
+    });
+  }
+
+  return output;
+}
+
 function canvasToCompressedMp4Frame(canvas: HTMLCanvasElement) {
   const compressedCanvas = document.createElement("canvas");
   compressedCanvas.width = MP4_UPLOAD_WIDTH;
@@ -831,7 +869,7 @@ export async function downloadActivityAnimationAsGif(activity: Activity) {
 }
 
 export async function downloadActivityAnimationAsMp4(activity: Activity) {
-  const rendered = await renderFrames(activity);
+  const rendered = limitMp4Frames(await renderFrames(activity));
   const response = await fetch("/api/animation/mp4", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
