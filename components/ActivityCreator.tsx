@@ -1312,6 +1312,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [showToolbarSettings, setShowToolbarSettings] = useState(false);
   const [isToolbarOnLeft, setIsToolbarOnLeft] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [selectedObjectIds, setSelectedObjectIds] = useState<string[]>([]);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
   const [isMetadataFormDirty, setIsMetadataFormDirty] = useState(false);
   const [showMetadataCloseWarning, setShowMetadataCloseWarning] = useState(false);
@@ -1579,6 +1580,92 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     return () => window.clearTimeout(timer);
   }, [isPlayingAnimation, playbackFrameIndex, frames]);
+
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      return Boolean(
+        target.closest(
+          'input, textarea, select, [contenteditable="true"], [role="textbox"]'
+        )
+      );
+    }
+
+    function handleObjectSelectionKeyboard(event: KeyboardEvent) {
+      if (isTypingTarget(event.target) || isSavePanelOpen) {
+        return;
+      }
+
+      const isSelectAll =
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "a";
+
+      if (isSelectAll) {
+        event.preventDefault();
+        setSelectedObjectIds(objects.map((object) => object.id));
+        setSelectedObjectId(null);
+        setMessage(
+          objects.length === 1
+            ? "1 item selected."
+            : `${objects.length} items selected.`
+        );
+        return;
+      }
+
+      if (
+        (event.key === "Delete" || event.key === "Backspace") &&
+        selectedObjectIds.length > 0
+      ) {
+        event.preventDefault();
+        saveHistorySnapshot();
+
+        const selectedIds = new Set(selectedObjectIds);
+
+        setObjects((currentObjects) =>
+          currentObjects.filter((object) => !selectedIds.has(object.id))
+        );
+        setSelectedObjectIds([]);
+        setSelectedObjectId(null);
+        setDraggingObjectId(null);
+        setMessage(
+          selectedIds.size === 1
+            ? "Item deleted."
+            : `${selectedIds.size} items deleted.`
+        );
+      }
+    }
+
+    window.addEventListener("keydown", handleObjectSelectionKeyboard);
+
+    return () => {
+      window.removeEventListener("keydown", handleObjectSelectionKeyboard);
+    };
+  }, [isSavePanelOpen, objects, selectedObjectIds]);
+
+  function isObjectSelected(objectId: string) {
+    return selectedObjectIds.includes(objectId);
+  }
+
+  function selectObject(
+    objectId: string,
+    addToSelection: boolean
+  ) {
+    if (addToSelection) {
+      setSelectedObjectIds((currentIds) =>
+        currentIds.includes(objectId)
+          ? currentIds.filter((id) => id !== objectId)
+          : [...currentIds, objectId]
+      );
+      setSelectedObjectId(null);
+      return;
+    }
+
+    setSelectedObjectIds([objectId]);
+    setSelectedObjectId(objectId);
+  }
 
   const selectedObject =
     objects.find((object) => object.id === selectedObjectId) ?? null;
@@ -1873,6 +1960,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     setIsPlayingAnimation(false);
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setActiveLinePoints([]);
     setUndoStack([]);
     setRedoStack([]);
@@ -1904,6 +1992,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     setObjects(deepCopyObjects(nextFrame.objects));
     setLines(deepCopyLines(nextFrame.lines));
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setUndoStack([]);
     setRedoStack([]);
     setMessage(`${nextFrame.name} created from the most recent tab.`);
@@ -1938,6 +2027,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       setObjects(deepCopyObjects(nextFrame.objects));
       setLines(deepCopyLines(nextFrame.lines));
       setSelectedObjectId(null);
+      setSelectedObjectIds([]);
       setUndoStack([]);
       setRedoStack([]);
     }
@@ -1965,6 +2055,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
   function openSavePanel() {
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setActiveLinePoints([]);
     setPendingNavigationUrl(null);
     setIsMetadataFormDirty(false);
@@ -2629,6 +2720,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
 
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setDraggingObjectId(null);
     setActiveLinePoints([]);
     setPanState(null);
@@ -2873,8 +2965,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   function handlePitchPointerDown(event: PointerEvent<HTMLDivElement>) {
     const point = getPitchPoint(event);
 
-    if (selectedObjectId) {
+    if (selectedObjectId || selectedObjectIds.length > 0) {
       setSelectedObjectId(null);
+      setSelectedObjectIds([]);
     }
 
     if (selectedTool === "line" || selectedTool === "freehand" || selectedTool === "dribble") {
@@ -3031,6 +3124,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       currentObjects.filter((object) => object.id !== objectId)
     );
 
+    setSelectedObjectIds((currentIds) =>
+      currentIds.filter((id) => id !== objectId)
+    );
+
     if (selectedObjectId === objectId) {
       setSelectedObjectId(null);
     }
@@ -3054,6 +3151,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   }
 
   function openObjectEditor(objectId: string) {
+    setSelectedObjectIds([objectId]);
     setSelectedObjectId(objectId);
     setMessage("");
   }
@@ -3252,6 +3350,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     setActiveLinePoints([]);
     setDraggingObjectId(null);
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setPanState(null);
     setMessage("Pitch cleared.");
   }
@@ -3261,6 +3360,14 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     objectId: string
   ) {
     event.stopPropagation();
+
+    if (event.shiftKey) {
+      selectObject(objectId, true);
+      setDraggingObjectId(null);
+      return;
+    }
+
+    selectObject(objectId, false);
     saveHistorySnapshot();
     setDraggingObjectId(objectId);
   }
@@ -3444,7 +3551,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       <div
         key={object.id}
         className={`absolute z-20 flex flex-col items-center justify-center ${
-          selectedObjectId === object.id ? "rounded-lg ring-4 ring-blue-400" : ""
+          isObjectSelected(object.id)
+            ? "rounded-lg ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
+            : ""
         }`}
         style={{
           left: `${object.x}%`,
@@ -3539,7 +3648,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           openObjectEditor(object.id);
         }}
         className={`absolute z-20 flex touch-none items-center justify-center bg-transparent p-0 ${
-          selectedObjectId === object.id ? "ring-4 ring-blue-400" : ""
+          isObjectSelected(object.id)
+            ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
+            : ""
         }`}
         style={{
           left: `${object.x}%`,
@@ -3599,7 +3710,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           openObjectEditor(object.id);
         }}
         className={`absolute z-20 flex touch-none items-center justify-center bg-transparent p-0 ${
-          selectedObjectId === object.id ? "ring-4 ring-blue-400" : ""
+          isObjectSelected(object.id)
+            ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
+            : ""
         }`}
         style={{
           left: `${object.x}%`,
@@ -3646,7 +3759,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           openObjectEditor(object.id);
         }}
         className={`absolute z-20 flex touch-none items-center justify-center whitespace-pre-wrap break-words rounded-lg border border-slate-500/40 bg-white/70 px-2 py-1 text-center font-bold leading-tight shadow-sm ${
-          selectedObjectId === object.id ? "ring-4 ring-blue-400" : ""
+          isObjectSelected(object.id)
+            ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
+            : ""
         }`}
         style={{
           left: `${object.x}%`,
