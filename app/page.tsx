@@ -9,6 +9,11 @@ import {
   getRecentOpenedActivitiesForCurrentUser,
 } from "@/lib/dashboardActivities";
 import type { Activity } from "@/types/activity";
+import { canManageActivity } from "@/lib/activityPermissions";
+import {
+  getCurrentUserProfile,
+  type UserProfile,
+} from "@/lib/userProfile";
 
 function formatDate(dateValue?: string) {
   if (!dateValue) {
@@ -119,12 +124,14 @@ function ActivityList({
   emptyMessage,
   activities,
   isLoading,
+  currentProfile,
 }: {
   title: string;
   titleHref?: string;
   emptyMessage: string;
   activities: Activity[];
   isLoading: boolean;
+  currentProfile: UserProfile | null;
 }) {
   return (
     <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -158,27 +165,53 @@ function ActivityList({
         ) : activities.length === 0 ? (
           <div className="px-4 py-6 text-sm text-slate-500">{emptyMessage}</div>
         ) : (
-          activities.map((activity) => (
-            <Link
-              key={activity.id}
-              href={`/activity/${activity.id}`}
-              className="block border-t border-slate-200 px-4 py-4 first:border-t-0 hover:bg-slate-50"
-            >
-              <div className="font-semibold text-slate-800">
-                {activity.activityName}
-              </div>
+          activities.map((activity) => {
+            const canEditActivity = canManageActivity(
+              activity,
+              currentProfile
+            );
 
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                <span>{activity.fieldLocation || "No location"}</span>
-                <span>{activity.gamePhase || "No phase"}</span>
-                <span>{activity.category || "No category"}</span>
-              </div>
+            return (
+              <div
+                key={activity.id}
+                className="flex items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 first:border-t-0 hover:bg-slate-50"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold text-slate-800">
+                    {activity.activityName}
+                  </div>
 
-              <div className="mt-1 text-xs text-slate-400">
-                Updated: {formatDate(activity.updatedAt || activity.createdAt)}
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <span>{activity.fieldLocation || "No location"}</span>
+                    <span>{activity.gamePhase || "No phase"}</span>
+                    <span>{activity.category || "No category"}</span>
+                  </div>
+
+                  <div className="mt-1 text-xs text-slate-400">
+                    Updated: {formatDate(activity.updatedAt || activity.createdAt)}
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  <Link
+                    href={`/activity/${activity.id}`}
+                    className="rounded-md bg-[#0d2140] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#17345f]"
+                  >
+                    Open
+                  </Link>
+
+                  {canEditActivity && (
+                    <Link
+                      href={`/activity/${activity.id}/edit`}
+                      className="rounded-md border border-[#0d2140] bg-white px-3 py-1.5 text-xs font-semibold text-[#0d2140] transition hover:bg-slate-50"
+                    >
+                      Edit
+                    </Link>
+                  )}
+                </div>
               </div>
-            </Link>
-          ))
+            );
+          })
         )}
       </div>
     </section>
@@ -188,6 +221,7 @@ function ActivityList({
 export default function HomePage() {
   const [createdActivities, setCreatedActivities] = useState<Activity[]>([]);
   const [openedActivities, setOpenedActivities] = useState<Activity[]>([]);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
 
   useEffect(() => {
@@ -197,9 +231,10 @@ export default function HomePage() {
       setIsLoadingDashboard(true);
 
       try {
-        const [recentCreated, recentOpened] = await Promise.all([
+        const [recentCreated, recentOpened, profile] = await Promise.all([
           getRecentCreatedActivitiesForCurrentUser(),
           getRecentOpenedActivitiesForCurrentUser(),
+          getCurrentUserProfile(),
         ]);
 
         if (!isMounted) {
@@ -208,6 +243,7 @@ export default function HomePage() {
 
         setCreatedActivities(recentCreated);
         setOpenedActivities(recentOpened);
+        setCurrentProfile(profile ?? null);
       } catch (error) {
         console.error("Unable to load dashboard activities.", error);
       } finally {
@@ -255,6 +291,7 @@ export default function HomePage() {
                     emptyMessage="No activities created by you yet."
                     activities={createdActivities}
                     isLoading={isLoadingDashboard}
+                    currentProfile={currentProfile}
                   />
                 </div>
               </div>
@@ -270,6 +307,7 @@ export default function HomePage() {
                     emptyMessage="No recently opened activities yet."
                     activities={openedActivities}
                     isLoading={isLoadingDashboard}
+                    currentProfile={currentProfile}
                   />
                 </div>
               </div>
