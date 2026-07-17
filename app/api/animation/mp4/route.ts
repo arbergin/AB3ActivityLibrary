@@ -15,10 +15,10 @@ type Mp4RequestBody = {
   activityName?: string;
 };
 
-const MP4_DURATION_MULTIPLIER = 0.25;
-const MIN_FRAME_SECONDS = 0.12;
+const MP4_DURATION_MULTIPLIER = 0.15;
+const MIN_FRAME_SECONDS = 0.08;
 const MAX_FRAME_SECONDS = 2.5;
-const FINAL_FRAME_HOLD_SECONDS = 0.25;
+const FINAL_FRAME_HOLD_SECONDS = 0.18;
 
 function sanitizeFileName(value: string) {
   return value
