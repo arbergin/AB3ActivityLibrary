@@ -45,6 +45,7 @@ export type ActivityCreatorObject = {
   name?: string;
   nameFontSize?: number;
   playerShape?: "circle" | "triangle" | "square" | "diamond";
+  playerDisplayModeOverride?: "number" | "name" | "both" | "none";
   textContent?: string;
   fontSize?: number;
   rotationDegrees?: number;

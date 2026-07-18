@@ -48,6 +48,7 @@ type PitchObject = {
   textColor?: string;
   nameFontSize?: number;
   playerShape?: PlayerShape;
+  playerDisplayModeOverride?: PlayerDisplayMode;
   textContent?: string;
   fontSize?: number;
 };
@@ -160,6 +161,7 @@ type PersistedCreatorUserSettings = {
   playerDisplayMode: PlayerDisplayMode;
   team1Color: string;
   team2Color: string;
+  playerTextColor: string;
   team1Shape: PlayerShape;
   team2Shape: PlayerShape;
   coneColor: string;
@@ -284,6 +286,7 @@ function ToolIcon({
   type,
   team1Color,
   team2Color,
+  playerTextColor,
   team1Shape,
   team2Shape,
   coneColor,
@@ -292,6 +295,7 @@ function ToolIcon({
   type: ToolType;
   team1Color: string;
   team2Color: string;
+  playerTextColor: string;
   team1Shape: PlayerShape;
   team2Shape: PlayerShape;
   coneColor: string;
@@ -305,6 +309,7 @@ function ToolIcon({
         className="flex h-7 w-7 items-center justify-center border-2 border-black text-xs font-bold text-white"
         style={{
           backgroundColor: type === "team1" ? team1Color : team2Color,
+          color: playerTextColor,
           borderRadius: shape === "circle" ? "9999px" : shape === "square" ? "5px" : "0",
           clipPath:
             shape === "triangle"
@@ -802,6 +807,7 @@ type NormalizedCreatorState = {
   settings: {
     team1Color: string;
     team2Color: string;
+    playerTextColor: string;
     team1Shape: PlayerShape;
     team2Shape: PlayerShape;
     coneColor: string;
@@ -960,6 +966,7 @@ function normalizeCreatorState(
     settings: {
       team1Color: "#2563eb",
       team2Color: "#dc2626",
+      playerTextColor: "#ffffff",
       team1Shape: "circle",
       team2Shape: "circle",
       coneColor: "#f97316",
@@ -1055,7 +1062,12 @@ function normalizeCreatorState(
                     ? colorToCss(object.fillColor, colorToCss(settings.coneDefaultColor, "#f97316"))
                     : undefined,
             size: typeof object.size === "number" ? object.size : undefined,
-            textColor: colorToCss(object.textColor, "#111827"),
+            textColor: colorToCss(
+              object.textColor,
+              type === "team1" || type === "team2"
+                ? colorToCss(settings.playerTextDefaultColor, "#ffffff")
+                : "#111827"
+            ),
             nameFontSize:
               typeof object.nameFontSize === "number" ? object.nameFontSize : undefined,
             playerShape:
@@ -1065,6 +1077,11 @@ function normalizeCreatorState(
               object.playerShape === "circle"
                 ? object.playerShape
                 : "circle",
+            playerDisplayModeOverride: isPlayerDisplayMode(
+              object.playerDisplayModeOverride
+            )
+              ? object.playerDisplayModeOverride
+              : undefined,
             textContent:
               typeof object.textContent === "string" ? object.textContent : "Text",
             fontSize: typeof object.fontSize === "number" ? object.fontSize : undefined,
@@ -1100,6 +1117,10 @@ function normalizeCreatorState(
       settings: {
         team1Color: colorToCss(settings.team1DefaultColor, "#2563eb"),
         team2Color: colorToCss(settings.team2DefaultColor, "#dc2626"),
+        playerTextColor: colorToCss(
+          settings.playerTextDefaultColor,
+          defaultState.settings.playerTextColor
+        ),
         team1Shape: isPlayerShape(settings.team1DefaultShape)
           ? settings.team1DefaultShape
           : defaultState.settings.team1Shape,
@@ -1160,7 +1181,14 @@ function normalizeCreatorState(
           rotation: typeof object.rotation === "number" ? object.rotation : 0,
           fillColor: typeof object.fillColor === "string" ? object.fillColor : undefined,
           size: typeof object.size === "number" ? object.size : undefined,
-          textColor: typeof object.textColor === "string" ? object.textColor : undefined,
+          textColor:
+            typeof object.textColor === "string"
+              ? object.textColor
+              : type === "team1" || type === "team2"
+                ? typeof settings.playerTextColor === "string"
+                  ? settings.playerTextColor
+                  : "#ffffff"
+                : undefined,
           nameFontSize:
             typeof object.nameFontSize === "number" ? object.nameFontSize : undefined,
           playerShape:
@@ -1170,6 +1198,11 @@ function normalizeCreatorState(
             object.playerShape === "circle"
               ? object.playerShape
               : "circle",
+          playerDisplayModeOverride: isPlayerDisplayMode(
+            object.playerDisplayModeOverride
+          )
+            ? object.playerDisplayModeOverride
+            : undefined,
           textContent:
             typeof object.textContent === "string" ? object.textContent : "Text",
           fontSize: typeof object.fontSize === "number" ? object.fontSize : undefined,
@@ -1211,6 +1244,13 @@ function normalizeCreatorState(
         typeof settings.team2Color === "string"
           ? settings.team2Color
           : defaultState.settings.team2Color,
+      playerTextColor:
+        typeof settings.playerTextColor === "string"
+          ? settings.playerTextColor
+          : colorToCss(
+              settings.playerTextDefaultColor,
+              defaultState.settings.playerTextColor
+            ),
       team1Shape: isPlayerShape(settings.team1Shape)
         ? settings.team1Shape
         : defaultState.settings.team1Shape,
@@ -1405,6 +1445,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   );
   const [team2Color, setTeam2Color] = useState(
     normalizedInitialCreatorState.settings.team2Color
+  );
+  const [playerTextColor, setPlayerTextColor] = useState(
+    normalizedInitialCreatorState.settings.playerTextColor
   );
   const [team1Shape, setTeam1Shape] = useState<PlayerShape>(
     normalizedInitialCreatorState.settings.team1Shape
@@ -1619,6 +1662,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             setTeam2Color(savedSettings.team2Color);
           }
 
+          if (typeof savedSettings.playerTextColor === "string") {
+            setPlayerTextColor(savedSettings.playerTextColor);
+          }
+
           if (isPlayerShape(savedSettings.team1Shape)) {
             setTeam1Shape(savedSettings.team1Shape);
           }
@@ -1701,6 +1748,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       playerDisplayMode,
       team1Color,
       team2Color,
+      playerTextColor,
       team1Shape,
       team2Shape,
       coneColor,
@@ -1723,6 +1771,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     playerDisplayMode,
     team1Color,
     team2Color,
+    playerTextColor,
     team1Shape,
     team2Shape,
     coneColor,
@@ -1882,7 +1931,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         team2DefaultColor: cssToColorObject(team2Color),
         team1DefaultShape: team1Shape,
         team2DefaultShape: team2Shape,
-        playerTextDefaultColor: cssToColorObject("#ffffff"),
+        playerTextDefaultColor: cssToColorObject(playerTextColor),
         coneDefaultColor: cssToColorObject(coneColor),
         playerDefaultSize,
         coneDefaultSize,
@@ -1913,6 +1962,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             size: object.size,
             nameFontSize: object.nameFontSize,
             playerShape: object.playerShape,
+            playerDisplayModeOverride: object.playerDisplayModeOverride,
             textContent: object.textContent,
             fontSize: object.fontSize,
             rotationDegrees: object.rotation,
@@ -1949,6 +1999,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         size: object.size,
         nameFontSize: object.nameFontSize,
         playerShape: object.playerShape,
+        playerDisplayModeOverride: object.playerDisplayModeOverride,
         textContent: object.textContent,
         fontSize: object.fontSize,
         rotationDegrees: object.rotation,
@@ -1976,6 +2027,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       lines,
       team1Color,
       team2Color,
+      playerTextColor,
       team1Shape,
       team2Shape,
       coneColor,
@@ -2584,13 +2636,15 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context.strokeStyle = "#000000";
     context.stroke();
 
+    const effectiveDisplayMode =
+      object.playerDisplayModeOverride ?? playerDisplayMode;
     const shouldShowNumber =
-      playerDisplayMode === "number" || playerDisplayMode === "both";
+      effectiveDisplayMode === "number" || effectiveDisplayMode === "both";
     const shouldShowName =
-      playerDisplayMode === "name" || playerDisplayMode === "both";
+      effectiveDisplayMode === "name" || effectiveDisplayMode === "both";
 
     if (shouldShowNumber && object.label) {
-      context.fillStyle = object.textColor ?? "#ffffff";
+      context.fillStyle = object.textColor ?? playerTextColor;
       context.font = `700 ${Math.max(10, size * 0.42)}px Arial`;
       context.textAlign = "center";
       context.textBaseline = "middle";
@@ -3260,7 +3314,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           : type === "team2"
             ? team2Shape
             : undefined,
-      textColor: "#111827",
+      textColor:
+        type === "team1" || type === "team2"
+          ? playerTextColor
+          : "#111827",
       textContent: type === "textBox" ? "Text" : undefined,
       fontSize: type === "textBox" ? 20 : undefined,
     };
@@ -3547,6 +3604,24 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     );
   }
 
+  function updatePlayerDisplayMode(
+    objectId: string,
+    playerDisplayModeOverride: PlayerDisplayMode
+  ) {
+    saveHistorySnapshot();
+
+    setObjects((currentObjects) =>
+      currentObjects.map((object) =>
+        object.id === objectId
+          ? {
+              ...object,
+              playerDisplayModeOverride,
+            }
+          : object
+      )
+    );
+  }
+
   function updatePlayerNumber(objectId: string, label: string) {
     saveHistorySnapshot();
 
@@ -3664,6 +3739,26 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     setMessage(messageText);
   }
 
+  function applyTextColorToExistingPlayers(
+    textColor: string,
+    messageText: string
+  ) {
+    saveHistorySnapshot();
+
+    setObjects((currentObjects) =>
+      currentObjects.map((object) =>
+        object.type === "team1" || object.type === "team2"
+          ? {
+              ...object,
+              textColor,
+            }
+          : object
+      )
+    );
+
+    setMessage(messageText);
+  }
+
   function applySizeToExistingObjects(
     objectTypes: ObjectToolType[],
     size: number,
@@ -3741,6 +3836,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           type={tool.type}
           team1Color={team1Color}
           team2Color={team2Color}
+          playerTextColor={playerTextColor}
           team1Shape={team1Shape}
           team2Shape={team2Shape}
           coneColor={coneColor}
@@ -3886,11 +3982,13 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       Math.round(object.nameFontSize ?? size * 0.3)
     );
 
+    const effectiveDisplayMode =
+      object.playerDisplayModeOverride ?? playerDisplayMode;
     const shouldShowNumber =
-      playerDisplayMode === "number" || playerDisplayMode === "both";
+      effectiveDisplayMode === "number" || effectiveDisplayMode === "both";
 
     const shouldShowName =
-      playerDisplayMode === "name" || playerDisplayMode === "both";
+      effectiveDisplayMode === "name" || effectiveDisplayMode === "both";
 
     const displayName = object.playerName?.trim();
 
@@ -3932,7 +4030,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             height: `${size}px`,
             fontSize: `${fontSize}px`,
             backgroundColor: fillColor,
-            color: object.textColor ?? "#ffffff",
+            color: object.textColor ?? playerTextColor,
             borderRadius:
               playerShape === "circle"
                 ? "9999px"
@@ -4271,7 +4369,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         {supportsColor && (
           <div className="mt-2">
             <label className="block text-[11px] font-semibold text-slate-600">
-              Color
+              {supportsPlayerFields ? "Shape Color" : "Color"}
             </label>
 
             <div className="mt-1 flex items-center gap-2">
@@ -4320,6 +4418,66 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               <option value="triangle">Triangle</option>
               <option value="square">Square</option>
               <option value="diamond">Diamond</option>
+            </select>
+          </div>
+        )}
+
+        {supportsPlayerFields && (
+          <div className="mt-2">
+            <label className="block text-[11px] font-semibold text-slate-600">
+              Number Text Color
+            </label>
+
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="color"
+                value={selectedObject.textColor ?? playerTextColor}
+                onChange={(event) =>
+                  updateObjectTextColor(
+                    selectedObject.id,
+                    event.target.value
+                  )
+                }
+                className="h-8 w-10 cursor-pointer rounded border border-slate-300 bg-white p-1"
+              />
+
+              <input
+                type="text"
+                value={selectedObject.textColor ?? playerTextColor}
+                onChange={(event) =>
+                  updateObjectTextColor(
+                    selectedObject.id,
+                    event.target.value
+                  )
+                }
+                className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs"
+              />
+            </div>
+          </div>
+        )}
+
+        {supportsPlayerFields && (
+          <div className="mt-2">
+            <label className="block text-[11px] font-semibold text-slate-600">
+              Display
+            </label>
+
+            <select
+              value={
+                selectedObject.playerDisplayModeOverride ?? playerDisplayMode
+              }
+              onChange={(event) =>
+                updatePlayerDisplayMode(
+                  selectedObject.id,
+                  event.target.value as PlayerDisplayMode
+                )
+              }
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs"
+            >
+              <option value="number">Number</option>
+              <option value="name">Name</option>
+              <option value="both">Both</option>
+              <option value="none">None</option>
             </select>
           </div>
         )}
@@ -4773,6 +4931,27 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                     className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     Apply to Existing Team 2
+                  </button>
+                }
+              />
+
+              <ColorSetting
+                label="Player Number Text Color"
+                value={playerTextColor}
+                onChange={setPlayerTextColor}
+                buttonPrefix="player-text"
+                footer={
+                  <button
+                    type="button"
+                    onClick={() =>
+                      applyTextColorToExistingPlayers(
+                        playerTextColor,
+                        "Player number text color applied to existing players."
+                      )
+                    }
+                    className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Apply to Existing Players
                   </button>
                 }
               />

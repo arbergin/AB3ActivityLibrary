@@ -72,6 +72,7 @@ type PreviewObject = {
   size?: number;
   nameFontSize?: number;
   playerShape?: "circle" | "triangle" | "square" | "diamond";
+  playerDisplayModeOverride?: "number" | "name" | "both" | "none";
   textContent?: string;
   fontSize?: number;
 };
@@ -296,6 +297,17 @@ function getCreatorStateObjects(activity: Activity): PreviewObject[] {
           playerShape === "diamond"
             ? playerShape
             : "circle",
+        playerDisplayModeOverride:
+          getStringValue(rawObject.playerDisplayModeOverride) === "name" ||
+          getStringValue(rawObject.playerDisplayModeOverride) === "both" ||
+          getStringValue(rawObject.playerDisplayModeOverride) === "none" ||
+          getStringValue(rawObject.playerDisplayModeOverride) === "number"
+            ? (getStringValue(rawObject.playerDisplayModeOverride) as
+                | "number"
+                | "name"
+                | "both"
+                | "none")
+            : undefined,
         textContent: getStringValue(rawObject.textContent, "Text"),
         fontSize:
           typeof rawObject.fontSize === "number" &&
@@ -638,12 +650,12 @@ function CreatorStateActivityPreview({ activity }: { activity: Activity }) {
       const size = object.size ?? 30;
       const fallbackColor =
         object.type === "team1" ? settings.team1Color : settings.team2Color;
+      const effectiveDisplayMode =
+        object.playerDisplayModeOverride ?? settings.playerDisplayMode;
       const shouldShowNumber =
-        settings.playerDisplayMode === "number" ||
-        settings.playerDisplayMode === "both";
+        effectiveDisplayMode === "number" || effectiveDisplayMode === "both";
       const shouldShowName =
-        settings.playerDisplayMode === "name" ||
-        settings.playerDisplayMode === "both";
+        effectiveDisplayMode === "name" || effectiveDisplayMode === "both";
       const playerShape = object.playerShape ?? "circle";
 
       return (
