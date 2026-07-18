@@ -9,6 +9,7 @@ import {
   deleteSupabaseActivity,
   duplicateSupabaseActivity,
   getSupabaseActivities,
+  updateSupabaseActivityPreviewMetadata,
 } from "@/lib/supabaseActivities";
 import type { Activity } from "@/types/activity";
 import { canManageActivity } from "@/lib/activityPermissions";
@@ -19,6 +20,11 @@ import {
 } from "@/lib/userProfile";
 import { supabase } from "@/lib/supabaseClient";
 import ActivityDetailsMarkdown from "@/components/ActivityDetailsMarkdown";
+import InlineActivityMetadataFields, {
+  activityToInlineMetadataDraft,
+  isValidInlineMetadataDraft,
+  type InlineMetadataDraft,
+} from "@/components/InlineActivityMetadataFields";
 import type {
   SearchFilterValues,
   SearchSortValue,
@@ -215,10 +221,82 @@ export default function SearchResultsPanel({
   const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
   const [creatorDisplayName, setCreatorDisplayName] = useState("—");
+  const [metadataDraft, setMetadataDraft] = useState<InlineMetadataDraft | null>(null);
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const [metadataMessage, setMetadataMessage] = useState("");
   const [restoredSelectedActivityId, setRestoredSelectedActivityId] = useState<
     string | null
   >(null);
   const activityRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const hasUnsavedMetadataChanges = useMemo(() => {
+    if (!selectedActivity || !metadataDraft) {
+      return false;
+    }
+
+    return (
+      JSON.stringify(metadataDraft) !==
+      JSON.stringify(activityToInlineMetadataDraft(selectedActivity))
+    );
+  }, [metadataDraft, selectedActivity]);
+
+  function confirmDiscardMetadataChanges() {
+    if (!hasUnsavedMetadataChanges) {
+      return true;
+    }
+
+    return window.confirm(
+      "You have unsaved metadata changes. Leave without saving?"
+    );
+  }
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!hasUnsavedMetadataChanges) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    function handleLinkClick(event: MouseEvent) {
+      if (!hasUnsavedMetadataChanges) {
+        return;
+      }
+
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const link = target.closest("a[href]");
+
+      if (!(link instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      const href = link.getAttribute("href");
+
+      if (!href || href === "#" || link.target === "_blank" || link.download) {
+        return;
+      }
+
+      if (!confirmDiscardMetadataChanges()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleLinkClick, true);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleLinkClick, true);
+    };
+  }, [hasUnsavedMetadataChanges]);
+
 
   const loadActivities = useCallback(async () => {
     setIsLoadingActivities(true);
@@ -497,6 +575,15 @@ export default function SearchResultsPanel({
   }, [selectedActivity?.id, selectedActivity?.previewDataUrl]);
 
   useEffect(() => {
+    setMetadataDraft(
+      selectedActivity
+        ? activityToInlineMetadataDraft(selectedActivity)
+        : null
+    );
+    setMetadataMessage("");
+  }, [selectedActivity?.id]);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadCreatorDisplayName() {
@@ -584,6 +671,13 @@ export default function SearchResultsPanel({
   }, [selectedActivity, visibleActivities]);
 
   function handleSelectActivity(activity: ActivityWithSource) {
+    if (
+      activity.id !== selectedActivity?.id &&
+      !confirmDiscardMetadataChanges()
+    ) {
+      return;
+    }
+
     setSelectedActivity(activity);
     setSelectedPreviewFailed(false);
     setDownloadMessage("");
@@ -592,7 +686,76 @@ export default function SearchResultsPanel({
   }
 
 
+  async function handleSaveMetadata() {
+    if (
+      !selectedActivity ||
+      !metadataDraft ||
+      isSavingMetadata ||
+      !canManageSelectedActivity
+    ) {
+      return;
+    }
+
+    setMetadataMessage("");
+    setActionMessage("");
+    setDownloadMessage("");
+
+    if (!isValidInlineMetadataDraft(metadataDraft)) {
+      setMetadataMessage(
+        "Number of Players must be blank or a whole number greater than 0."
+      );
+      return;
+    }
+
+    setIsSavingMetadata(true);
+
+    try {
+      const updatedActivity = await updateSupabaseActivityPreviewMetadata(
+        selectedActivity.id,
+        {
+          fieldLocation: metadataDraft.fieldLocation,
+          gamePhase: metadataDraft.gamePhase,
+          category: metadataDraft.category,
+          numberOfPlayers: metadataDraft.numberOfPlayers.trim()
+            ? Number(metadataDraft.numberOfPlayers)
+            : "",
+          positionsInvolved: metadataDraft.positionsInvolved,
+          visibility: metadataDraft.visibility,
+        }
+      );
+
+      const updatedWithSource: ActivityWithSource = {
+        ...updatedActivity,
+        source: "supabase",
+      };
+
+      setActivities((currentActivities) =>
+        currentActivities.map((activity) =>
+          activity.id === updatedActivity.id ? updatedWithSource : activity
+        )
+      );
+      setSelectedActivity(updatedWithSource);
+      setMetadataDraft(activityToInlineMetadataDraft(updatedActivity));
+      setMetadataMessage("Metadata saved.");
+      router.refresh();
+    } catch (error) {
+      console.error("Unable to save activity metadata.", error);
+      setMetadataMessage(
+        error instanceof Error
+          ? error.message
+          : "Metadata could not be saved."
+      );
+    } finally {
+      setIsSavingMetadata(false);
+    }
+  }
+
+
   async function handleCreateCopy() {
+    if (!confirmDiscardMetadataChanges()) {
+      return;
+    }
+
     if (!selectedActivity || isCreatingCopy) return;
 
     setDownloadMessage("");
@@ -902,62 +1065,15 @@ export default function SearchResultsPanel({
                 </div>
               </div>
 
-              <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Field Location
-                  </div>
-                  <div className="text-slate-600">
-                    {selectedActivity.fieldLocation || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Game Phase
-                  </div>
-                  <div className="text-slate-600">
-                    {selectedActivity.gamePhase || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-700">Category</div>
-                  <div className="text-slate-600">
-                    {selectedActivity.category || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Number of Players
-                  </div>
-                  <div className="text-slate-600">
-                    {selectedActivity.numberOfPlayers || "—"}
-                  </div>
-                </div>
-
-              </div>
-
-              <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Positions Involved
-                  </div>
-                  <div className="break-words text-slate-600">
-                    {selectedActivity.positionsInvolved || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="font-semibold text-slate-700">
-                    Activity Visibility
-                  </div>
-                  <div className="text-slate-600">
-                    {formatActivityVisibility(selectedActivity.visibility)}
-                  </div>
-                </div>
-              </div>
+              {metadataDraft && (
+                <InlineActivityMetadataFields
+                  activity={selectedActivity}
+                  canEdit={canManageSelectedActivity}
+                  draft={metadataDraft}
+                  onDraftChange={setMetadataDraft}
+                  disabled={isSavingMetadata}
+                />
+              )}
 
               <div>
                 <div className="font-semibold text-slate-700">
@@ -999,9 +1115,32 @@ export default function SearchResultsPanel({
               </div>
             </div>
 
+            {canManageSelectedActivity && (
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveMetadata}
+                  disabled={isSavingMetadata || !metadataDraft}
+                  className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSavingMetadata ? "Saving..." : "Save"}
+                </button>
+              </div>
+            )}
+
             {downloadMessage && (
               <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
                 {downloadMessage}
+              </div>
+            )}
+
+            {metadataMessage && (
+              <div className={`mt-4 rounded-lg border p-3 text-sm ${
+                metadataMessage === "Metadata saved."
+                  ? "border-blue-200 bg-blue-50 text-blue-700"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}>
+                {metadataMessage}
               </div>
             )}
 

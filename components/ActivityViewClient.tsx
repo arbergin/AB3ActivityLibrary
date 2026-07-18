@@ -17,6 +17,7 @@ import {
   deleteSupabaseActivity,
   duplicateSupabaseActivity,
   getSupabaseActivityById,
+  updateSupabaseActivityPreviewMetadata,
 } from "@/lib/supabaseActivities";
 import type { Activity, ActivityCreatorFrame } from "@/types/activity";
 import { getActivityCreatorFrames } from "@/lib/activityCreatorFrames";
@@ -27,6 +28,11 @@ import {
   getUserDisplayName,
   type UserProfile,
 } from "@/lib/userProfile";
+import InlineActivityMetadataFields, {
+  activityToInlineMetadataDraft,
+  isValidInlineMetadataDraft,
+  type InlineMetadataDraft,
+} from "@/components/InlineActivityMetadataFields";
 
 type ActivityViewClientProps = {
   activityId: string;
@@ -871,6 +877,87 @@ export default function ActivityViewClient({
   const [isCreatingCopy, setIsCreatingCopy] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
   const [creatorDisplayName, setCreatorDisplayName] = useState("—");
+  const [metadataDraft, setMetadataDraft] = useState<InlineMetadataDraft | null>(null);
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const [metadataMessage, setMetadataMessage] = useState("");
+
+  useEffect(() => {
+    if (activity) {
+      setMetadataDraft(activityToInlineMetadataDraft(activity));
+    } else {
+      setMetadataDraft(null);
+    }
+    setMetadataMessage("");
+  }, [activity?.id]);
+
+  const hasUnsavedMetadataChanges = useMemo(() => {
+    if (!activity || !metadataDraft) {
+      return false;
+    }
+
+    return (
+      JSON.stringify(metadataDraft) !==
+      JSON.stringify(activityToInlineMetadataDraft(activity))
+    );
+  }, [activity, metadataDraft]);
+
+  function confirmDiscardMetadataChanges() {
+    if (!hasUnsavedMetadataChanges) {
+      return true;
+    }
+
+    return window.confirm(
+      "You have unsaved metadata changes. Leave without saving?"
+    );
+  }
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!hasUnsavedMetadataChanges) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    function handleLinkClick(event: MouseEvent) {
+      if (!hasUnsavedMetadataChanges) {
+        return;
+      }
+
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const link = target.closest("a[href]");
+
+      if (!(link instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      const href = link.getAttribute("href");
+
+      if (!href || href === "#" || link.target === "_blank" || link.download) {
+        return;
+      }
+
+      if (!confirmDiscardMetadataChanges()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleLinkClick, true);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleLinkClick, true);
+    };
+  }, [hasUnsavedMetadataChanges]);
 
   async function recordActivityOpen(activityIdToRecord: string) {
     const { data } = await supabase.auth.getSession();
@@ -983,7 +1070,67 @@ export default function ActivityViewClient({
     };
   }, [activityId]);
 
+  async function handleSaveMetadata() {
+    if (
+      !activity ||
+      activitySource !== "supabase" ||
+      !metadataDraft ||
+      isSavingMetadata ||
+      !canManageCurrentActivity
+    ) {
+      return;
+    }
+
+    setMetadataMessage("");
+    setActionMessage("");
+    setDownloadMessage("");
+
+    if (!isValidInlineMetadataDraft(metadataDraft)) {
+      setMetadataMessage(
+        "Number of Players must be blank or a whole number greater than 0."
+      );
+      return;
+    }
+
+    setIsSavingMetadata(true);
+
+    try {
+      const updatedActivity = await updateSupabaseActivityPreviewMetadata(
+        activity.id,
+        {
+          fieldLocation: metadataDraft.fieldLocation,
+          gamePhase: metadataDraft.gamePhase,
+          category: metadataDraft.category,
+          numberOfPlayers: metadataDraft.numberOfPlayers.trim()
+            ? Number(metadataDraft.numberOfPlayers)
+            : "",
+          positionsInvolved: metadataDraft.positionsInvolved,
+          visibility: metadataDraft.visibility,
+        }
+      );
+
+      setActivity(updatedActivity);
+      setMetadataDraft(activityToInlineMetadataDraft(updatedActivity));
+      setMetadataMessage("Metadata saved.");
+      router.refresh();
+    } catch (error) {
+      console.error("Unable to save activity metadata.", error);
+      setMetadataMessage(
+        error instanceof Error
+          ? error.message
+          : "Metadata could not be saved."
+      );
+    } finally {
+      setIsSavingMetadata(false);
+    }
+  }
+
+
   async function handleCreateCopy() {
+    if (!confirmDiscardMetadataChanges()) {
+      return;
+    }
+
     if (!activity || activitySource !== "supabase") {
       return;
     }
@@ -1269,6 +1416,16 @@ export default function ActivityViewClient({
                 </div>
               )}
 
+              {metadataMessage && (
+                <div className={`mt-4 rounded-lg border p-3 text-sm ${
+                  metadataMessage === "Metadata saved."
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-red-200 bg-red-50 text-red-700"
+                }`}>
+                  {metadataMessage}
+                </div>
+              )}
+
             </section>
 
             <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -1284,61 +1441,15 @@ export default function ActivityViewClient({
                   </div>
                 </div>
 
-                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <div>
-                    <div className="font-semibold text-slate-700">
-                      Field Location
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {activity.fieldLocation || "—"}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-slate-700">
-                      Game Phase
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {activity.gamePhase || "—"}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-slate-700">Category</div>
-                    <div className="mt-1 text-slate-600">
-                      {activity.category || "—"}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-slate-700">
-                      Number of Players
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {activity.numberOfPlayers || "—"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <div>
-                    <div className="font-semibold text-slate-700">
-                      Positions Involved
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {activity.positionsInvolved || "—"}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="font-semibold text-slate-700">
-                      Activity Visibility
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {formatActivityVisibility(activity.visibility)}
-                    </div>
-                  </div>
-                </div>
+                {metadataDraft && (
+                  <InlineActivityMetadataFields
+                    activity={activity}
+                    canEdit={canManageCurrentActivity && activitySource === "supabase"}
+                    draft={metadataDraft}
+                    onDraftChange={setMetadataDraft}
+                    disabled={isSavingMetadata}
+                  />
+                )}
 
                 <div>
                   <div className="font-semibold text-slate-700">
@@ -1378,6 +1489,19 @@ export default function ActivityViewClient({
                     {creatorDisplayName}
                   </div>
                 </div>
+
+                {canManageCurrentActivity && activitySource === "supabase" && (
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveMetadata}
+                      disabled={isSavingMetadata || !metadataDraft}
+                      className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSavingMetadata ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
           </div>

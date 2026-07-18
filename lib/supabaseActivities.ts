@@ -365,6 +365,85 @@ export async function duplicateSupabaseActivity(
   return savedCopy;
 }
 
+
+export type ActivityPreviewMetadataUpdate = {
+  fieldLocation: string;
+  gamePhase: string;
+  category: string;
+  numberOfPlayers: number | "";
+  positionsInvolved: string;
+  visibility: Activity["visibility"];
+};
+
+export async function updateSupabaseActivityPreviewMetadata(
+  activityId: string,
+  metadata: ActivityPreviewMetadataUpdate
+): Promise<Activity> {
+  if (!isUuid(activityId)) {
+    throw new Error(
+      "Cannot update Supabase activity because the ID is not a UUID."
+    );
+  }
+
+  const currentActivity = await getSupabaseActivityById(activityId);
+
+  if (!currentActivity) {
+    throw new Error("The activity could not be found.");
+  }
+
+  const updatedActivity: Activity = {
+    ...currentActivity,
+    fieldLocation: metadata.fieldLocation.trim(),
+    gamePhase: metadata.gamePhase.trim(),
+    category: metadata.category.trim(),
+    numberOfPlayers: metadata.numberOfPlayers,
+    positionsInvolved: metadata.positionsInvolved.trim(),
+    visibility: metadata.visibility,
+  };
+
+  updatedActivity.clubId = await resolveActivityClubId(updatedActivity);
+
+  const updatedAt = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("activities")
+    .update({
+      field_location: updatedActivity.fieldLocation || null,
+      game_phase: updatedActivity.gamePhase || null,
+      category: updatedActivity.category || null,
+      number_of_players:
+        updatedActivity.numberOfPlayers === ""
+          ? null
+          : Number(updatedActivity.numberOfPlayers),
+      positions_involved: updatedActivity.positionsInvolved || null,
+      visibility: updatedActivity.visibility || "private",
+      club_id: updatedActivity.clubId || null,
+      updated_at: updatedAt,
+    })
+    .eq("id", activityId)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Supabase activity preview metadata update failed:", {
+      id: activityId,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+
+    throw error;
+  }
+
+  const row = data as SupabaseActivityRow;
+  const savedActivity = supabaseRowToActivity(row);
+  savedActivity.previewDataUrl = getPublicActivityFileUrl(
+    row.file_path || undefined
+  );
+
+  return savedActivity;
+}
+
 export async function updateSupabaseActivity(
   activity: Activity
 ): Promise<Activity> {
