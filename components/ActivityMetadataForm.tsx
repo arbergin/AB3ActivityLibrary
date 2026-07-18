@@ -16,6 +16,7 @@ import {
 } from "@/lib/supabaseActivities";
 import type { Activity, ActivityCreatorState, ActivityVisibility } from "@/types/activity";
 import ActivityDetailsEditor from "@/components/ActivityDetailsEditor";
+import { getCurrentUserProfile } from "@/lib/userProfile";
 
 
 const defaultDropdownOptions: ActivityFormDropdownOptions = {
@@ -54,6 +55,8 @@ export default function ActivityMetadataForm({
   const [visibility, setVisibility] = useState<ActivityVisibility>(
     initialActivity?.visibility || (mode === "create" ? "club" : "private")
   );
+  const [hasClub, setHasClub] = useState(false);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const [activityName, setActivityName] = useState(
     initialActivity?.activityName || ""
   );
@@ -128,6 +131,48 @@ export default function ActivityMetadataForm({
   const hasUnsavedMetadataChanges =
     currentMetadataSnapshot !== initialMetadataSnapshotRef.current;
 
+
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCurrentProfile() {
+      try {
+        const profile = await getCurrentUserProfile();
+
+        if (!isMounted) {
+          return;
+        }
+
+        const userHasClub = Boolean(profile?.club_id);
+        setHasClub(userHasClub);
+
+        if (!userHasClub && visibility === "club") {
+          setVisibility("private");
+        }
+      } catch (error) {
+        console.error("Unable to load current user club membership.", error);
+
+        if (isMounted) {
+          setHasClub(false);
+
+          if (visibility === "club") {
+            setVisibility("private");
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setHasLoadedProfile(true);
+        }
+      }
+    }
+
+    loadCurrentProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     onDirtyChange?.(hasUnsavedMetadataChanges);
@@ -242,6 +287,13 @@ export default function ActivityMetadataForm({
 
     if (!visibility) {
       setFormError("Activity visibility is required.");
+      return;
+    }
+
+    if (visibility === "club" && !hasClub) {
+      setFormError(
+        "My Club is only available when your user profile is assigned to a club."
+      );
       return;
     }
 
@@ -381,7 +433,7 @@ export default function ActivityMetadataForm({
   }
 
   function handleClearForm() {
-    setVisibility(mode === "create" ? "club" : "private");
+    setVisibility(mode === "create" && hasClub ? "club" : "private");
     setActivityName("");
     setFieldLocation("");
     setGamePhase("");
@@ -593,12 +645,12 @@ export default function ActivityMetadataForm({
               onChange={(event) =>
                 setVisibility(event.target.value as ActivityVisibility)
               }
-              disabled={isSaving}
+              disabled={isSaving || !hasLoadedProfile}
               required
               className="rounded-lg border border-slate-300 px-3 py-2"
             >
               <option value="private">Private</option>
-              <option value="club">My Club</option>
+              {hasClub && <option value="club">My Club</option>}
               <option value="everyone">Everyone</option>
             </select>
           </label>

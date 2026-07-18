@@ -6,6 +6,7 @@ import {
   type ActivityFormDropdownOptions,
 } from "@/lib/dropdownService";
 import type { Activity, ActivityVisibility } from "@/types/activity";
+import { getCurrentUserProfile } from "@/lib/userProfile";
 
 export type InlineMetadataDraft = {
   fieldLocation: string;
@@ -86,6 +87,56 @@ export default function InlineActivityMetadataFields({
 }: InlineActivityMetadataFieldsProps) {
   const [options, setOptions] =
     useState<ActivityFormDropdownOptions>(emptyOptions);
+  const [hasClub, setHasClub] = useState(false);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
+
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCurrentProfile() {
+      try {
+        const profile = await getCurrentUserProfile();
+
+        if (!isMounted) {
+          return;
+        }
+
+        const userHasClub = Boolean(profile?.club_id);
+        setHasClub(userHasClub);
+
+        if (!userHasClub && draft.visibility === "club") {
+          onDraftChange({
+            ...draft,
+            visibility: "private",
+          });
+        }
+      } catch (error) {
+        console.error("Unable to load current user club membership.", error);
+
+        if (isMounted) {
+          setHasClub(false);
+
+          if (draft.visibility === "club") {
+            onDraftChange({
+              ...draft,
+              visibility: "private",
+            });
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setHasLoadedProfile(true);
+        }
+      }
+    }
+
+    loadCurrentProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -277,11 +328,11 @@ export default function InlineActivityMetadataFields({
                 event.target.value as ActivityVisibility
               )
             }
-            disabled={disabled}
+            disabled={disabled || !hasLoadedProfile}
             className={selectClass}
           >
             <option value="private">Private</option>
-            <option value="club">My Club</option>
+            {hasClub && <option value="club">My Club</option>}
             <option value="everyone">Everyone</option>
           </select>
         </label>
