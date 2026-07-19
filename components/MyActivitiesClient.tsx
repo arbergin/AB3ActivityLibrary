@@ -18,7 +18,6 @@ import ActivityDetailsMarkdown from "@/components/ActivityDetailsMarkdown";
 import { stripActivityDetailsMarkdown } from "@/lib/activityDetailsMarkdown";
 import InlineActivityMetadataFields, {
   activityToInlineMetadataDraft,
-  inlineMetadataDraftToActivity,
   isValidInlineMetadataDraft,
   type InlineMetadataDraft,
 } from "@/components/InlineActivityMetadataFields";
@@ -145,16 +144,40 @@ export default function MyActivitiesClient() {
   const [isSavingMetadata, setIsSavingMetadata] = useState(false);
   const [metadataMessage, setMetadataMessage] = useState("");
   const activityRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  const metadataBaselineRef = useRef<{
+    activityId: string;
+    draft: InlineMetadataDraft;
+  } | null>(null);
+
   const hasUnsavedMetadataChanges = useMemo(() => {
     if (!selectedActivity || !metadataDraft) {
       return false;
     }
 
-    return (
-      JSON.stringify(metadataDraft) !==
-      JSON.stringify(activityToInlineMetadataDraft(selectedActivity))
-    );
-  }, [metadataDraft, selectedActivity]);
+    const baseline = metadataBaselineRef.current;
+
+    if (!baseline || baseline.activityId !== selectedActivity.id) {
+      return false;
+    }
+
+    return JSON.stringify(metadataDraft) !== JSON.stringify(baseline.draft);
+  }, [metadataDraft, selectedActivity?.id]);
+
+  function initializeMetadataDraft(activity?: Activity) {
+    if (!activity) {
+      metadataBaselineRef.current = null;
+      setMetadataDraft(null);
+      return;
+    }
+
+    const nextDraft = activityToInlineMetadataDraft(activity);
+
+    metadataBaselineRef.current = {
+      activityId: activity.id,
+      draft: nextDraft,
+    };
+    setMetadataDraft(nextDraft);
+  }
 
   function confirmDiscardMetadataChanges() {
     if (!hasUnsavedMetadataChanges) {
@@ -330,11 +353,7 @@ export default function MyActivitiesClient() {
   }, [selectedActivity?.id, selectedActivity?.previewDataUrl]);
 
   useEffect(() => {
-    setMetadataDraft(
-      selectedActivity
-        ? activityToInlineMetadataDraft(selectedActivity)
-        : null
-    );
+    initializeMetadataDraft(selectedActivity);
     setMetadataMessage("");
   }, [selectedActivity?.id]);
 
@@ -406,8 +425,13 @@ export default function MyActivitiesClient() {
       const nextActivity = sortedActivities[nextIndex];
       const nextPage = Math.floor(nextIndex / pageSize) + 1;
 
+      const didSelectActivity = handleSelectActivity(nextActivity);
+
+      if (!didSelectActivity) {
+        return;
+      }
+
       setCurrentPage(nextPage);
-      handleSelectActivity(nextActivity);
 
       window.setTimeout(() => {
         activityRowRefs.current[nextActivity.id]?.scrollIntoView({
@@ -434,7 +458,11 @@ export default function MyActivitiesClient() {
       activity.id !== selectedActivity?.id &&
       !confirmDiscardMetadataChanges()
     ) {
-      return;
+      return false;
+    }
+
+    if (activity.id !== selectedActivity?.id) {
+      initializeMetadataDraft(activity);
     }
 
     setSelectedActivity(activity);
@@ -442,6 +470,8 @@ export default function MyActivitiesClient() {
     setShowDeleteConfirm(false);
     setDeleteMessage("");
     setDownloadMessage("");
+
+    return true;
   }
 
 
@@ -482,7 +512,7 @@ export default function MyActivitiesClient() {
         )
       );
       setSelectedActivity(updatedActivity);
-      setMetadataDraft(activityToInlineMetadataDraft(updatedActivity));
+      initializeMetadataDraft(updatedActivity);
       setMetadataMessage("Metadata saved.");
       router.refresh();
     } catch (error) {
