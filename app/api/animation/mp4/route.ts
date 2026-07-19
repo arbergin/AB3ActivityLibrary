@@ -13,6 +13,7 @@ type Mp4RequestBody = {
   frames?: string[];
   durationsMs?: number[];
   activityName?: string;
+  speedMultiplier?: number;
 };
 
 const MP4_DURATION_MULTIPLIER = 0.08;
@@ -74,16 +75,31 @@ function resolveFfmpegPath() {
   return resolvedPath;
 }
 
+function normalizeSpeedMultiplier(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(3, Math.max(0.25, value));
+}
+
 function getMp4FrameDurationSeconds(
   durationMs: number,
-  isFinalFrame: boolean
+  isFinalFrame: boolean,
+  speedMultiplier: number
 ) {
+  const normalizedSpeed = normalizeSpeedMultiplier(speedMultiplier);
+
   if (isFinalFrame) {
-    return FINAL_FRAME_HOLD_SECONDS;
+    return Math.max(
+      MIN_FRAME_SECONDS,
+      FINAL_FRAME_HOLD_SECONDS / normalizedSpeed
+    );
   }
 
   const adjustedSeconds =
-    (Math.max(250, durationMs) / 1000) * MP4_DURATION_MULTIPLIER;
+    ((Math.max(250, durationMs) / 1000) * MP4_DURATION_MULTIPLIER) /
+    normalizedSpeed;
 
   return Math.min(
     MAX_FRAME_SECONDS,
@@ -128,6 +144,7 @@ export async function POST(request: Request) {
     const durationsMs = Array.isArray(body.durationsMs)
       ? body.durationsMs
       : [];
+    const speedMultiplier = normalizeSpeedMultiplier(body.speedMultiplier);
 
     if (frames.length < 2 || frames.length > 60) {
       return NextResponse.json(
@@ -171,7 +188,8 @@ export async function POST(request: Request) {
       const isFinalFrame = index === framePaths.length - 1;
       const frameDuration = getMp4FrameDurationSeconds(
         durationsMs[index],
-        isFinalFrame
+        isFinalFrame,
+        speedMultiplier
       );
 
       concatLines.push(`file '${escapeConcatPath(framePath)}'`);

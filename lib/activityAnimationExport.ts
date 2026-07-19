@@ -971,21 +971,40 @@ function downloadBlob(blob: Blob, fileName: string) {
   window.URL.revokeObjectURL(url);
 }
 
+function normalizeSpeedMultiplier(value: number) {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return clamp(value, 0.25, 3);
+}
+
 function getGifFrameDelayMs(
   durationMs: number,
-  isFinalFrame: boolean
+  isFinalFrame: boolean,
+  speedMultiplier: number
 ) {
+  const normalizedSpeed = normalizeSpeedMultiplier(speedMultiplier);
+
   if (isFinalFrame) {
-    return GIF_FINAL_FRAME_HOLD_MS;
+    return Math.max(
+      GIF_MIN_FRAME_DELAY_MS,
+      Math.round(GIF_FINAL_FRAME_HOLD_MS / normalizedSpeed)
+    );
   }
 
   return Math.max(
     GIF_MIN_FRAME_DELAY_MS,
-    Math.round(durationMs * GIF_DURATION_MULTIPLIER)
+    Math.round(
+      (durationMs * GIF_DURATION_MULTIPLIER) / normalizedSpeed
+    )
   );
 }
 
-export async function downloadActivityAnimationAsGif(activity: Activity) {
+export async function downloadActivityAnimationAsGif(
+  activity: Activity,
+  speedMultiplier = 1
+) {
   const frames = await renderFrames(activity);
   const gif = GIFEncoder();
 
@@ -1001,7 +1020,8 @@ export async function downloadActivityAnimationAsGif(activity: Activity) {
       palette,
       delay: getGifFrameDelayMs(
         frame.durationMs,
-        index === frames.length - 1
+        index === frames.length - 1,
+        speedMultiplier
       ),
     });
   }
@@ -1011,7 +1031,10 @@ export async function downloadActivityAnimationAsGif(activity: Activity) {
   downloadBlob(new Blob([new Uint8Array(gif.bytes())], { type: "image/gif" }), `${name}_animation.gif`);
 }
 
-export async function downloadActivityAnimationAsMp4(activity: Activity) {
+export async function downloadActivityAnimationAsMp4(
+  activity: Activity,
+  speedMultiplier = 1
+) {
   const rendered = await renderMp4Frames(activity);
   const response = await fetch("/api/animation/mp4", {
     method: "POST",
@@ -1022,6 +1045,7 @@ export async function downloadActivityAnimationAsMp4(activity: Activity) {
       ),
       durationsMs: rendered.map((frame) => frame.durationMs),
       activityName: activity.activityName,
+      speedMultiplier: normalizeSpeedMultiplier(speedMultiplier),
     }),
   });
 
