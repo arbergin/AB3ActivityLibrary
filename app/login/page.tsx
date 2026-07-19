@@ -233,7 +233,7 @@ export default function LoginPage() {
 
               <div className="mt-8 grid gap-6 md:grid-cols-2">
                 <section className="rounded-2xl border border-slate-200 bg-slate-50/90 p-5">
-                  <h2 className="text-xl font-bold text-[#0d2140]">Demo</h2>
+                  <h2 className="text-xl font-bold text-[#0d2140]">Demo Coming Soon</h2>
 
                   <ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
                     <li>Easily create activities</li>
@@ -249,7 +249,7 @@ export default function LoginPage() {
 
                 <section className="rounded-2xl border border-slate-200 bg-slate-50/90 p-5">
                   <h2 className="text-xl font-bold text-[#0d2140]">
-                    Sync with iOS
+                    Sync with iOS app
                   </h2>
 
                   <p className="mt-4 text-sm leading-6 text-slate-700">
@@ -257,6 +257,23 @@ export default function LoginPage() {
                     AB3 Activity Library, and continue organizing or editing
                     them from your computer.
                   </p>
+
+                  <div className="mt-5 flex justify-center">
+                    <a
+                      href="https://apps.apple.com/us/app/ab3-soccer-activity-planner/id6778624821"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Download AB3 Soccer Activity Planner from the App Store"
+                      title="View AB3 Soccer Activity Planner in the App Store"
+                      className="rounded-[22%] transition hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#0d2140]/25"
+                    >
+                      <img
+                        src="/AB3Icon.png"
+                        alt="AB3 Activity Planner app icon"
+                        className="h-24 w-24 rounded-[22%] object-contain shadow-md"
+                      />
+                    </a>
+                  </div>
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-slate-50/90 p-5">
