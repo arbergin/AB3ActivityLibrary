@@ -284,7 +284,7 @@ export default function AppHeader() {
                 </span>
 
                 <Link
-                  href="/login"
+                  href="/login#login-form"
                   className="whitespace-nowrap rounded-md bg-white px-2.5 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100 sm:px-3"
                 >
                   Login
