@@ -191,7 +191,7 @@ export default function LoginPage() {
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <AppHeader />
 
-      <section className="relative min-h-[calc(100vh-72px)] overflow-hidden px-4 pb-8 pt-4 sm:px-6 lg:px-10 lg:pb-10 lg:pt-5">
+      <section className="relative min-h-[calc(100vh-72px)] overflow-visible px-4 pb-8 pt-4 sm:px-6 lg:px-10 lg:pb-10 lg:pt-5">
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-[url('/login-background.png')] bg-cover bg-center bg-no-repeat opacity-65"
@@ -200,7 +200,7 @@ export default function LoginPage() {
         <div aria-hidden="true" className="absolute inset-0 bg-slate-100/20" />
 
         <div className="relative z-10 mx-auto grid w-full max-w-[1380px] items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px] xl:max-w-[1480px] xl:grid-cols-[minmax(0,1fr)_290px]">
-          <div className="flex min-h-[560px] items-start justify-center lg:min-h-[680px] lg:justify-end">
+          <div className="flex min-h-[560px] flex-col items-center lg:min-h-[680px] lg:items-end">
             <div className="w-full max-w-[940px] overflow-hidden rounded-[28px] border border-slate-900/70 bg-white/90 shadow-2xl backdrop-blur-sm">
               <video
                 ref={videoRef}
@@ -216,9 +216,75 @@ export default function LoginPage() {
                 title="Click to replay"
               />
             </div>
+
+            <div className="mt-8 w-full max-w-[940px] rounded-[28px] bg-white/92 p-6 shadow-xl ring-1 ring-slate-200/80 backdrop-blur-sm sm:p-8">
+              <section>
+                <h1 className="text-3xl font-black leading-tight text-[#0d2140] sm:text-4xl">
+                  Create, organize, and find your soccer activities—all in one
+                  user-friendly library.
+                </h1>
+
+                <p className="mt-4 text-base leading-7 text-slate-700 sm:text-lg">
+                  AB3 makes it easy to build professional training activities,
+                  add searchable details, create animations, and keep
+                  everything organized for quick access when planning sessions.
+                </p>
+              </section>
+
+              <div className="mt-8 grid gap-6 md:grid-cols-2">
+                <section className="rounded-2xl border border-slate-200 bg-slate-50/90 p-5">
+                  <h2 className="text-xl font-bold text-[#0d2140]">Demo</h2>
+
+                  <ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
+                    <li>Easily create activities</li>
+                    <li>Export and take them to the pitch</li>
+                    <li>
+                      Turn activities into animations to send to players or
+                      share on social media
+                    </li>
+                    <li>Organize activities with searchable details</li>
+                    <li>Quickly open and edit saved activities</li>
+                  </ul>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-slate-50/90 p-5">
+                  <h2 className="text-xl font-bold text-[#0d2140]">
+                    Sync with iOS
+                  </h2>
+
+                  <p className="mt-4 text-sm leading-6 text-slate-700">
+                    Create activities on your iPhone or iPad, sync them with the
+                    AB3 Activity Library, and continue organizing or editing
+                    them from your computer.
+                  </p>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-slate-50/90 p-5">
+                  <h2 className="text-xl font-bold text-[#0d2140]">
+                    How it works
+                  </h2>
+
+                  <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
+                    <li>1. Build your activity</li>
+                    <li>2. Categorize it for easy searching</li>
+                    <li>3. Add setup notes, rules, and coaching points</li>
+                    <li>4. Export it and take it to the pitch</li>
+                  </ol>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-slate-50/90 p-5">
+                  <h2 className="text-xl font-bold text-[#0d2140]">Pricing</h2>
+
+                  <p className="mt-4 text-sm leading-6 text-slate-700">
+                    Simple subscription options for individual coaches and
+                    clubs are coming soon.
+                  </p>
+                </section>
+              </div>
+            </div>
           </div>
 
-          <aside className="self-start lg:sticky lg:top-0 lg:justify-self-end">
+          <aside className="self-start lg:sticky lg:top-[88px] lg:justify-self-end">
             <div className="w-full rounded-2xl bg-white/92 p-5 shadow-xl ring-1 ring-slate-200/80 backdrop-blur-sm sm:p-6 lg:max-w-[300px] xl:max-w-[290px]">
               <div className="mb-5">
                 <h2 className="text-xl font-bold">Login</h2>
