@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toPng } from "html-to-image";
-import type { MouseEvent as ReactMouseEvent, PointerEvent, ReactNode, WheelEvent } from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent,
+  ReactNode,
+  WheelEvent,
+} from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
 import type { Activity, ActivityCreatorState } from "@/types/activity";
 
@@ -21,13 +26,13 @@ type ToolType =
   | "dribble"
   | "eraser";
 
-type ObjectToolType = Exclude<ToolType, "line" | "freehand" | "dribble" | "eraser">;
+type ObjectToolType = Exclude<
+  ToolType,
+  "line" | "freehand" | "dribble" | "eraser"
+>;
 
 type PitchBackgroundType =
-  | "pitchGreen"
-  | "pitchWhite"
-  | "greenBlank"
-  | "whiteBlank";
+  "pitchGreen" | "pitchWhite" | "greenBlank" | "whiteBlank";
 
 type PlayerDisplayMode = "number" | "name" | "both" | "none";
 
@@ -153,10 +158,12 @@ const objectToolTypes: ToolType[] = [
 const drawToolTypes: ToolType[] = ["line", "freehand", "dribble", "eraser"];
 
 const USER_CREATOR_SETTINGS_KEY = "ab3-activity-creator-user-settings";
+const DEFAULT_FRAME_DURATION_MS = 1500;
 
 type PersistedCreatorUserSettings = {
   toolbarOnLeft: boolean;
   showAnimationDurations: boolean;
+  defaultFrameDurationMs: number;
   selectedPitchBackground: PitchBackgroundType;
   playerDisplayMode: PlayerDisplayMode;
   team1Color: string;
@@ -210,10 +217,9 @@ function distanceFromPointToSegment({
   }
 
   const t = clamp(
-    ((point.x - start.x) * dx + (point.y - start.y) * dy) /
-      (dx * dx + dy * dy),
+    ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy),
     0,
-    1
+    1,
   );
 
   const closest = {
@@ -310,7 +316,8 @@ function ToolIcon({
         style={{
           backgroundColor: type === "team1" ? team1Color : team2Color,
           color: playerTextColor,
-          borderRadius: shape === "circle" ? "9999px" : shape === "square" ? "5px" : "0",
+          borderRadius:
+            shape === "circle" ? "9999px" : shape === "square" ? "5px" : "0",
           clipPath:
             shape === "triangle"
               ? "polygon(50% 0%, 100% 100%, 0% 100%)"
@@ -400,28 +407,51 @@ function ToolIcon({
 
   if (type === "freehand") {
     return (
-      <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" aria-hidden="true">
-        <path d="M4 20C8 8 12 26 16 15C20 4 23 24 28 11" stroke={lineColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <svg
+        viewBox="0 0 32 32"
+        className="h-7 w-7"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M4 20C8 8 12 26 16 15C20 4 23 24 28 11"
+          stroke={lineColor}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
 
   if (type === "dribble") {
     return (
-      <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" aria-hidden="true">
-        <path d="M2 16C4.5 8 7.5 8 10 16C12.5 24 15.5 24 18 16C20.5 8 23.5 8 26 16C27.5 21 28.5 21 29.5 18" stroke={lineColor} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M25.5 16.5L29.5 18L27.8 22" stroke={lineColor} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      <svg
+        viewBox="0 0 32 32"
+        className="h-7 w-7"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M2 16C4.5 8 7.5 8 10 16C12.5 24 15.5 24 18 16C20.5 8 23.5 8 26 16C27.5 21 28.5 21 29.5 18"
+          stroke={lineColor}
+          strokeWidth="3.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M25.5 16.5L29.5 18L27.8 22"
+          stroke={lineColor}
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }
 
   return (
-    <svg
-      viewBox="0 0 32 32"
-      className="h-7 w-7"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" aria-hidden="true">
       <path
         d="M10 22L22 10"
         stroke="currentColor"
@@ -440,12 +470,7 @@ function ToolIcon({
 
 function SmallTrashIcon() {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      className="h-4 w-4"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 32 32" className="h-4 w-4" fill="none" aria-hidden="true">
       <path
         d="M10 11H22"
         stroke="currentColor"
@@ -489,12 +514,7 @@ function SmallTrashIcon() {
 
 function SaveIcon() {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      className="h-5 w-5"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 32 32" className="h-5 w-5" fill="none" aria-hidden="true">
       <path
         d="M8 5H21L25 9V27H8V5Z"
         stroke="currentColor"
@@ -519,12 +539,7 @@ function SaveIcon() {
 
 function PinIcon({ pinned }: { pinned: boolean }) {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      className="h-6 w-6"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none" aria-hidden="true">
       <path
         d="M11 5H21L20 12L25 17V20H17V27L15 29V20H7V17L12 12L11 5Z"
         stroke="currentColor"
@@ -539,12 +554,7 @@ function PinIcon({ pinned }: { pinned: boolean }) {
 
 function MovieCameraIcon() {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      className="h-6 w-6"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none" aria-hidden="true">
       <rect
         x="5"
         y="10"
@@ -561,19 +571,44 @@ function MovieCameraIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle
-        cx="10"
-        cy="7"
-        r="3"
+      <circle cx="10" cy="7" r="3" stroke="currentColor" strokeWidth="2.2" />
+      <circle cx="18" cy="7" r="3" stroke="currentColor" strokeWidth="2.2" />
+    </svg>
+  );
+}
+
+function FrameManagerIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className={className}
+      fill="none"
+      aria-hidden="true"
+    >
+      <rect
+        x="5"
+        y="6"
+        width="17"
+        height="13"
+        rx="2"
         stroke="currentColor"
-        strokeWidth="2.2"
+        strokeWidth="2.3"
       />
-      <circle
-        cx="18"
-        cy="7"
-        r="3"
+      <rect
+        x="10"
+        y="13"
+        width="17"
+        height="13"
+        rx="2"
+        fill="white"
         stroke="currentColor"
-        strokeWidth="2.2"
+        strokeWidth="2.3"
+      />
+      <path
+        d="M15 18H22M15 22H20"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
       />
     </svg>
   );
@@ -626,7 +661,6 @@ function SizeSetting({
   );
 }
 
-
 function CodedPitchBackground({
   background,
   zoom = 1,
@@ -656,80 +690,94 @@ function CodedPitchBackground({
           transformOrigin: "center center",
         }}
       >
-      <defs>
-        <linearGradient id="ab3-green-pitch-gradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#168807" />
-          <stop offset="50%" stopColor="#27c20d" />
-          <stop offset="100%" stopColor="#147506" />
-        </linearGradient>
+        <defs>
+          <linearGradient
+            id="ab3-green-pitch-gradient"
+            x1="0"
+            y1="0"
+            x2="0"
+            y2="1"
+          >
+            <stop offset="0%" stopColor="#168807" />
+            <stop offset="50%" stopColor="#27c20d" />
+            <stop offset="100%" stopColor="#147506" />
+          </linearGradient>
 
-        <linearGradient id="ab3-white-pitch-gradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="50%" stopColor="#f4f6f8" />
-          <stop offset="100%" stopColor="#ffffff" />
-        </linearGradient>
-      </defs>
+          <linearGradient
+            id="ab3-white-pitch-gradient"
+            x1="0"
+            y1="0"
+            x2="0"
+            y2="1"
+          >
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="50%" stopColor="#f4f6f8" />
+            <stop offset="100%" stopColor="#ffffff" />
+          </linearGradient>
+        </defs>
 
-      <rect
-        x="0"
-        y="0"
-        width="100"
-        height="133.333333"
-        fill={
-          isGreen
-            ? "url(#ab3-green-pitch-gradient)"
-            : "url(#ab3-white-pitch-gradient)"
-        }
-      />
+        <rect
+          x="0"
+          y="0"
+          width="100"
+          height="133.333333"
+          fill={
+            isGreen
+              ? "url(#ab3-green-pitch-gradient)"
+              : "url(#ab3-white-pitch-gradient)"
+          }
+        />
 
-      {isGreen &&
-        Array.from({ length: 14 }).map((_, index) => (
-          <rect
-            key={index}
-            x="0"
-            y={(index * 133.333333) / 14}
-            width="100"
-            height={133.333333 / 14}
-            fill={index % 2 === 0 ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}
-          />
-        ))}
+        {isGreen &&
+          Array.from({ length: 14 }).map((_, index) => (
+            <rect
+              key={index}
+              x="0"
+              y={(index * 133.333333) / 14}
+              width="100"
+              height={133.333333 / 14}
+              fill={
+                index % 2 === 0 ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
+              }
+            />
+          ))}
 
-      {!isBlank && (
-        <g
-          fill="none"
-          stroke={lineColor}
-          strokeWidth="0.55"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="8" y="6" width="84" height="121.333333" />
+        {!isBlank && (
+          <g
+            fill="none"
+            stroke={lineColor}
+            strokeWidth="0.55"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="8" y="6" width="84" height="121.333333" />
 
-          <line x1="8" y1="66.666667" x2="92" y2="66.666667" />
-          <circle cx="50" cy="66.666667" r="9.5" />
+            <line x1="8" y1="66.666667" x2="92" y2="66.666667" />
+            <circle cx="50" cy="66.666667" r="9.5" />
 
-          <rect x="26" y="6" width="48" height="19.333333" />
-          <rect x="38" y="6" width="24" height="7.333333" />
+            <rect x="26" y="6" width="48" height="19.333333" />
+            <rect x="38" y="6" width="24" height="7.333333" />
 
-          <rect x="26" y="108" width="48" height="19.333333" />
-          <rect x="38" y="120" width="24" height="7.333333" />
+            <rect x="26" y="108" width="48" height="19.333333" />
+            <rect x="38" y="120" width="24" height="7.333333" />
 
-          <path d="M 43.04 25.333333 A 8.5 8.5 0 0 0 56.96 25.333333" />
-          <path d="M 43.04 108 A 8.5 8.5 0 0 1 56.96 108" />
+            <path d="M 43.04 25.333333 A 8.5 8.5 0 0 0 56.96 25.333333" />
+            <path d="M 43.04 108 A 8.5 8.5 0 0 1 56.96 108" />
 
-          <path d="M 10.8 6 A 2.8 2.8 0 0 1 8 8.8" />
-          <path d="M 89.2 6 A 2.8 2.8 0 0 0 92 8.8" />
-          <path d="M 10.8 127.333333 A 2.8 2.8 0 0 0 8 124.533333" />
-          <path d="M 89.2 127.333333 A 2.8 2.8 0 0 1 92 124.533333" />
-        </g>
-      )}
+            <path d="M 10.8 6 A 2.8 2.8 0 0 1 8 8.8" />
+            <path d="M 89.2 6 A 2.8 2.8 0 0 0 92 8.8" />
+            <path d="M 10.8 127.333333 A 2.8 2.8 0 0 0 8 124.533333" />
+            <path d="M 89.2 127.333333 A 2.8 2.8 0 0 1 92 124.533333" />
+          </g>
+        )}
 
-      {!isBlank && (
-        <g fill={lineColor}>
-          <circle cx="50" cy="66.666667" r="0.65" />
-          <circle cx="50" cy="18.666667" r="0.65" />
-          <circle cx="50" cy="114.666667" r="0.65" />
-        </g>
-      )}
+        {!isBlank && (
+          <g fill={lineColor}>
+            <circle cx="50" cy="66.666667" r="0.65" />
+            <circle cx="50" cy="18.666667" r="0.65" />
+            <circle cx="50" cy="114.666667" r="0.65" />
+          </g>
+        )}
       </svg>
     </div>
   );
@@ -818,6 +866,7 @@ type NormalizedCreatorState = {
     ballDefaultSize: number;
     playerDisplayMode: PlayerDisplayMode;
     lineDefaultWidth: number;
+    defaultFrameDurationMs: number;
   };
 };
 
@@ -826,7 +875,7 @@ function getInitialCreatorState(initialActivity?: Activity) {
 }
 
 function isColorObject(
-  value: unknown
+  value: unknown,
 ): value is { red: number; green: number; blue: number; opacity?: number } {
   if (!value || typeof value !== "object") {
     return false;
@@ -884,7 +933,6 @@ function getFiniteNumber(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-
 function isPitchBackground(value: unknown): value is PitchBackgroundType {
   return (
     value === "pitchGreen" ||
@@ -905,7 +953,10 @@ function isPlayerShape(value: unknown): value is PlayerShape {
 
 function isPlayerDisplayMode(value: unknown): value is PlayerDisplayMode {
   return (
-    value === "number" || value === "name" || value === "both" || value === "none"
+    value === "number" ||
+    value === "name" ||
+    value === "both" ||
+    value === "none"
   );
 }
 
@@ -925,9 +976,9 @@ function isObjectToolType(value: unknown): value is ObjectToolType {
 function isCreatorStateV2(initialCreatorState?: ActivityCreatorState) {
   return Boolean(
     initialCreatorState &&
-      "schemaVersion" in initialCreatorState &&
-      initialCreatorState.schemaVersion === 2 &&
-      "pitch" in initialCreatorState
+    "schemaVersion" in initialCreatorState &&
+    initialCreatorState.schemaVersion === 2 &&
+    "pitch" in initialCreatorState,
   );
 }
 
@@ -948,7 +999,7 @@ function normalizeV1Coordinate(value: unknown) {
 }
 
 function normalizeCreatorState(
-  initialCreatorState?: ActivityCreatorState
+  initialCreatorState?: ActivityCreatorState,
 ): NormalizedCreatorState {
   const defaultState: NormalizedCreatorState = {
     selectedPitchBackground: "pitchGreen",
@@ -977,6 +1028,7 @@ function normalizeCreatorState(
       ballDefaultSize: 14,
       playerDisplayMode: "number",
       lineDefaultWidth: 4,
+      defaultFrameDurationMs: DEFAULT_FRAME_DURATION_MS,
     },
   };
 
@@ -1000,22 +1052,32 @@ function normalizeCreatorState(
         ? creatorState.pitch.background
         : defaultState.selectedPitchBackground,
       pitchView: {
-        zoom: getFiniteNumber(creatorState.pitch?.zoom, defaultState.pitchView.zoom),
-        panX: getFiniteNumber(creatorState.pitch?.offsetX, defaultState.pitchView.panX),
-        panY: getFiniteNumber(creatorState.pitch?.offsetY, defaultState.pitchView.panY),
+        zoom: getFiniteNumber(
+          creatorState.pitch?.zoom,
+          defaultState.pitchView.zoom,
+        ),
+        panX: getFiniteNumber(
+          creatorState.pitch?.offsetX,
+          defaultState.pitchView.panX,
+        ),
+        panY: getFiniteNumber(
+          creatorState.pitch?.offsetY,
+          defaultState.pitchView.panY,
+        ),
         rotationDegrees: getFiniteNumber(
           creatorState.pitch?.rotationDegrees,
-          defaultState.pitchView.rotationDegrees
+          defaultState.pitchView.rotationDegrees,
         ),
         pitchAssetVersion: getFiniteNumber(
           creatorState.pitch?.pitchAssetVersion,
-          defaultState.pitchView.pitchAssetVersion
+          defaultState.pitchView.pitchAssetVersion,
         ),
         coordinateSystem:
           creatorState.pitch?.coordinateSystem === "legacyCanvas"
             ? "legacyCanvas"
             : "canonicalPitchV1",
-        sourcePlatform: creatorStateRecord.sourcePlatform === "ios" ? "ios" : "web",
+        sourcePlatform:
+          creatorStateRecord.sourcePlatform === "ios" ? "ios" : "web",
         clientActivityId:
           typeof creatorStateRecord.clientActivityId === "string"
             ? creatorStateRecord.clientActivityId
@@ -1055,21 +1117,32 @@ function normalizeCreatorState(
                   : 0,
             fillColor:
               type === "team1"
-                ? colorToCss(object.fillColor, colorToCss(settings.team1DefaultColor, "#2563eb"))
+                ? colorToCss(
+                    object.fillColor,
+                    colorToCss(settings.team1DefaultColor, "#2563eb"),
+                  )
                 : type === "team2"
-                  ? colorToCss(object.fillColor, colorToCss(settings.team2DefaultColor, "#dc2626"))
+                  ? colorToCss(
+                      object.fillColor,
+                      colorToCss(settings.team2DefaultColor, "#dc2626"),
+                    )
                   : type === "cone"
-                    ? colorToCss(object.fillColor, colorToCss(settings.coneDefaultColor, "#f97316"))
+                    ? colorToCss(
+                        object.fillColor,
+                        colorToCss(settings.coneDefaultColor, "#f97316"),
+                      )
                     : undefined,
             size: typeof object.size === "number" ? object.size : undefined,
             textColor: colorToCss(
               object.textColor,
               type === "team1" || type === "team2"
                 ? colorToCss(settings.playerTextDefaultColor, "#ffffff")
-                : "#111827"
+                : "#111827",
             ),
             nameFontSize:
-              typeof object.nameFontSize === "number" ? object.nameFontSize : undefined,
+              typeof object.nameFontSize === "number"
+                ? object.nameFontSize
+                : undefined,
             playerShape:
               object.playerShape === "triangle" ||
               object.playerShape === "square" ||
@@ -1078,18 +1151,21 @@ function normalizeCreatorState(
                 ? object.playerShape
                 : "circle",
             playerDisplayModeOverride: isPlayerDisplayMode(
-              object.playerDisplayModeOverride
+              object.playerDisplayModeOverride,
             )
               ? object.playerDisplayModeOverride
               : undefined,
             textContent:
-              typeof object.textContent === "string" ? object.textContent : "Text",
-            fontSize: typeof object.fontSize === "number" ? object.fontSize : undefined,
+              typeof object.textContent === "string"
+                ? object.textContent
+                : "Text",
+            fontSize:
+              typeof object.fontSize === "number" ? object.fontSize : undefined,
           });
 
           return normalizedObjects;
         },
-        []
+        [],
       ),
       lines: (creatorState.lines ?? [])
         .map<PitchLine>((rawLine) => {
@@ -1107,7 +1183,10 @@ function normalizeCreatorState(
               };
             }),
             dashed: Boolean(line.dashed ?? line.isDashed),
-            arrow: line.lineStyle === "dribble" ? true : Boolean(line.arrow ?? line.isArrow),
+            arrow:
+              line.lineStyle === "dribble"
+                ? true
+                : Boolean(line.arrow ?? line.isArrow),
             color: colorToCss(line.color, "#111827"),
             lineWidth: getFiniteNumber(line.lineWidth, 4),
             lineStyle: line.lineStyle === "dribble" ? "dribble" : "standard",
@@ -1119,7 +1198,7 @@ function normalizeCreatorState(
         team2Color: colorToCss(settings.team2DefaultColor, "#dc2626"),
         playerTextColor: colorToCss(
           settings.playerTextDefaultColor,
-          defaultState.settings.playerTextColor
+          defaultState.settings.playerTextColor,
         ),
         team1Shape: isPlayerShape(settings.team1DefaultShape)
           ? settings.team1DefaultShape
@@ -1142,7 +1221,18 @@ function normalizeCreatorState(
         playerDisplayMode: isPlayerDisplayMode(settings.playerDisplayMode)
           ? settings.playerDisplayMode
           : defaultState.settings.playerDisplayMode,
-        lineDefaultWidth: getFiniteNumber(settings.lineDefaultWidth, defaultState.settings.lineDefaultWidth),
+        lineDefaultWidth: getFiniteNumber(
+          settings.lineDefaultWidth,
+          defaultState.settings.lineDefaultWidth,
+        ),
+        defaultFrameDurationMs: clamp(
+          getFiniteNumber(
+            settings.defaultFrameDurationMs,
+            defaultState.settings.defaultFrameDurationMs,
+          ),
+          250,
+          10000,
+        ),
       },
     };
   }
@@ -1157,7 +1247,9 @@ function normalizeCreatorState(
   const settings = creatorState.settings ?? {};
 
   return {
-    selectedPitchBackground: isPitchBackground(creatorState.selectedPitchBackground)
+    selectedPitchBackground: isPitchBackground(
+      creatorState.selectedPitchBackground,
+    )
       ? creatorState.selectedPitchBackground
       : defaultState.selectedPitchBackground,
     pitchView: defaultState.pitchView,
@@ -1179,7 +1271,8 @@ function normalizeCreatorState(
           playerName:
             typeof object.playerName === "string" ? object.playerName : "",
           rotation: typeof object.rotation === "number" ? object.rotation : 0,
-          fillColor: typeof object.fillColor === "string" ? object.fillColor : undefined,
+          fillColor:
+            typeof object.fillColor === "string" ? object.fillColor : undefined,
           size: typeof object.size === "number" ? object.size : undefined,
           textColor:
             typeof object.textColor === "string"
@@ -1190,7 +1283,9 @@ function normalizeCreatorState(
                   : "#ffffff"
                 : undefined,
           nameFontSize:
-            typeof object.nameFontSize === "number" ? object.nameFontSize : undefined,
+            typeof object.nameFontSize === "number"
+              ? object.nameFontSize
+              : undefined,
           playerShape:
             object.playerShape === "triangle" ||
             object.playerShape === "square" ||
@@ -1199,18 +1294,21 @@ function normalizeCreatorState(
               ? object.playerShape
               : "circle",
           playerDisplayModeOverride: isPlayerDisplayMode(
-            object.playerDisplayModeOverride
+            object.playerDisplayModeOverride,
           )
             ? object.playerDisplayModeOverride
             : undefined,
           textContent:
-            typeof object.textContent === "string" ? object.textContent : "Text",
-          fontSize: typeof object.fontSize === "number" ? object.fontSize : undefined,
+            typeof object.textContent === "string"
+              ? object.textContent
+              : "Text",
+          fontSize:
+            typeof object.fontSize === "number" ? object.fontSize : undefined,
         });
 
         return normalizedObjects;
       },
-      []
+      [],
     ),
     lines: (creatorState.lines ?? [])
       .map<PitchLine>((rawLine) => {
@@ -1229,7 +1327,10 @@ function normalizeCreatorState(
           }),
           dashed: Boolean(line.dashed),
           arrow: line.lineStyle === "dribble" ? true : Boolean(line.arrow),
-          color: typeof line.color === "string" ? line.color : defaultState.settings.lineColor,
+          color:
+            typeof line.color === "string"
+              ? line.color
+              : defaultState.settings.lineColor,
           lineWidth: getFiniteNumber(line.lineWidth, 4),
           lineStyle: line.lineStyle === "dribble" ? "dribble" : "standard",
         };
@@ -1249,7 +1350,7 @@ function normalizeCreatorState(
           ? settings.playerTextColor
           : colorToCss(
               settings.playerTextDefaultColor,
-              defaultState.settings.playerTextColor
+              defaultState.settings.playerTextColor,
             ),
       team1Shape: isPlayerShape(settings.team1Shape)
         ? settings.team1Shape
@@ -1284,7 +1385,18 @@ function normalizeCreatorState(
       playerDisplayMode: isPlayerDisplayMode(settings.playerDisplayMode)
         ? settings.playerDisplayMode
         : defaultState.settings.playerDisplayMode,
-      lineDefaultWidth: getFiniteNumber(settings.lineDefaultWidth, defaultState.settings.lineDefaultWidth),
+      lineDefaultWidth: getFiniteNumber(
+        settings.lineDefaultWidth,
+        defaultState.settings.lineDefaultWidth,
+      ),
+      defaultFrameDurationMs: clamp(
+        getFiniteNumber(
+          settings.defaultFrameDurationMs,
+          defaultState.settings.defaultFrameDurationMs,
+        ),
+        250,
+        10000,
+      ),
     },
   };
 }
@@ -1302,7 +1414,7 @@ function deepCopyLines(lines: PitchLine[]) {
 
 function getInitialFrames(
   initialCreatorState: ActivityCreatorState | undefined,
-  fallbackState: NormalizedCreatorState
+  fallbackState: NormalizedCreatorState,
 ): { frames: ActivityFrame[]; activeFrameId: string } {
   if (
     initialCreatorState &&
@@ -1326,7 +1438,10 @@ function getInitialFrames(
       return {
         id: frame.id || makeId(),
         name: frame.name?.trim() || `Tab ${index + 1}`,
-        durationMs: Math.max(250, frame.durationMs ?? 1500),
+        durationMs: Math.max(
+          250,
+          frame.durationMs ?? DEFAULT_FRAME_DURATION_MS,
+        ),
         objects: normalized.objects,
         lines: normalized.lines,
       };
@@ -1346,7 +1461,7 @@ function getInitialFrames(
       {
         id: firstFrameId,
         name: "Tab 1",
-        durationMs: 1500,
+        durationMs: fallbackState.settings.defaultFrameDurationMs,
         objects: deepCopyObjects(fallbackState.objects),
         lines: deepCopyLines(fallbackState.lines),
       },
@@ -1354,7 +1469,9 @@ function getInitialFrames(
   };
 }
 
-export default function ActivityCreator({ initialActivity }: ActivityCreatorProps) {
+export default function ActivityCreator({
+  initialActivity,
+}: ActivityCreatorProps) {
   const router = useRouter();
   const initialCreatorState = getInitialCreatorState(initialActivity);
   const normalizedInitialCreatorState = useMemo(() => {
@@ -1384,12 +1501,20 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   }, [initialCreatorState]);
   const normalizedInitialFrames = useMemo(
     () => getInitialFrames(initialCreatorState, normalizedInitialCreatorState),
-    [initialCreatorState, normalizedInitialCreatorState]
+    [initialCreatorState, normalizedInitialCreatorState],
   );
   const pitchRef = useRef<HTMLDivElement | null>(null);
   const pitchSectionRef = useRef<HTMLElement | null>(null);
+  const pitchControlsBoundaryRef = useRef<HTMLDivElement | null>(null);
   const controlBarRef = useRef<HTMLElement | null>(null);
+  const frameManagerRef = useRef<HTMLDivElement | null>(null);
   const [pinnedControlBarHeight, setPinnedControlBarHeight] = useState(0);
+  const [dockedPitchControls, setDockedPitchControls] = useState<{
+    isDocked: boolean;
+    left: number;
+    width: number;
+    top: number;
+  }>({ isDocked: false, left: 0, width: 0, top: 0 });
   const [hasLoadedUserSettings, setHasLoadedUserSettings] = useState(false);
 
   const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
@@ -1397,24 +1522,38 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     useState<MobileToolGroup>("objects");
   const [selectedPitchBackground, setSelectedPitchBackground] =
     useState<PitchBackgroundType>(
-      normalizedInitialCreatorState.selectedPitchBackground
+      normalizedInitialCreatorState.selectedPitchBackground,
     );
   const initialActiveFrame =
     normalizedInitialFrames.frames.find(
-      (frame) => frame.id === normalizedInitialFrames.activeFrameId
+      (frame) => frame.id === normalizedInitialFrames.activeFrameId,
     ) ?? normalizedInitialFrames.frames[0];
-  const [frames, setFrames] = useState<ActivityFrame[]>(normalizedInitialFrames.frames);
-  const [activeFrameId, setActiveFrameId] = useState(normalizedInitialFrames.activeFrameId);
+  const [frames, setFrames] = useState<ActivityFrame[]>(
+    normalizedInitialFrames.frames,
+  );
+  const [activeFrameId, setActiveFrameId] = useState(
+    normalizedInitialFrames.activeFrameId,
+  );
   const [objects, setObjects] = useState<PitchObject[]>(
-    deepCopyObjects(initialActiveFrame.objects)
+    deepCopyObjects(initialActiveFrame.objects),
   );
   const [lines, setLines] = useState<PitchLine[]>(
-    deepCopyLines(initialActiveFrame.lines)
+    deepCopyLines(initialActiveFrame.lines),
   );
   const [isPlayingAnimation, setIsPlayingAnimation] = useState(false);
   const [playbackFrameIndex, setPlaybackFrameIndex] = useState(0);
   const [showActivityTabs, setShowActivityTabs] = useState(false);
+  const [showFrameManager, setShowFrameManager] = useState(false);
+  const [frameManagerPosition, setFrameManagerPosition] = useState({
+    left: 24,
+    top: 24,
+  });
+  const [frameManagerDragState, setFrameManagerDragState] =
+    useState<PopOutDragState | null>(null);
   const [showAnimationDurations, setShowAnimationDurations] = useState(false);
+  const [defaultFrameDurationMs, setDefaultFrameDurationMs] = useState(
+    normalizedInitialCreatorState.settings.defaultFrameDurationMs,
+  );
   const [isDashed, setIsDashed] = useState(false);
   const [isArrow, setIsArrow] = useState(false);
   const [draggingObjectId, setDraggingObjectId] = useState<string | null>(null);
@@ -1433,79 +1572,161 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   const [selectedObjectIds, setSelectedObjectIds] = useState<string[]>([]);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
   const [isMetadataFormDirty, setIsMetadataFormDirty] = useState(false);
-  const [showMetadataCloseWarning, setShowMetadataCloseWarning] = useState(false);
-  const [showUnsavedChangesPrompt, setShowUnsavedChangesPrompt] = useState(false);
-  const [pendingNavigationUrl, setPendingNavigationUrl] = useState<string | null>(null);
+  const [showMetadataCloseWarning, setShowMetadataCloseWarning] =
+    useState(false);
+  const [showUnsavedChangesPrompt, setShowUnsavedChangesPrompt] =
+    useState(false);
+  const [pendingNavigationUrl, setPendingNavigationUrl] = useState<
+    string | null
+  >(null);
 
   const savedCreatorStateSnapshotRef = useRef<string | null>(null);
   const allowNavigationRef = useRef(false);
 
   const [team1Color, setTeam1Color] = useState(
-    normalizedInitialCreatorState.settings.team1Color
+    normalizedInitialCreatorState.settings.team1Color,
   );
   const [team2Color, setTeam2Color] = useState(
-    normalizedInitialCreatorState.settings.team2Color
+    normalizedInitialCreatorState.settings.team2Color,
   );
   const [playerTextColor, setPlayerTextColor] = useState(
-    normalizedInitialCreatorState.settings.playerTextColor
+    normalizedInitialCreatorState.settings.playerTextColor,
   );
   const [team1Shape, setTeam1Shape] = useState<PlayerShape>(
-    normalizedInitialCreatorState.settings.team1Shape
+    normalizedInitialCreatorState.settings.team1Shape,
   );
   const [team2Shape, setTeam2Shape] = useState<PlayerShape>(
-    normalizedInitialCreatorState.settings.team2Shape
+    normalizedInitialCreatorState.settings.team2Shape,
   );
   const [coneColor, setConeColor] = useState(
-    normalizedInitialCreatorState.settings.coneColor
+    normalizedInitialCreatorState.settings.coneColor,
   );
   const [lineColor, setLineColor] = useState(
-    normalizedInitialCreatorState.settings.lineColor
+    normalizedInitialCreatorState.settings.lineColor,
   );
   const [lineWidth, setLineWidth] = useState(
-    normalizedInitialCreatorState.settings.lineDefaultWidth
+    normalizedInitialCreatorState.settings.lineDefaultWidth,
   );
 
   const [playerDefaultSize, setPlayerDefaultSize] = useState(
-    normalizedInitialCreatorState.settings.playerDefaultSize
+    normalizedInitialCreatorState.settings.playerDefaultSize,
   );
   const [coneDefaultSize, setConeDefaultSize] = useState(
-    normalizedInitialCreatorState.settings.coneDefaultSize
+    normalizedInitialCreatorState.settings.coneDefaultSize,
   );
   const [mannequinDefaultSize, setMannequinDefaultSize] = useState(
-    normalizedInitialCreatorState.settings.mannequinDefaultSize
+    normalizedInitialCreatorState.settings.mannequinDefaultSize,
   );
   const [ballDefaultSize, setBallDefaultSize] = useState(
-    normalizedInitialCreatorState.settings.ballDefaultSize
+    normalizedInitialCreatorState.settings.ballDefaultSize,
   );
-  const [playerDisplayMode, setPlayerDisplayMode] =
-    useState<PlayerDisplayMode>(
-      normalizedInitialCreatorState.settings.playerDisplayMode
-    );
+  const [playerDisplayMode, setPlayerDisplayMode] = useState<PlayerDisplayMode>(
+    normalizedInitialCreatorState.settings.playerDisplayMode,
+  );
 
   const [isZoomLocked, setIsZoomLocked] = useState(true);
-  const [zoom, setZoom] = useState(normalizedInitialCreatorState.pitchView.zoom);
+  const [zoom, setZoom] = useState(
+    clamp(normalizedInitialCreatorState.pitchView.zoom, 1, 3),
+  );
   const [pan, setPan] = useState({
     x: normalizedInitialCreatorState.pitchView.panX,
     y: normalizedInitialCreatorState.pitchView.panY,
   });
   const [pitchRotationDegrees] = useState(
-    normalizedInitialCreatorState.pitchView.rotationDegrees
+    normalizedInitialCreatorState.pitchView.rotationDegrees,
   );
   const [pitchAssetVersion] = useState(
-    normalizedInitialCreatorState.pitchView.pitchAssetVersion
+    normalizedInitialCreatorState.pitchView.pitchAssetVersion,
   );
   const [pitchCoordinateSystem] = useState(
-    normalizedInitialCreatorState.pitchView.coordinateSystem
+    normalizedInitialCreatorState.pitchView.coordinateSystem,
   );
   const [sourcePlatform] = useState(
-    normalizedInitialCreatorState.pitchView.sourcePlatform
+    normalizedInitialCreatorState.pitchView.sourcePlatform,
   );
   const [clientActivityId] = useState(
-    normalizedInitialCreatorState.pitchView.clientActivityId
+    normalizedInitialCreatorState.pitchView.clientActivityId,
   );
   const [panState, setPanState] = useState<PanState | null>(null);
   const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<HistorySnapshot[]>([]);
+
+  useEffect(() => {
+    if (!frameManagerDragState) {
+      return;
+    }
+
+    const activeDragState = frameManagerDragState;
+
+    function handleFrameManagerPointerMove(event: globalThis.PointerEvent) {
+      const frameManager = frameManagerRef.current;
+
+      if (!frameManager) {
+        return;
+      }
+
+      const rect = frameManager.getBoundingClientRect();
+      const maximumLeft = Math.max(
+        0,
+        window.innerWidth - Math.min(rect.width, window.innerWidth),
+      );
+      const maximumTop = Math.max(
+        0,
+        window.innerHeight - Math.min(rect.height, window.innerHeight),
+      );
+
+      setFrameManagerPosition({
+        left: clamp(
+          activeDragState.startLeft +
+            (event.clientX - activeDragState.startClientX),
+          0,
+          maximumLeft,
+        ),
+        top: clamp(
+          activeDragState.startTop +
+            (event.clientY - activeDragState.startClientY),
+          0,
+          maximumTop,
+        ),
+      });
+    }
+
+    function handleFrameManagerPointerUp() {
+      setFrameManagerDragState(null);
+    }
+
+    window.addEventListener("pointermove", handleFrameManagerPointerMove);
+    window.addEventListener("pointerup", handleFrameManagerPointerUp);
+    window.addEventListener("pointercancel", handleFrameManagerPointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handleFrameManagerPointerMove);
+      window.removeEventListener("pointerup", handleFrameManagerPointerUp);
+      window.removeEventListener("pointercancel", handleFrameManagerPointerUp);
+    };
+  }, [frameManagerDragState]);
+
+  useEffect(() => {
+    if (!showFrameManager) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const frameManager = frameManagerRef.current;
+
+      if (!frameManager) {
+        return;
+      }
+
+      const rect = frameManager.getBoundingClientRect();
+      setFrameManagerPosition({
+        left: Math.max(12, (window.innerWidth - rect.width) / 2),
+        top: Math.max(12, (window.innerHeight - rect.height) / 2),
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [showFrameManager]);
 
   useEffect(() => {
     if (!popOutDragState) {
@@ -1524,7 +1745,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       const rect = pitchSection.getBoundingClientRect();
       const maximumLeft = Math.max(
         0,
-        window.innerWidth - Math.min(rect.width, window.innerWidth)
+        window.innerWidth - Math.min(rect.width, window.innerWidth),
       );
       const maximumTop = Math.max(0, window.innerHeight - 56);
 
@@ -1533,13 +1754,13 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           activeDragState.startLeft +
             (event.clientX - activeDragState.startClientX),
           0,
-          maximumLeft
+          maximumLeft,
         ),
         top: clamp(
           activeDragState.startTop +
             (event.clientY - activeDragState.startClientY),
           0,
-          maximumTop
+          maximumTop,
         ),
       });
     }
@@ -1592,7 +1813,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     function updatePinnedControlBarHeight() {
       setPinnedControlBarHeight(
-        measuredControlBar.getBoundingClientRect().height
+        measuredControlBar.getBoundingClientRect().height,
       );
     }
 
@@ -1609,6 +1830,41 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   }, [isControlBarPinned, showActivityTabs]);
 
   useEffect(() => {
+    if (!isControlBarPinned || isPitchPoppedOut) {
+      setDockedPitchControls({ isDocked: false, left: 0, width: 0, top: 0 });
+      return;
+    }
+
+    function updateDockedPitchControls() {
+      const boundary = pitchControlsBoundaryRef.current;
+
+      if (!boundary) {
+        return;
+      }
+
+      const rect = boundary.getBoundingClientRect();
+      const dockTop = 72 + pinnedControlBarHeight + 12;
+      const isDocked = rect.top < dockTop && rect.bottom > dockTop + 120;
+
+      setDockedPitchControls({
+        isDocked,
+        left: rect.left,
+        width: rect.width,
+        top: dockTop,
+      });
+    }
+
+    updateDockedPitchControls();
+    window.addEventListener("scroll", updateDockedPitchControls, { passive: true });
+    window.addEventListener("resize", updateDockedPitchControls);
+
+    return () => {
+      window.removeEventListener("scroll", updateDockedPitchControls);
+      window.removeEventListener("resize", updateDockedPitchControls);
+    };
+  }, [isControlBarPinned, isPitchPoppedOut, pinnedControlBarHeight]);
+
+  useEffect(() => {
     setFrames((currentFrames) =>
       currentFrames.map((frame) =>
         frame.id === activeFrameId
@@ -1617,8 +1873,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               objects: deepCopyObjects(objects),
               lines: deepCopyLines(lines),
             }
-          : frame
-      )
+          : frame,
+      ),
     );
   }, [activeFrameId, objects, lines]);
 
@@ -1628,7 +1884,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
       if (savedValue) {
         const savedSettings = JSON.parse(
-          savedValue
+          savedValue,
         ) as Partial<PersistedCreatorUserSettings>;
 
         if (typeof savedSettings.toolbarOnLeft === "boolean") {
@@ -1643,6 +1899,15 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
         if (typeof savedSettings.showAnimationDurations === "boolean") {
           setShowAnimationDurations(savedSettings.showAnimationDurations);
+        }
+
+        if (
+          typeof savedSettings.defaultFrameDurationMs === "number" &&
+          Number.isFinite(savedSettings.defaultFrameDurationMs)
+        ) {
+          setDefaultFrameDurationMs(
+            clamp(savedSettings.defaultFrameDurationMs, 250, 10000),
+          );
         }
 
         if (!initialActivity) {
@@ -1694,7 +1959,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             Number.isFinite(savedSettings.playerDefaultSize)
           ) {
             setPlayerDefaultSize(
-              clamp(savedSettings.playerDefaultSize, 24, 72)
+              clamp(savedSettings.playerDefaultSize, 24, 72),
             );
           }
 
@@ -1710,7 +1975,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             Number.isFinite(savedSettings.mannequinDefaultSize)
           ) {
             setMannequinDefaultSize(
-              clamp(savedSettings.mannequinDefaultSize, 12, 110)
+              clamp(savedSettings.mannequinDefaultSize, 12, 110),
             );
           }
 
@@ -1735,7 +2000,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     }
   }, [initialActivity]);
 
-
   useEffect(() => {
     if (!hasLoadedUserSettings) {
       return;
@@ -1744,6 +2008,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const settingsToSave: PersistedCreatorUserSettings = {
       toolbarOnLeft: isToolbarOnLeft,
       showAnimationDurations,
+      defaultFrameDurationMs,
       selectedPitchBackground,
       playerDisplayMode,
       team1Color,
@@ -1762,11 +2027,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     window.localStorage.setItem(
       USER_CREATOR_SETTINGS_KEY,
-      JSON.stringify(settingsToSave)
+      JSON.stringify(settingsToSave),
     );
   }, [
     isToolbarOnLeft,
     showAnimationDurations,
+    defaultFrameDurationMs,
     selectedPitchBackground,
     playerDisplayMode,
     team1Color,
@@ -1790,21 +2056,24 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     }
 
     const currentFrame = frames[playbackFrameIndex] ?? frames[0];
-    const timer = window.setTimeout(() => {
-      const isLastFrame = playbackFrameIndex >= frames.length - 1;
+    const timer = window.setTimeout(
+      () => {
+        const isLastFrame = playbackFrameIndex >= frames.length - 1;
 
-      if (isLastFrame) {
-        const lastFrame = frames[frames.length - 1];
-        setActiveFrameId(lastFrame.id);
-        setObjects(deepCopyObjects(lastFrame.objects));
-        setLines(deepCopyLines(lastFrame.lines));
-        setPlaybackFrameIndex(0);
-        setIsPlayingAnimation(false);
-        return;
-      }
+        if (isLastFrame) {
+          const lastFrame = frames[frames.length - 1];
+          setActiveFrameId(lastFrame.id);
+          setObjects(deepCopyObjects(lastFrame.objects));
+          setLines(deepCopyLines(lastFrame.lines));
+          setPlaybackFrameIndex(0);
+          setIsPlayingAnimation(false);
+          return;
+        }
 
-      setPlaybackFrameIndex((currentIndex) => currentIndex + 1);
-    }, Math.max(250, currentFrame.durationMs));
+        setPlaybackFrameIndex((currentIndex) => currentIndex + 1);
+      },
+      Math.max(250, currentFrame.durationMs),
+    );
 
     return () => window.clearTimeout(timer);
   }, [isPlayingAnimation, playbackFrameIndex, frames]);
@@ -1817,8 +2086,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
       return Boolean(
         target.closest(
-          'input, textarea, select, [contenteditable="true"], [role="textbox"]'
-        )
+          'input, textarea, select, [contenteditable="true"], [role="textbox"]',
+        ),
       );
     }
 
@@ -1828,8 +2097,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       }
 
       const isSelectAll =
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "a";
+        (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
 
       if (isSelectAll) {
         event.preventDefault();
@@ -1838,7 +2106,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         setMessage(
           objects.length === 1
             ? "1 item selected."
-            : `${objects.length} items selected.`
+            : `${objects.length} items selected.`,
         );
         return;
       }
@@ -1853,7 +2121,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         const selectedIds = new Set(selectedObjectIds);
 
         setObjects((currentObjects) =>
-          currentObjects.filter((object) => !selectedIds.has(object.id))
+          currentObjects.filter((object) => !selectedIds.has(object.id)),
         );
         setSelectedObjectIds([]);
         setSelectedObjectId(null);
@@ -1861,7 +2129,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         setMessage(
           selectedIds.size === 1
             ? "Item deleted."
-            : `${selectedIds.size} items deleted.`
+            : `${selectedIds.size} items deleted.`,
         );
       }
     }
@@ -1877,15 +2145,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     return selectedObjectIds.includes(objectId);
   }
 
-  function selectObject(
-    objectId: string,
-    addToSelection: boolean
-  ) {
+  function selectObject(objectId: string, addToSelection: boolean) {
     if (addToSelection) {
       setSelectedObjectIds((currentIds) =>
         currentIds.includes(objectId)
           ? currentIds.filter((id) => id !== objectId)
-          : [...currentIds, objectId]
+          : [...currentIds, objectId],
       );
       setSelectedObjectId(null);
       return;
@@ -1900,7 +2165,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
   const playerCount = useMemo(() => {
     return objects.filter(
-      (object) => object.type === "team1" || object.type === "team2"
+      (object) => object.type === "team1" || object.type === "team2",
     ).length;
   }, [objects]);
 
@@ -1937,10 +2202,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         coneDefaultSize,
         logoSize: 74,
         lineDefaultWidth: lineWidth,
+        defaultFrameDurationMs,
       },
       activeFrameId,
       frames: frames.map((frame) => {
-        const frameObjects = frame.id === activeFrameId ? objects : frame.objects;
+        const frameObjects =
+          frame.id === activeFrameId ? objects : frame.objects;
         const frameLines = frame.id === activeFrameId ? lines : frame.lines;
 
         return {
@@ -2035,6 +2302,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       playerDefaultSize,
       coneDefaultSize,
       playerDisplayMode,
+      defaultFrameDurationMs,
       zoom,
       pan.x,
       pan.y,
@@ -2043,13 +2311,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       pitchCoordinateSystem,
       sourcePlatform,
       clientActivityId,
-    ]
+    ],
   );
-
 
   const serializedCreatorState = useMemo(
     () => JSON.stringify(creatorState),
-    [creatorState]
+    [creatorState],
   );
 
   const hasUnsavedChanges =
@@ -2057,7 +2324,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     serializedCreatorState !== savedCreatorStateSnapshotRef.current;
 
   useEffect(() => {
-    if (!hasLoadedUserSettings || savedCreatorStateSnapshotRef.current !== null) {
+    if (
+      !hasLoadedUserSettings ||
+      savedCreatorStateSnapshotRef.current !== null
+    ) {
       return;
     }
 
@@ -2127,7 +2397,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       event.stopPropagation();
 
       setPendingNavigationUrl(
-        `${destination.pathname}${destination.search}${destination.hash}`
+        `${destination.pathname}${destination.search}${destination.hash}`,
       );
       setShowUnsavedChangesPrompt(true);
     }
@@ -2179,6 +2449,37 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     return true;
   }
 
+  function openFrameManager() {
+    setFrameManagerDragState(null);
+    setShowFrameManager(true);
+  }
+
+  function closeFrameManager() {
+    setFrameManagerDragState(null);
+    setShowFrameManager(false);
+  }
+
+  function startDraggingFrameManager(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const target = event.target as HTMLElement;
+
+    if (target.closest("button, input, select, textarea, a")) {
+      return;
+    }
+
+    event.preventDefault();
+
+    setFrameManagerDragState({
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startLeft: frameManagerPosition.left,
+      startTop: frameManagerPosition.top,
+    });
+  }
+
   function switchFrame(frameId: string) {
     if (frameId === activeFrameId) {
       return;
@@ -2204,16 +2505,18 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const sourceFrame = frames[frames.length - 1] ?? {
       id: activeFrameId,
       name: "Tab 1",
-      durationMs: 1500,
+      durationMs: defaultFrameDurationMs,
       objects,
       lines,
     };
-    const sourceObjects = sourceFrame.id === activeFrameId ? objects : sourceFrame.objects;
-    const sourceLines = sourceFrame.id === activeFrameId ? lines : sourceFrame.lines;
+    const sourceObjects =
+      sourceFrame.id === activeFrameId ? objects : sourceFrame.objects;
+    const sourceLines =
+      sourceFrame.id === activeFrameId ? lines : sourceFrame.lines;
     const nextFrame: ActivityFrame = {
       id: makeId(),
       name: `Tab ${frames.length + 1}`,
-      durationMs: sourceFrame.durationMs,
+      durationMs: defaultFrameDurationMs,
       objects: deepCopyObjects(sourceObjects),
       lines: deepCopyLines(sourceLines),
     };
@@ -2236,9 +2539,63 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     if (!nextName) return;
     setFrames((currentFrames) =>
       currentFrames.map((candidate) =>
-        candidate.id === frameId ? { ...candidate, name: nextName } : candidate
-      )
+        candidate.id === frameId ? { ...candidate, name: nextName } : candidate,
+      ),
     );
+  }
+
+  function duplicateFrame(frameId: string) {
+    const frameIndex = frames.findIndex((frame) => frame.id === frameId);
+    if (frameIndex < 0) return;
+
+    const sourceFrame = frames[frameIndex];
+    const sourceObjects =
+      sourceFrame.id === activeFrameId ? objects : sourceFrame.objects;
+    const sourceLines =
+      sourceFrame.id === activeFrameId ? lines : sourceFrame.lines;
+    const duplicate: ActivityFrame = {
+      id: makeId(),
+      name: `Tab ${frames.length + 1}`,
+      durationMs: sourceFrame.durationMs,
+      objects: deepCopyObjects(sourceObjects),
+      lines: deepCopyLines(sourceLines),
+    };
+
+    setFrames((currentFrames) => {
+      const nextFrames = [...currentFrames];
+      nextFrames.splice(frameIndex + 1, 0, duplicate);
+      return nextFrames;
+    });
+    setActiveFrameId(duplicate.id);
+    setObjects(deepCopyObjects(duplicate.objects));
+    setLines(deepCopyLines(duplicate.lines));
+    setSelectedObjectId(null);
+    setSelectedObjectIds([]);
+    setUndoStack([]);
+    setRedoStack([]);
+    setMessage(`${duplicate.name} duplicated from ${sourceFrame.name}.`);
+  }
+
+  function moveFrame(frameId: string, offset: -1 | 1) {
+    setFrames((currentFrames) => {
+      const currentIndex = currentFrames.findIndex(
+        (frame) => frame.id === frameId,
+      );
+      const destinationIndex = currentIndex + offset;
+
+      if (
+        currentIndex < 0 ||
+        destinationIndex < 0 ||
+        destinationIndex >= currentFrames.length
+      ) {
+        return currentFrames;
+      }
+
+      const nextFrames = [...currentFrames];
+      const [movedFrame] = nextFrames.splice(currentIndex, 1);
+      nextFrames.splice(destinationIndex, 0, movedFrame);
+      return nextFrames;
+    });
   }
 
   function deleteFrame(frameId: string) {
@@ -2253,7 +2610,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     setFrames(nextFrames);
 
     if (frameId === activeFrameId) {
-      const nextFrame = nextFrames[Math.max(0, frameIndex - 1)] ?? nextFrames[0];
+      const nextFrame =
+        nextFrames[Math.max(0, frameIndex - 1)] ?? nextFrames[0];
       setActiveFrameId(nextFrame.id);
       setObjects(deepCopyObjects(nextFrame.objects));
       setLines(deepCopyLines(nextFrame.lines));
@@ -2269,8 +2627,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       currentFrames.map((frame) =>
         frame.id === frameId
           ? { ...frame, durationMs: clamp(durationMs, 250, 10000) }
-          : frame
-      )
+          : frame,
+      ),
     );
   }
 
@@ -2285,9 +2643,13 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   }
 
   function preservePitchViewportAcrossLayoutChange(
-    previousPitchRect: DOMRect | undefined
+    previousPitchRect: DOMRect | undefined,
   ) {
-    if (!previousPitchRect || previousPitchRect.width <= 0 || previousPitchRect.height <= 0) {
+    if (
+      !previousPitchRect ||
+      previousPitchRect.width <= 0 ||
+      previousPitchRect.height <= 0
+    ) {
       return;
     }
 
@@ -2295,22 +2657,24 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       window.requestAnimationFrame(() => {
         const nextPitchRect = pitchRef.current?.getBoundingClientRect();
 
-        if (!nextPitchRect || nextPitchRect.width <= 0 || nextPitchRect.height <= 0) {
+        if (
+          !nextPitchRect ||
+          nextPitchRect.width <= 0 ||
+          nextPitchRect.height <= 0
+        ) {
           return;
         }
 
         setPan((currentPan) =>
           clampPanToZoom(
             {
-              x:
-                currentPan.x *
-                (nextPitchRect.width / previousPitchRect.width),
+              x: currentPan.x * (nextPitchRect.width / previousPitchRect.width),
               y:
                 currentPan.y *
                 (nextPitchRect.height / previousPitchRect.height),
             },
-            zoom
-          )
+            zoom,
+          ),
         );
       });
     });
@@ -2326,9 +2690,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     preservePitchViewportAcrossLayoutChange(previousPitchRect);
   }
 
-  function startDraggingPitchPopOut(
-    event: PointerEvent<HTMLDivElement>
-  ) {
+  function startDraggingPitchPopOut(event: PointerEvent<HTMLDivElement>) {
     if (!isPitchPoppedOut || event.button !== 0) {
       return;
     }
@@ -2428,7 +2790,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             // If decode fails, continue and let html-to-image attempt capture.
           }
         }
-      })
+      }),
     );
   }
 
@@ -2483,7 +2845,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
-      image.onerror = () => reject(new Error(`Unable to load image: ${source}`));
+      image.onerror = () =>
+        reject(new Error(`Unable to load image: ${source}`));
       image.src = imageSource;
     });
 
@@ -2499,21 +2862,24 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   }
 
   function getPreviewObjectSize(object: PitchObject, canvasWidth: number) {
-    return (object.size ?? getDefaultObjectSize(object.type)) * (canvasWidth / 1000);
+    return (
+      (object.size ?? getDefaultObjectSize(object.type)) * (canvasWidth / 1000)
+    );
   }
 
   function drawPreviewLine(
     context: CanvasRenderingContext2D,
     line: PitchLine,
     canvasWidth: number,
-    canvasHeight: number
+    canvasHeight: number,
   ) {
     if (line.points.length < 2) {
       return;
     }
 
     context.save();
-    const previewLineWidth = Math.max(1, line.lineWidth || lineWidth || 4) * (canvasWidth / 1000);
+    const previewLineWidth =
+      Math.max(1, line.lineWidth || lineWidth || 4) * (canvasWidth / 1000);
 
     context.strokeStyle = line.color || lineColor;
     context.lineWidth = previewLineWidth;
@@ -2545,7 +2911,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     context.stroke();
 
-    if ((line.arrow || line.lineStyle === "dribble") && line.points.length >= 2) {
+    if (
+      (line.arrow || line.lineStyle === "dribble") &&
+      line.points.length >= 2
+    ) {
       const arrowPoints =
         line.lineStyle === "dribble"
           ? getDribblePolylinePoints(line.points)
@@ -2554,8 +2923,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       const directionStart =
         line.lineStyle === "dribble"
           ? line.points[0]
-          : arrowPoints[arrowPoints.length - 2] ??
-            line.points[line.points.length - 2];
+          : (arrowPoints[arrowPoints.length - 2] ??
+            line.points[line.points.length - 2]);
       const underlyingEnd = line.points[line.points.length - 1];
       const endX = (endPoint.x / 100) * canvasWidth;
       const endY = (endPoint.y / 100) * canvasHeight;
@@ -2565,7 +2934,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       const underlyingEndY = (underlyingEnd.y / 100) * canvasHeight;
       const angle = Math.atan2(
         underlyingEndY - startY,
-        underlyingEndX - startX
+        underlyingEndX - startX,
       );
       const arrowExtension =
         line.lineStyle === "dribble" ? canvasWidth * 0.036 : 0;
@@ -2581,12 +2950,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       }
       context.moveTo(
         tipX - arrowLength * Math.cos(angle - arrowAngle),
-        tipY - arrowLength * Math.sin(angle - arrowAngle)
+        tipY - arrowLength * Math.sin(angle - arrowAngle),
       );
       context.lineTo(tipX, tipY);
       context.lineTo(
         tipX - arrowLength * Math.cos(angle + arrowAngle),
-        tipY - arrowLength * Math.sin(angle + arrowAngle)
+        tipY - arrowLength * Math.sin(angle + arrowAngle),
       );
       context.stroke();
     }
@@ -2598,7 +2967,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context: CanvasRenderingContext2D,
     object: PitchObject,
     canvasWidth: number,
-    canvasHeight: number
+    canvasHeight: number,
   ) {
     const size = getPreviewObjectSize(object, canvasWidth);
     const x = (object.x / 100) * canvasWidth;
@@ -2610,8 +2979,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context.beginPath();
 
     const shape =
-      object.playerShape ??
-      (object.type === "team1" ? team1Shape : team2Shape);
+      object.playerShape ?? (object.type === "team1" ? team1Shape : team2Shape);
 
     if (shape === "triangle") {
       context.moveTo(x, y - size / 2);
@@ -2678,7 +3046,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context: CanvasRenderingContext2D,
     object: PitchObject,
     canvasWidth: number,
-    canvasHeight: number
+    canvasHeight: number,
   ) {
     const size = getPreviewObjectSize(object, canvasWidth);
     const x = (object.x / 100) * canvasWidth;
@@ -2710,7 +3078,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context: CanvasRenderingContext2D,
     object: PitchObject,
     canvasWidth: number,
-    canvasHeight: number
+    canvasHeight: number,
   ) {
     const width = getPreviewObjectSize(object, canvasWidth);
     const x = (object.x / 100) * canvasWidth;
@@ -2742,7 +3110,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         words.forEach((word) => {
           const nextLine = currentLine ? `${currentLine} ${word}` : word;
 
-          if (context.measureText(nextLine).width <= maxTextWidth || !currentLine) {
+          if (
+            context.measureText(nextLine).width <= maxTextWidth ||
+            !currentLine
+          ) {
             currentLine = nextLine;
             return;
           }
@@ -2759,17 +3130,26 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       });
 
     const widestLine = wrappedLines.reduce(
-      (currentMax, line) => Math.max(currentMax, context.measureText(line).width),
-      0
+      (currentMax, line) =>
+        Math.max(currentMax, context.measureText(line).width),
+      0,
     );
     const boxWidth = Math.max(width, widestLine + 18);
-    const boxHeight = Math.max(lineHeight * wrappedLines.length + 16, fontSize + 16);
+    const boxHeight = Math.max(
+      lineHeight * wrappedLines.length + 16,
+      fontSize + 16,
+    );
 
     context.fillStyle = "rgba(255, 255, 255, 0.72)";
     context.fillRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
     context.strokeStyle = "rgba(15, 23, 42, 0.35)";
     context.lineWidth = Math.max(1, canvasWidth * 0.001);
-    context.strokeRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
+    context.strokeRect(
+      x - boxWidth / 2,
+      y - boxHeight / 2,
+      boxWidth,
+      boxHeight,
+    );
 
     context.fillStyle = object.textColor ?? "#111827";
 
@@ -2787,7 +3167,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     object: PitchObject,
     canvasWidth: number,
     canvasHeight: number,
-    imageCache: Map<string, HTMLImageElement>
+    imageCache: Map<string, HTMLImageElement>,
   ) {
     const assetPath = getAssetForObject(object.type);
 
@@ -2826,7 +3206,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context: CanvasRenderingContext2D,
     canvasWidth: number,
     canvasHeight: number,
-    background: PitchBackgroundType
+    background: PitchBackgroundType,
   ) {
     const isGreen = background === "pitchGreen" || background === "greenBlank";
     const isBlank = background === "greenBlank" || background === "whiteBlank";
@@ -2869,7 +3249,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context.save();
     context.strokeStyle = lineColor;
     context.fillStyle = lineColor;
-    context.lineWidth = Math.max(3, Math.min(canvasWidth, canvasHeight) * 0.0045);
+    context.lineWidth = Math.max(
+      3,
+      Math.min(canvasWidth, canvasHeight) * 0.0045,
+    );
     context.lineCap = "round";
     context.lineJoin = "round";
 
@@ -2894,7 +3277,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const penaltyLineDistanceFromSpot = Math.abs(y(25.333333) - y(18.666667));
     const safeArcRatio = Math.min(
       1,
-      Math.max(-1, penaltyLineDistanceFromSpot / Math.max(penaltyArcRadius, 1))
+      Math.max(-1, penaltyLineDistanceFromSpot / Math.max(penaltyArcRadius, 1)),
     );
     const arcCutAngle = Math.asin(safeArcRatio);
 
@@ -2902,7 +3285,13 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     // The start/end angles are calculated from the exact intersection between
     // the circle and the penalty-area line. This keeps web and iOS aligned.
     context.beginPath();
-    context.arc(x(50), y(18.666667), penaltyArcRadius, arcCutAngle, Math.PI - arcCutAngle);
+    context.arc(
+      x(50),
+      y(18.666667),
+      penaltyArcRadius,
+      arcCutAngle,
+      Math.PI - arcCutAngle,
+    );
     context.stroke();
 
     context.beginPath();
@@ -2911,7 +3300,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       y(114.666667),
       penaltyArcRadius,
       Math.PI + arcCutAngle,
-      Math.PI * 2 - arcCutAngle
+      Math.PI * 2 - arcCutAngle,
     );
     context.stroke();
 
@@ -2926,7 +3315,13 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     context.stroke();
 
     context.beginPath();
-    context.arc(x(8), y(127.333333), cornerRadius, (3 * Math.PI) / 2, Math.PI * 2);
+    context.arc(
+      x(8),
+      y(127.333333),
+      cornerRadius,
+      (3 * Math.PI) / 2,
+      Math.PI * 2,
+    );
     context.stroke();
 
     context.beginPath();
@@ -2973,9 +3368,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     const firstFrame = frames[0];
     const previewLines =
-      firstFrame?.id === activeFrameId ? lines : firstFrame?.lines ?? lines;
+      firstFrame?.id === activeFrameId ? lines : (firstFrame?.lines ?? lines);
     const previewObjects =
-      firstFrame?.id === activeFrameId ? objects : firstFrame?.objects ?? objects;
+      firstFrame?.id === activeFrameId
+        ? objects
+        : (firstFrame?.objects ?? objects);
 
     // Match the editor exactly: the background, lines, and objects all share
     // one top-left anchored transform layer.
@@ -2988,7 +3385,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       context,
       canvasWidth,
       canvasHeight,
-      selectedPitchBackground
+      selectedPitchBackground,
     );
 
     previewLines.forEach((line) => {
@@ -3010,7 +3407,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           object,
           canvasWidth,
           canvasHeight,
-          imageCache
+          imageCache,
         );
       }
     }
@@ -3036,7 +3433,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       snapshot.lines.map((line) => ({
         ...line,
         points: line.points.map((point) => ({ ...point })),
-      }))
+      })),
     );
 
     setSelectedObjectId(null);
@@ -3064,7 +3461,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const currentSnapshot = createHistorySnapshot();
 
     setUndoStack((currentStack) => currentStack.slice(0, -1));
-    setRedoStack((currentStack) => [...currentStack.slice(-49), currentSnapshot]);
+    setRedoStack((currentStack) => [
+      ...currentStack.slice(-49),
+      currentSnapshot,
+    ]);
 
     restoreHistorySnapshot(previousSnapshot);
     setMessage("Undone.");
@@ -3079,7 +3479,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const currentSnapshot = createHistorySnapshot();
 
     setRedoStack((currentStack) => currentStack.slice(0, -1));
-    setUndoStack((currentStack) => [...currentStack.slice(-49), currentSnapshot]);
+    setUndoStack((currentStack) => [
+      ...currentStack.slice(-49),
+      currentSnapshot,
+    ]);
 
     restoreHistorySnapshot(nextSnapshot);
     setMessage("Redone.");
@@ -3100,11 +3503,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     // Undo pitch rotation before undoing zoom.
     const rotationRadians = (-pitchRotationDegrees * Math.PI) / 180;
     const rotatedX =
-      localX * Math.cos(rotationRadians) -
-      localY * Math.sin(rotationRadians);
+      localX * Math.cos(rotationRadians) - localY * Math.sin(rotationRadians);
     const rotatedY =
-      localX * Math.sin(rotationRadians) +
-      localY * Math.cos(rotationRadians);
+      localX * Math.sin(rotationRadians) + localY * Math.cos(rotationRadians);
 
     localX = rotatedX / zoom;
     localY = rotatedY / zoom;
@@ -3139,10 +3540,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     };
   }
 
-  function clampPanToZoom(
-    nextPan: { x: number; y: number },
-    forZoom: number
-  ) {
+  function clampPanToZoom(nextPan: { x: number; y: number }, forZoom: number) {
     const bounds = getPanBounds(forZoom);
 
     return {
@@ -3156,7 +3554,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return;
     }
 
-    const clampedZoom = clamp(nextZoom, 0.5, 3);
+    const clampedZoom = clamp(nextZoom, 1, 3);
 
     setZoom(clampedZoom);
     setPan((currentPan) => clampPanToZoom(currentPan, clampedZoom));
@@ -3178,7 +3576,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const zoomDirection = event.deltaY < 0 ? 0.1 : -0.1;
 
     setZoom((currentZoom) => {
-      const nextZoom = clamp(currentZoom + zoomDirection, 0.5, 3);
+      const nextZoom = clamp(currentZoom + zoomDirection, 1, 3);
 
       setPan((currentPan) => clampPanToZoom(currentPan, nextZoom));
 
@@ -3315,9 +3713,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             ? team2Shape
             : undefined,
       textColor:
-        type === "team1" || type === "team2"
-          ? playerTextColor
-          : "#111827",
+        type === "team1" || type === "team2" ? playerTextColor : "#111827",
       textContent: type === "textBox" ? "Text" : undefined,
       fontSize: type === "textBox" ? 20 : undefined,
     };
@@ -3352,7 +3748,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       setSelectedObjectIds([]);
     }
 
-    if (selectedTool === "line" || selectedTool === "freehand" || selectedTool === "dribble") {
+    if (
+      selectedTool === "line" ||
+      selectedTool === "freehand" ||
+      selectedTool === "dribble"
+    ) {
       setActiveLinePoints([point]);
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
@@ -3386,8 +3786,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 x: point.x,
                 y: point.y,
               }
-            : object
-        )
+            : object,
+        ),
       );
       return;
     }
@@ -3396,20 +3796,19 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       setPan(
         clampPanToZoom(
           {
-            x:
-              panState.startPanX +
-              (event.clientX - panState.startClientX),
-            y:
-              panState.startPanY +
-              (event.clientY - panState.startClientY),
+            x: panState.startPanX + (event.clientX - panState.startClientX),
+            y: panState.startPanY + (event.clientY - panState.startClientY),
           },
-          zoom
-        )
+          zoom,
+        ),
       );
       return;
     }
 
-    if ((selectedTool === "freehand" || selectedTool === "dribble") && activeLinePoints.length > 0) {
+    if (
+      (selectedTool === "freehand" || selectedTool === "dribble") &&
+      activeLinePoints.length > 0
+    ) {
       setActiveLinePoints((currentPoints) => [...currentPoints, point]);
       return;
     }
@@ -3443,7 +3842,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     }
 
     if (
-      (selectedTool === "line" || selectedTool === "freehand" || selectedTool === "dribble") &&
+      (selectedTool === "line" ||
+        selectedTool === "freehand" ||
+        selectedTool === "dribble") &&
       activeLinePoints.length > 1
     ) {
       saveHistorySnapshot();
@@ -3504,7 +3905,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     saveHistorySnapshot();
 
     setLines((currentLines) =>
-      currentLines.filter((line) => line.id !== lineToErase.id)
+      currentLines.filter((line) => line.id !== lineToErase.id),
     );
   }
 
@@ -3512,11 +3913,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     saveHistorySnapshot();
 
     setObjects((currentObjects) =>
-      currentObjects.filter((object) => object.id !== objectId)
+      currentObjects.filter((object) => object.id !== objectId),
     );
 
     setSelectedObjectIds((currentIds) =>
-      currentIds.filter((id) => id !== objectId)
+      currentIds.filter((id) => id !== objectId),
     );
 
     if (selectedObjectId === objectId) {
@@ -3536,8 +3937,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               rotation: (object.rotation + 45) % 360,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
@@ -3549,7 +3950,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
   function openObjectEditorFromContextMenu(
     event: ReactMouseEvent<HTMLElement>,
-    objectId: string
+    objectId: string,
   ) {
     event.preventDefault();
     event.stopPropagation();
@@ -3566,8 +3967,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               size,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
@@ -3581,15 +3982,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               fillColor,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
-  function updatePlayerShape(
-    objectId: string,
-    playerShape: PlayerShape
-  ) {
+  function updatePlayerShape(objectId: string, playerShape: PlayerShape) {
     saveHistorySnapshot();
 
     setObjects((currentObjects) =>
@@ -3599,14 +3997,14 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               playerShape,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
   function updatePlayerDisplayMode(
     objectId: string,
-    playerDisplayModeOverride: PlayerDisplayMode
+    playerDisplayModeOverride: PlayerDisplayMode,
   ) {
     saveHistorySnapshot();
 
@@ -3617,8 +4015,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               playerDisplayModeOverride,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
@@ -3632,8 +4030,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               label,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
@@ -3647,8 +4045,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               playerName,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
@@ -3662,8 +4060,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               textColor,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
@@ -3677,8 +4075,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               textContent,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
@@ -3692,15 +4090,15 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               fontSize,
             }
-          : object
-      )
+          : object,
+      ),
     );
   }
 
   function applyShapeToExistingPlayers(
     objectType: "team1" | "team2",
     playerShape: PlayerShape,
-    messageText: string
+    messageText: string,
   ) {
     saveHistorySnapshot();
 
@@ -3711,8 +4109,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               playerShape,
             }
-          : object
-      )
+          : object,
+      ),
     );
 
     setMessage(messageText);
@@ -3721,7 +4119,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   function applyColorToExistingObjects(
     objectTypes: ObjectToolType[],
     fillColor: string,
-    messageText: string
+    messageText: string,
   ) {
     saveHistorySnapshot();
 
@@ -3732,8 +4130,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               fillColor,
             }
-          : object
-      )
+          : object,
+      ),
     );
 
     setMessage(messageText);
@@ -3741,7 +4139,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
   function applyTextColorToExistingPlayers(
     textColor: string,
-    messageText: string
+    messageText: string,
   ) {
     saveHistorySnapshot();
 
@@ -3752,8 +4150,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               textColor,
             }
-          : object
-      )
+          : object,
+      ),
     );
 
     setMessage(messageText);
@@ -3762,7 +4160,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
   function applySizeToExistingObjects(
     objectTypes: ObjectToolType[],
     size: number,
-    messageText: string
+    messageText: string,
   ) {
     saveHistorySnapshot();
 
@@ -3773,8 +4171,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               ...object,
               size,
             }
-          : object
-      )
+          : object,
+      ),
     );
 
     setMessage(messageText);
@@ -3795,7 +4193,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
   function startDraggingObject(
     event: PointerEvent<HTMLButtonElement>,
-    objectId: string
+    objectId: string,
   ) {
     event.stopPropagation();
 
@@ -3872,7 +4270,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         if (index > 0 && step === 0) continue;
         const t = step / steps;
         const distance = travelled + length * t;
-        const offset = Math.sin((distance / wavelength) * Math.PI * 2) * amplitude;
+        const offset =
+          Math.sin((distance / wavelength) * Math.PI * 2) * amplitude;
         output.push({
           x: start.x + dx * t + normalX * offset,
           y: start.y + dy * t + normalY * offset,
@@ -3890,18 +4289,23 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
       return null;
     }
 
-    const renderedPoints = line.lineStyle === "dribble" ? getDribblePolylinePoints(line.points) : line.points;
-    const points = renderedPoints.map((point) => `${point.x},${point.y}`).join(" ");
+    const renderedPoints =
+      line.lineStyle === "dribble"
+        ? getDribblePolylinePoints(line.points)
+        : line.points;
+    const points = renderedPoints
+      .map((point) => `${point.x},${point.y}`)
+      .join(" ");
 
     const end = renderedPoints[renderedPoints.length - 1];
     const directionStart =
       line.lineStyle === "dribble"
         ? line.points[0]
-        : renderedPoints[renderedPoints.length - 2] ??
-          line.points[line.points.length - 2];
+        : (renderedPoints[renderedPoints.length - 2] ??
+          line.points[line.points.length - 2]);
     const angle = Math.atan2(
       line.points[line.points.length - 1].y - directionStart.y,
-      line.points[line.points.length - 1].x - directionStart.x
+      line.points[line.points.length - 1].x - directionStart.x,
     );
     const arrowExtension = line.lineStyle === "dribble" ? 3.6 : 0;
     const arrowTip = {
@@ -3922,7 +4326,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     };
 
     const strokeColor = isPreview ? lineColor : line.color;
-    const strokeWidth = Math.max(0.14, (isPreview ? lineWidth : line.lineWidth || 4) * 0.1375);
+    const strokeWidth = Math.max(
+      0.14,
+      (isPreview ? lineWidth : line.lineWidth || 4) * 0.1375,
+    );
     const dashLength = Math.max(1.2, strokeWidth * 3.25);
     const dashGap = Math.max(1, strokeWidth * 2.5);
 
@@ -3935,7 +4342,11 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeDasharray={line.lineStyle !== "dribble" && line.dashed ? `${dashLength} ${dashGap}` : undefined}
+          strokeDasharray={
+            line.lineStyle !== "dribble" && line.dashed
+              ? `${dashLength} ${dashGap}`
+              : undefined
+          }
           opacity={isPreview ? 0.75 : 1}
         />
 
@@ -3973,13 +4384,12 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
     const fillColor = object.fillColor ?? fallbackColor;
     const size = object.size ?? playerDefaultSize;
     const playerShape =
-      object.playerShape ??
-      (object.type === "team1" ? team1Shape : team2Shape);
+      object.playerShape ?? (object.type === "team1" ? team1Shape : team2Shape);
     const hitSize = Math.max(size, 44);
     const fontSize = Math.max(10, Math.round(size * 0.42));
     const nameFontSize = Math.max(
       9,
-      Math.round(object.nameFontSize ?? size * 0.3)
+      Math.round(object.nameFontSize ?? size * 0.3),
     );
 
     const effectiveDisplayMode =
@@ -4095,9 +4505,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           event.stopPropagation();
           openObjectEditor(object.id);
         }}
-          onContextMenu={(event) =>
-            openObjectEditorFromContextMenu(event, object.id)
-          }
+        onContextMenu={(event) =>
+          openObjectEditorFromContextMenu(event, object.id)
+        }
         className={`absolute z-20 flex touch-none items-center justify-center bg-transparent p-0 ${
           isObjectSelected(object.id)
             ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
@@ -4160,9 +4570,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           event.stopPropagation();
           openObjectEditor(object.id);
         }}
-          onContextMenu={(event) =>
-            openObjectEditorFromContextMenu(event, object.id)
-          }
+        onContextMenu={(event) =>
+          openObjectEditorFromContextMenu(event, object.id)
+        }
         className={`absolute z-20 flex touch-none items-center justify-center bg-transparent p-0 ${
           isObjectSelected(object.id)
             ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
@@ -4212,9 +4622,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
           event.stopPropagation();
           openObjectEditor(object.id);
         }}
-          onContextMenu={(event) =>
-            openObjectEditorFromContextMenu(event, object.id)
-          }
+        onContextMenu={(event) =>
+          openObjectEditorFromContextMenu(event, object.id)
+        }
         className={`absolute z-20 flex touch-none items-center justify-center whitespace-pre-wrap break-words rounded-lg border border-slate-500/40 bg-white/70 px-2 py-1 text-center font-bold leading-tight shadow-sm ${
           isObjectSelected(object.id)
             ? "ring-4 ring-yellow-400 ring-offset-2 ring-offset-transparent"
@@ -4292,13 +4702,13 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
 
     const colorValue =
       selectedObject.type === "textBox"
-        ? selectedObject.textColor ?? "#111827"
-        : selectedObject.fillColor ??
+        ? (selectedObject.textColor ?? "#111827")
+        : (selectedObject.fillColor ??
           (selectedObject.type === "team1"
             ? team1Color
             : selectedObject.type === "team2"
               ? team2Color
-              : coneColor);
+              : coneColor));
 
     return (
       <div
@@ -4378,7 +4788,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 value={colorValue}
                 onChange={(event) =>
                   selectedObject.type === "textBox"
-                    ? updateObjectTextColor(selectedObject.id, event.target.value)
+                    ? updateObjectTextColor(
+                        selectedObject.id,
+                        event.target.value,
+                      )
                     : updateObjectColor(selectedObject.id, event.target.value)
                 }
                 className="h-8 w-10 cursor-pointer rounded border border-slate-300 bg-white p-1"
@@ -4389,7 +4802,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 value={colorValue}
                 onChange={(event) =>
                   selectedObject.type === "textBox"
-                    ? updateObjectTextColor(selectedObject.id, event.target.value)
+                    ? updateObjectTextColor(
+                        selectedObject.id,
+                        event.target.value,
+                      )
                     : updateObjectColor(selectedObject.id, event.target.value)
                 }
                 className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs"
@@ -4409,7 +4825,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               onChange={(event) =>
                 updatePlayerShape(
                   selectedObject.id,
-                  event.target.value as PlayerShape
+                  event.target.value as PlayerShape,
                 )
               }
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs"
@@ -4433,10 +4849,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 type="color"
                 value={selectedObject.textColor ?? playerTextColor}
                 onChange={(event) =>
-                  updateObjectTextColor(
-                    selectedObject.id,
-                    event.target.value
-                  )
+                  updateObjectTextColor(selectedObject.id, event.target.value)
                 }
                 className="h-8 w-10 cursor-pointer rounded border border-slate-300 bg-white p-1"
               />
@@ -4445,10 +4858,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 type="text"
                 value={selectedObject.textColor ?? playerTextColor}
                 onChange={(event) =>
-                  updateObjectTextColor(
-                    selectedObject.id,
-                    event.target.value
-                  )
+                  updateObjectTextColor(selectedObject.id, event.target.value)
                 }
                 className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs"
               />
@@ -4469,7 +4879,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               onChange={(event) =>
                 updatePlayerDisplayMode(
                   selectedObject.id,
-                  event.target.value as PlayerDisplayMode
+                  event.target.value as PlayerDisplayMode,
                 )
               }
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs"
@@ -4544,7 +4954,10 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 step="1"
                 value={selectedObject.fontSize ?? 20}
                 onChange={(event) =>
-                  updateTextFontSize(selectedObject.id, Number(event.target.value))
+                  updateTextFontSize(
+                    selectedObject.id,
+                    Number(event.target.value),
+                  )
                 }
                 className="mt-1 w-full"
               />
@@ -4572,73 +4985,88 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         {showActivityTabs && (
           <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-wrap items-center gap-2">
-            <div className="mr-1 text-xs font-bold uppercase tracking-wide text-slate-500">
-              Activity Tabs
-            </div>
-            {frames.map((frame, index) => (
-              <div key={frame.id} className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white">
-                <button
-                  type="button"
-                  onClick={() => switchFrame(frame.id)}
-                  onDoubleClick={() => renameFrame(frame.id)}
-                  disabled={isPlayingAnimation}
-                  className={`px-3 py-2 text-sm font-bold ${
-                    frame.id === activeFrameId && !isPlayingAnimation
-                      ? "bg-[#0d2140] text-white"
-                      : isPlayingAnimation && index === playbackFrameIndex
-                        ? "bg-emerald-600 text-white"
-                        : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                  title="Click to open. Double-click to rename."
+              <button
+                type="button"
+                onClick={openFrameManager}
+                disabled={isPlayingAnimation}
+                className="mr-1 flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-[#0d2140] shadow-sm hover:bg-slate-100 disabled:opacity-40"
+                title="Open Frame Manager"
+                aria-label="Open Frame Manager"
+              >
+                <FrameManagerIcon />
+              </button>
+              {frames.map((frame, index) => (
+                <div
+                  key={frame.id}
+                  className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white"
                 >
-                  {frame.name}
-                </button>
-                {showAnimationDurations && (
-                  <input
-                    type="number"
-                    min="250"
-                    max="10000"
-                    step="250"
-                    value={frame.durationMs}
-                    onChange={(event) =>
-                      updateFrameDuration(frame.id, Number(event.target.value))
-                    }
+                  <button
+                    type="button"
+                    onClick={() => switchFrame(frame.id)}
+                    onDoubleClick={() => renameFrame(frame.id)}
                     disabled={isPlayingAnimation}
-                    className="w-20 border-l border-slate-200 px-2 py-2 text-xs text-slate-600"
-                    title="Animation duration in milliseconds"
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={() => deleteFrame(frame.id)}
-                  disabled={isPlayingAnimation || frames.length === 1}
-                  className="border-l border-slate-200 px-2 py-2 text-xs font-bold text-red-600 disabled:text-slate-300"
-                  title="Delete tab"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addFrame}
-              disabled={isPlayingAnimation}
-              className="rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              + New Tab
-            </button>
-            <button
-              type="button"
-              onClick={toggleAnimationPlayback}
-              className={`rounded-lg px-3 py-2 text-sm font-bold text-white ${
-                isPlayingAnimation ? "bg-red-600" : "bg-emerald-600"
-              }`}
-            >
-              {isPlayingAnimation ? "Stop Animation" : "Play Animation"}
-            </button>
-          </div>
+                    className={`px-3 py-2 text-sm font-bold ${
+                      frame.id === activeFrameId && !isPlayingAnimation
+                        ? "bg-[#0d2140] text-white"
+                        : isPlayingAnimation && index === playbackFrameIndex
+                          ? "bg-emerald-600 text-white"
+                          : "text-slate-700 hover:bg-slate-100"
+                    }`}
+                    title="Click to open. Double-click to rename."
+                  >
+                    {frame.name}
+                  </button>
+                  {showAnimationDurations && (
+                    <input
+                      type="number"
+                      min="250"
+                      max="10000"
+                      step="250"
+                      value={frame.durationMs}
+                      onChange={(event) =>
+                        updateFrameDuration(
+                          frame.id,
+                          Number(event.target.value),
+                        )
+                      }
+                      disabled={isPlayingAnimation}
+                      className="w-20 border-l border-slate-200 px-2 py-2 text-xs text-slate-600"
+                      title="Animation duration in milliseconds"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => deleteFrame(frame.id)}
+                    disabled={isPlayingAnimation || frames.length === 1}
+                    className="border-l border-slate-200 px-2 py-2 text-xs font-bold text-red-600 disabled:text-slate-300"
+                    title="Delete tab"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addFrame}
+                disabled={isPlayingAnimation}
+                className="rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                + New Tab
+              </button>
+              <button
+                type="button"
+                onClick={toggleAnimationPlayback}
+                className={`rounded-lg px-3 py-2 text-sm font-bold text-white ${
+                  isPlayingAnimation ? "bg-red-600" : "bg-emerald-600"
+                }`}
+              >
+                {isPlayingAnimation ? "Stop Animation" : "Play Animation"}
+              </button>
+            </div>
             <p className="mt-2 text-xs text-slate-500">
-              New tabs copy the most recent tab and preserve object IDs so movement can animate between tabs. Animation plays once and stops on the final tab.
+              New tabs copy the most recent tab and preserve object IDs so
+              movement can animate between tabs. Animation plays once and stops
+              on the final tab.
             </p>
           </div>
         )}
@@ -4722,68 +5150,66 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               >
                 Toolbar Settings
               </button>
-
             </div>
           )}
         </div>
 
         {!isToolbarOnLeft && (
-        <div className="hidden flex-wrap items-center gap-2 md:flex">
-          {tools.map((tool) => renderToolButton(tool))}
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
+            {tools.map((tool) => renderToolButton(tool))}
 
-          <div className="mx-1 hidden h-10 w-px bg-slate-200 sm:block" />
+            <div className="mx-1 hidden h-10 w-px bg-slate-200 sm:block" />
 
-          <label className="flex h-16 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={isDashed}
-              onChange={(event) => setIsDashed(event.target.checked)}
-            />
-            Dashed
-          </label>
+            <label className="flex h-16 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={isDashed}
+                onChange={(event) => setIsDashed(event.target.checked)}
+              />
+              Dashed
+            </label>
 
-          <label className="flex h-16 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={isArrow}
-              onChange={(event) => setIsArrow(event.target.checked)}
-            />
-            Arrow
-          </label>
+            <label className="flex h-16 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={isArrow}
+                onChange={(event) => setIsArrow(event.target.checked)}
+              />
+              Arrow
+            </label>
 
-          <button
-            type="button"
-            onClick={() => setShowToolbarSettings((current) => !current)}
-            className={`flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg text-xs font-semibold ${
-              showToolbarSettings
-                ? "bg-[#0d2140] text-white"
-                : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <svg
-              viewBox="0 0 32 32"
-              className="h-7 w-7"
-              fill="none"
-              aria-hidden="true"
+            <button
+              type="button"
+              onClick={() => setShowToolbarSettings((current) => !current)}
+              className={`flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg text-xs font-semibold ${
+                showToolbarSettings
+                  ? "bg-[#0d2140] text-white"
+                  : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
             >
-              <circle
-                cx="16"
-                cy="16"
-                r="4"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              />
-              <path
-                d="M16 4V8M16 24V28M4 16H8M24 16H28M7.5 7.5L10.4 10.4M21.6 21.6L24.5 24.5M24.5 7.5L21.6 10.4M10.4 21.6L7.5 24.5"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span>Settings</span>
-          </button>
-
-        </div>
+              <svg
+                viewBox="0 0 32 32"
+                className="h-7 w-7"
+                fill="none"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="4"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                />
+                <path
+                  d="M16 4V8M16 24V28M4 16H8M24 16H28M7.5 7.5L10.4 10.4M21.6 21.6L24.5 24.5M24.5 7.5L21.6 10.4M10.4 21.6L7.5 24.5"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span>Settings</span>
+            </button>
+          </div>
         )}
 
         {showToolbarSettings && (
@@ -4822,6 +5248,33 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
               Show animation duration controls in milliseconds
             </label>
 
+            <div className="mt-3 rounded-lg border border-slate-200 bg-white p-4">
+              <label className="text-sm font-semibold text-slate-700">
+                Default Frame Duration: {defaultFrameDurationMs} ms
+              </label>
+              <input
+                type="range"
+                min="250"
+                max="10000"
+                step="250"
+                value={defaultFrameDurationMs}
+                onChange={(event) =>
+                  setDefaultFrameDurationMs(
+                    clamp(Number(event.target.value), 250, 10000),
+                  )
+                }
+                className="mt-3 w-full"
+              />
+              <div className="mt-2 flex justify-between text-xs text-slate-500">
+                <span>250 ms</span>
+                <span>10,000 ms</span>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                New frames use this duration. Duplicated frames keep the
+                duration of the source frame.
+              </p>
+            </div>
+
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-white p-3">
                 <label className="text-sm font-semibold text-slate-700">
@@ -4847,7 +5300,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                     applyShapeToExistingPlayers(
                       "team1",
                       team1Shape,
-                      "Team 1 shape applied to existing Team 1 players."
+                      "Team 1 shape applied to existing Team 1 players.",
                     )
                   }
                   className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -4880,7 +5333,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                     applyShapeToExistingPlayers(
                       "team2",
                       team2Shape,
-                      "Team 2 shape applied to existing Team 2 players."
+                      "Team 2 shape applied to existing Team 2 players.",
                     )
                   }
                   className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -4903,7 +5356,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                       applyColorToExistingObjects(
                         ["team1"],
                         team1Color,
-                        "Team 1 color applied to existing Team 1 players."
+                        "Team 1 color applied to existing Team 1 players.",
                       )
                     }
                     className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -4925,7 +5378,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                       applyColorToExistingObjects(
                         ["team2"],
                         team2Color,
-                        "Team 2 color applied to existing Team 2 players."
+                        "Team 2 color applied to existing Team 2 players.",
                       )
                     }
                     className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -4946,7 +5399,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                     onClick={() =>
                       applyTextColorToExistingPlayers(
                         playerTextColor,
-                        "Player number text color applied to existing players."
+                        "Player number text color applied to existing players.",
                       )
                     }
                     className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -4968,7 +5421,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                       applyColorToExistingObjects(
                         ["cone"],
                         coneColor,
-                        "Cone color applied to existing cones."
+                        "Cone color applied to existing cones.",
                       )
                     }
                     className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -4999,7 +5452,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 onChange={setLineWidth}
                 onApply={() => {
                   setLines((currentLines) =>
-                    currentLines.map((line) => ({ ...line, lineWidth }))
+                    currentLines.map((line) => ({ ...line, lineWidth })),
                   );
                   setMessage("Line thickness applied to existing lines.");
                 }}
@@ -5017,7 +5470,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                   applySizeToExistingObjects(
                     ["team1", "team2"],
                     playerDefaultSize,
-                    "Player size applied to existing players."
+                    "Player size applied to existing players.",
                   )
                 }
               />
@@ -5032,7 +5485,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                   applySizeToExistingObjects(
                     ["cone"],
                     coneDefaultSize,
-                    "Cone size applied to existing cones."
+                    "Cone size applied to existing cones.",
                   )
                 }
               />
@@ -5047,7 +5500,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                   applySizeToExistingObjects(
                     ["mannequin"],
                     mannequinDefaultSize,
-                    "Mannequin size applied to existing mannequins."
+                    "Mannequin size applied to existing mannequins.",
                   )
                 }
               />
@@ -5062,7 +5515,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                   applySizeToExistingObjects(
                     ["ball"],
                     ballDefaultSize,
-                    "Soccer ball size applied to existing soccer balls."
+                    "Soccer ball size applied to existing soccer balls.",
                   )
                 }
               />
@@ -5079,7 +5532,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             value={selectedPitchBackground}
             onChange={(event) =>
               setSelectedPitchBackground(
-                event.target.value as PitchBackgroundType
+                event.target.value as PitchBackgroundType,
               )
             }
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
@@ -5117,7 +5570,9 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                 ? "border-[#0d2140] bg-[#0d2140] text-white"
                 : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
             }`}
-            title={showActivityTabs ? "Hide Activity Tabs" : "Show Activity Tabs"}
+            title={
+              showActivityTabs ? "Hide Activity Tabs" : "Show Activity Tabs"
+            }
           >
             <MovieCameraIcon />
             <span className="leading-none">Animate</span>
@@ -5167,7 +5622,6 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             <PinIcon pinned={isControlBarPinned} />
           </button>
         </div>
-
 
         {message && (
           <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
@@ -5220,125 +5674,144 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         )}
 
         <div
+          ref={pitchControlsBoundaryRef}
           className={`relative mx-auto flex max-w-full justify-center rounded-xl border border-slate-200 bg-slate-100 ${
             isPitchPoppedOut ? "overflow-hidden" : "overflow-visible"
           }`}
           onWheel={handleWheel}
         >
-          {isToolbarOnLeft && (
-            <div
-              className="absolute left-3 z-30 hidden max-h-[calc(100%-5rem)] grid-cols-2 gap-1.5 overflow-y-auto rounded-xl border border-slate-300 bg-white/95 p-2 shadow-lg backdrop-blur md:grid"
-              style={{
-                top: isControlBarPinned
-                  ? `${pinnedControlBarHeight + 12}px`
-                  : "4rem",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setShowToolbarSettings((current) => !current)}
-                className={`sticky top-0 z-10 col-span-2 flex h-10 items-center justify-center gap-2 rounded-lg text-[10px] font-semibold shadow-sm ${
-                  showToolbarSettings
-                    ? "bg-[#0d2140] text-white"
-                    : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                Settings
-              </button>
+          <div
+            className={`pointer-events-none z-50 ${
+              dockedPitchControls.isDocked
+                ? "fixed"
+                : "absolute inset-0"
+            }`}
+            style={
+              dockedPitchControls.isDocked
+                ? {
+                    left: `${dockedPitchControls.left}px`,
+                    top: `${dockedPitchControls.top}px`,
+                    width: `${dockedPitchControls.width}px`,
+                    height: 0,
+                  }
+                : undefined
+            }
+          >
+            <div className="relative h-0 w-full">
+              <div className="pointer-events-auto absolute left-2 top-2 flex flex-col gap-1 md:left-3 md:top-3 md:flex-row md:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsZoomLocked((current) => !current)}
+                  className={`flex h-9 items-center justify-center rounded-lg border px-2 text-xs font-bold shadow-sm md:h-10 md:px-3 ${
+                    isZoomLocked
+                      ? "border-red-300 bg-red-100 text-red-700"
+                      : "border-green-300 bg-green-100 text-green-700"
+                  }`}
+                  title={
+                    isZoomLocked
+                      ? "Zoom and pan are locked"
+                      : "Zoom and pan are unlocked"
+                  }
+                >
+                  <span className="md:hidden">
+                    {isZoomLocked ? "🔒" : "🔓"}
+                  </span>
+                  <span className="hidden md:inline">
+                    {isZoomLocked ? "🔒 Locked" : "🔓 Unlocked"}
+                  </span>
+                </button>
 
-              {tools.map((tool) => renderToolButton(tool))}
+                <button
+                  type="button"
+                  disabled={isZoomLocked}
+                  onClick={() => changeZoom(zoom + 0.15)}
+                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
+                  title="Zoom in"
+                >
+                  +
+                </button>
 
-              <label className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-300 bg-white text-[9px] font-semibold text-slate-700 md:h-14 md:w-14 md:text-[10px]">
-                <input
-                  type="checkbox"
-                  checked={isDashed}
-                  onChange={(event) => setIsDashed(event.target.checked)}
-                />
-                Dashed
-              </label>
+                <button
+                  type="button"
+                  disabled={isZoomLocked || zoom <= 1}
+                  onClick={() => changeZoom(zoom - 0.15)}
+                  className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
+                  title="Zoom out"
+                >
+                  −
+                </button>
 
-              <label className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-300 bg-white text-[9px] font-semibold text-slate-700 md:h-14 md:w-14 md:text-[10px]">
-                <input
-                  type="checkbox"
-                  checked={isArrow}
-                  onChange={(event) => setIsArrow(event.target.checked)}
-                />
-                Arrow
-              </label>
+                <button
+                  type="button"
+                  disabled={isZoomLocked}
+                  onClick={resetView}
+                  className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-40 md:h-10 md:px-3 md:text-xs"
+                  title="Reset zoom and pan"
+                >
+                  Reset
+                </button>
+              </div>
+
+              {isToolbarOnLeft && (
+                <div className="pointer-events-auto absolute left-3 top-16 hidden md:block">
+                  <div className="grid max-h-[calc(100vh-16rem)] grid-cols-2 gap-1.5 overflow-y-auto rounded-xl border border-slate-300 bg-white/95 p-2 shadow-lg backdrop-blur">
+                    <button
+                      type="button"
+                      onClick={() => setShowToolbarSettings((current) => !current)}
+                      className={`sticky top-0 z-10 col-span-2 flex h-10 items-center justify-center gap-2 rounded-lg text-[10px] font-semibold shadow-sm ${
+                        showToolbarSettings
+                          ? "bg-[#0d2140] text-white"
+                          : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      Settings
+                    </button>
+
+                    {tools.map((tool) => renderToolButton(tool))}
+
+                    <label className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-300 bg-white text-[9px] font-semibold text-slate-700 md:h-14 md:w-14 md:text-[10px]">
+                      <input
+                        type="checkbox"
+                        checked={isDashed}
+                        onChange={(event) => setIsDashed(event.target.checked)}
+                      />
+                      Dashed
+                    </label>
+
+                    <label className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-300 bg-white text-[9px] font-semibold text-slate-700 md:h-14 md:w-14 md:text-[10px]">
+                      <input
+                        type="checkbox"
+                        checked={isArrow}
+                        onChange={(event) => setIsArrow(event.target.checked)}
+                      />
+                      Arrow
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div className="pointer-events-auto absolute right-2 top-2 flex flex-col items-end gap-2 md:right-3 md:top-3">
+                <button
+                  type="button"
+                  onClick={clearPitch}
+                  className="flex h-9 items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-3 text-xs font-bold text-red-700 shadow-sm hover:bg-red-50 md:h-10"
+                  title="Clear pitch"
+                >
+                  <SmallTrashIcon />
+                  <span className="hidden sm:inline">Clear</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openPitchPopOut}
+                  disabled={isPitchPoppedOut}
+                  className="flex h-9 items-center justify-center rounded-lg border border-sky-300 bg-white px-3 text-xs font-bold text-sky-700 shadow-sm hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
+                  title="Pop out pitch and toolbar"
+                >
+                  Pop Out
+                </button>
+              </div>
             </div>
-          )}
-          <div className="absolute left-2 top-2 z-20 flex flex-col gap-1 md:left-3 md:top-3 md:flex-row md:gap-2">
-            <button
-              type="button"
-              onClick={() => setIsZoomLocked((current) => !current)}
-              className={`flex h-9 items-center justify-center rounded-lg border px-2 text-xs font-bold shadow-sm md:h-10 md:px-3 ${
-                isZoomLocked
-                  ? "border-red-300 bg-red-100 text-red-700"
-                  : "border-green-300 bg-green-100 text-green-700"
-              }`}
-              title={
-                isZoomLocked
-                  ? "Zoom and pan are locked"
-                  : "Zoom and pan are unlocked"
-              }
-            >
-              <span className="md:hidden">{isZoomLocked ? "🔒" : "🔓"}</span>
-              <span className="hidden md:inline">
-                {isZoomLocked ? "🔒 Locked" : "🔓 Unlocked"}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              disabled={isZoomLocked}
-              onClick={() => changeZoom(zoom + 0.15)}
-              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
-              title="Zoom in"
-            >
-              +
-            </button>
-
-            <button
-              type="button"
-              disabled={isZoomLocked}
-              onClick={() => changeZoom(zoom - 0.15)}
-              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
-              title="Zoom out"
-            >
-              −
-            </button>
-
-            <button
-              type="button"
-              disabled={isZoomLocked}
-              onClick={resetView}
-              className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-bold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-40 md:h-10 md:px-3 md:text-xs"
-              title="Reset zoom and pan"
-            >
-              Reset
-            </button>
-          </div>
-
-          <div className="absolute right-2 top-2 z-20 flex flex-col items-end gap-2 md:right-3 md:top-3">
-            <button
-              type="button"
-              onClick={clearPitch}
-              className="flex h-9 items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-3 text-xs font-bold text-red-700 shadow-sm hover:bg-red-50 md:h-10"
-              title="Clear pitch"
-            >
-              <SmallTrashIcon />
-              <span className="hidden sm:inline">Clear</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={openPitchPopOut}
-              disabled={isPitchPoppedOut}
-              className="flex h-9 items-center justify-center rounded-lg border border-sky-300 bg-white px-3 text-xs font-bold text-sky-700 shadow-sm hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 md:h-10"
-              title="Pop out pitch and toolbar"
-            >
-              Pop Out
-            </button>
           </div>
 
           <div
@@ -5378,9 +5851,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                   transformOrigin: "top left",
                 }}
               >
-                <CodedPitchBackground
-                  background={selectedPitchBackground}
-                />
+                <CodedPitchBackground background={selectedPitchBackground} />
 
                 <svg
                   className="absolute inset-0 z-10 h-full w-full"
@@ -5401,7 +5872,7 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
                         lineStyle:
                           selectedTool === "dribble" ? "dribble" : "standard",
                       },
-                      true
+                      true,
                     )}
                 </svg>
 
@@ -5413,6 +5884,202 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
         </div>
       </section>
 
+      {showFrameManager && (
+        <div className="fixed inset-0 z-[170] bg-slate-900/30">
+          <button
+            type="button"
+            aria-label="Close Frame Manager"
+            onClick={closeFrameManager}
+            className="absolute inset-0"
+          />
+
+          <div
+            ref={frameManagerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="frame-manager-title"
+            className="fixed z-10 flex h-[min(760px,calc(100vh-3rem))] w-[min(1000px,calc(100vw-3rem))] min-h-[420px] min-w-[340px] max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)] resize flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
+            style={{
+              left: `${frameManagerPosition.left}px`,
+              top: `${frameManagerPosition.top}px`,
+            }}
+          >
+            <div
+              onPointerDown={startDraggingFrameManager}
+              className={`flex cursor-move touch-none select-none items-center justify-between border-b border-slate-200 px-5 py-4 ${
+                frameManagerDragState ? "bg-slate-100" : "bg-white"
+              }`}
+              title="Drag to move the Frame Manager"
+            >
+              <div>
+                <h2
+                  id="frame-manager-title"
+                  className="text-lg font-bold text-slate-900"
+                >
+                  Frame Manager
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Select a thumbnail to display that frame on the pitch behind
+                  this window. Drag the header to move; drag the lower-right
+                  edge to resize.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeFrameManager}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-bold text-slate-600 hover:bg-slate-50"
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {frames.map((frame, index) => {
+                  const isActive = frame.id === activeFrameId;
+                  const thumbnailObjects = isActive ? objects : frame.objects;
+                  const thumbnailLines = isActive ? lines : frame.lines;
+
+                  return (
+                    <div
+                      key={frame.id}
+                      className={`rounded-xl border p-3 ${
+                        isActive
+                          ? "border-[#0d2140] bg-blue-50 ring-2 ring-[#0d2140]/20"
+                          : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => switchFrame(frame.id)}
+                        disabled={isPlayingAnimation}
+                        className="block w-full text-left"
+                      >
+                        <div className="relative mx-auto aspect-[3/4] w-full max-w-[180px] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-inner">
+                          <CodedPitchBackground
+                            background={selectedPitchBackground}
+                          />
+                          <svg
+                            className="absolute inset-0 z-10 h-full w-full"
+                            viewBox="0 0 100 100"
+                            preserveAspectRatio="none"
+                          >
+                            {thumbnailLines.map((line) => renderLine(line))}
+                          </svg>
+                          {thumbnailObjects.map((object) => (
+                            <span
+                              key={object.id}
+                              className="absolute z-20 block rounded-full border border-white bg-[#0d2140] shadow"
+                              style={{
+                                left: `${object.x}%`,
+                                top: `${object.y}%`,
+                                width: "7px",
+                                height: "7px",
+                                transform: "translate(-50%, -50%)",
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-800">
+                            {frame.name}
+                          </span>
+                          {isActive && (
+                            <span className="rounded-full bg-[#0d2140] px-2 py-0.5 text-[10px] font-bold text-white">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                      </button>
+
+                      <label className="mt-3 block text-xs font-semibold text-slate-600">
+                        Duration (ms)
+                      </label>
+                      <input
+                        type="number"
+                        min="250"
+                        max="10000"
+                        step="250"
+                        value={frame.durationMs}
+                        onChange={(event) =>
+                          updateFrameDuration(
+                            frame.id,
+                            Number(event.target.value),
+                          )
+                        }
+                        disabled={isPlayingAnimation}
+                        className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                      />
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => renameFrame(frame.id)}
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        >
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => duplicateFrame(frame.id)}
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        >
+                          Duplicate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveFrame(frame.id, -1)}
+                          disabled={index === 0}
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-35"
+                        >
+                          Move Left
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveFrame(frame.id, 1)}
+                          disabled={index === frames.length - 1}
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-35"
+                        >
+                          Move Right
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteFrame(frame.id)}
+                          disabled={frames.length === 1}
+                          className="col-span-2 rounded-lg border border-red-300 bg-white px-2 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-35"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
+                <button
+                  type="button"
+                  onClick={addFrame}
+                  disabled={isPlayingAnimation}
+                  className="rounded-lg border border-[#0d2140] bg-white px-4 py-2 text-sm font-bold text-[#0d2140] hover:bg-slate-50"
+                >
+                  + New Frame
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleAnimationPlayback}
+                  className={`rounded-lg px-4 py-2 text-sm font-bold text-white ${
+                    isPlayingAnimation ? "bg-red-600" : "bg-emerald-600"
+                  }`}
+                >
+                  {isPlayingAnimation ? "Stop Animation" : "Play Animation"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showUnsavedChangesPrompt && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 px-4">
@@ -5430,8 +6097,8 @@ export default function ActivityCreator({ initialActivity }: ActivityCreatorProp
             </h2>
 
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              You have changes that have not been saved. Save the activity before
-              leaving this page?
+              You have changes that have not been saved. Save the activity
+              before leaving this page?
             </p>
 
             <div className="mt-6 grid gap-3">

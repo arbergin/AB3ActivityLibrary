@@ -112,6 +112,7 @@ export type ActivityCreatorSettingsV2 = {
   coneDefaultSize: number;
   logoSize: number;
   lineDefaultWidth?: number;
+  defaultFrameDurationMs?: number;
 };
 
 export type ActivityCreatorStateV1 = {
