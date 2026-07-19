@@ -200,7 +200,7 @@ export default function LoginPage() {
         <div aria-hidden="true" className="absolute inset-0 bg-slate-100/20" />
 
         <div className="relative z-10 mx-auto grid w-full max-w-[1380px] items-start gap-8 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-10 xl:max-w-[1480px] xl:grid-cols-[minmax(0,1fr)_290px]">
-          <div className="flex min-h-[560px] items-start justify-center lg:col-start-1 lg:row-start-1 lg:min-h-0 lg:justify-end">
+          <div className="flex items-start justify-center lg:col-start-1 lg:row-start-1 lg:justify-end">
             <div className="w-full max-w-[940px] overflow-hidden rounded-[28px] border border-slate-900/70 bg-white/90 shadow-2xl backdrop-blur-sm">
               <video
                 ref={videoRef}
