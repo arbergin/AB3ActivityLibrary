@@ -1542,7 +1542,9 @@ export default function ActivityCreator({
   );
   const [isPlayingAnimation, setIsPlayingAnimation] = useState(false);
   const [playbackFrameIndex, setPlaybackFrameIndex] = useState(0);
-  const [showActivityTabs, setShowActivityTabs] = useState(false);
+  const [showActivityTabs, setShowActivityTabs] = useState(
+    Boolean(initialActivity) && normalizedInitialFrames.frames.length > 1,
+  );
   const [showFrameManager, setShowFrameManager] = useState(false);
   const [frameManagerPosition, setFrameManagerPosition] = useState({
     left: 24,
