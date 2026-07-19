@@ -200,8 +200,8 @@ export default function AppHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0d2140] text-white shadow-sm">
-      <div className="mx-auto flex min-h-[72px] w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <Link href="/" className="flex min-w-0 items-center gap-3">
+      <div className="mx-auto flex min-h-[72px] w-full max-w-7xl items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-6 lg:px-8">
+        <Link href="/" className="flex min-w-0 flex-shrink items-center gap-2 sm:gap-3">
           <Image
             src="/ab3-activity-library-logo.png"
             alt="AB3 Soccer Activity Library"
@@ -211,13 +211,13 @@ export default function AppHeader() {
             className="h-11 w-11 flex-shrink-0 rounded-md object-contain"
           />
 
-          <span className="truncate text-lg font-bold tracking-tight sm:text-xl">
+          <span className="hidden truncate text-lg font-bold tracking-tight sm:block sm:text-xl">
             AB3 Soccer Activity Library
           </span>
         </Link>
 
-        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3">
-          <nav className="flex items-center gap-1 sm:gap-2">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:flex-initial sm:gap-3">
+          <nav className="flex min-w-0 items-center gap-0 sm:gap-2">
             <Link
               href="/"
               aria-label="Home"
@@ -229,27 +229,27 @@ export default function AppHeader() {
 
             <Link
               href="/create"
-              className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
+              className="rounded-md px-1.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3 sm:text-sm"
             >
               Create
             </Link>
 
             <Link
               href="/search"
-              className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
+              className="rounded-md px-1.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3 sm:text-sm"
             >
               Search
             </Link>
 
             <Link
               href="/import"
-              className="rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3"
+              className="rounded-md px-1.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3 sm:text-sm"
             >
               Import
             </Link>
           </nav>
 
-          <div className="ml-1 flex min-w-[220px] items-center justify-end gap-2 border-l border-white/20 pl-2 sm:ml-2 sm:gap-3 sm:pl-4">
+          <div className="ml-1 flex min-w-0 flex-shrink-0 items-center justify-end gap-1 border-l border-white/20 pl-2 sm:ml-2 sm:min-w-[220px] sm:gap-3 sm:pl-4">
             {isLoggedIn ? (
               <>
                 <span className="hidden max-w-[140px] truncate text-sm font-semibold text-white/90 sm:inline">
@@ -259,7 +259,7 @@ export default function AppHeader() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100"
+                  className="whitespace-nowrap rounded-md bg-white px-2.5 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100 sm:px-3"
                 >
                   Logout
                 </button>
@@ -285,7 +285,7 @@ export default function AppHeader() {
 
                 <Link
                   href="/login"
-                  className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100"
+                  className="whitespace-nowrap rounded-md bg-white px-2.5 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100 sm:px-3"
                 >
                   Login
                 </Link>
