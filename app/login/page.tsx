@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import { signInWithEmailPassword } from "@/lib/supabaseAuth";
@@ -88,10 +88,11 @@ async function logSuccessfulLogin(accessToken: string) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const completedVideoPlaysRef = useRef(0);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -151,11 +152,46 @@ export default function LoginPage() {
     }
   }
 
+  function handleVideoEnded() {
+    completedVideoPlaysRef.current += 1;
+
+    if (completedVideoPlaysRef.current >= 2) {
+      return;
+    }
+
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    video.currentTime = 0;
+
+    void video.play().catch((error) => {
+      console.error("The login video could not restart.", error);
+    });
+  }
+
+  function handleVideoClick() {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    completedVideoPlaysRef.current = 2;
+    video.currentTime = 0;
+
+    void video.play().catch((error) => {
+      console.error("The login video could not replay.", error);
+    });
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <AppHeader />
 
-      <section className="relative min-h-[calc(100vh-72px)] overflow-hidden px-8 py-10">
+      <section className="relative min-h-[calc(100vh-72px)] overflow-hidden px-4 pb-8 pt-4 sm:px-6 lg:px-10 lg:pb-10 lg:pt-5">
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-[url('/login-background.png')] bg-cover bg-center bg-no-repeat opacity-65"
@@ -163,71 +199,90 @@ export default function LoginPage() {
 
         <div aria-hidden="true" className="absolute inset-0 bg-slate-100/20" />
 
-        <div className="relative z-10 mx-auto max-w-xl">
-          <div className="rounded-xl bg-white/90 p-6 shadow-lg ring-1 ring-slate-200/80 backdrop-blur-sm">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold">Login</h2>
-
-              <p className="mt-2 text-sm text-slate-600">
-                Use the email and password provided by an admin.
-              </p>
+        <div className="relative z-10 mx-auto grid w-full max-w-[1380px] items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px] xl:max-w-[1480px] xl:grid-cols-[minmax(0,1fr)_290px]">
+          <div className="flex min-h-[560px] items-start justify-center lg:min-h-[680px] lg:justify-end">
+            <div className="w-full max-w-[940px] overflow-hidden rounded-[28px] border border-slate-900/70 bg-white/90 shadow-2xl backdrop-blur-sm">
+              <video
+                ref={videoRef}
+                src="/login.mp4"
+                autoPlay
+                muted
+                playsInline
+                preload="auto"
+                onEnded={handleVideoEnded}
+                onClick={handleVideoClick}
+                className="block aspect-[16/9] w-full cursor-pointer bg-white object-cover"
+                aria-label="AB3 Soccer Activity Library introduction. Click to replay."
+                title="Click to replay"
+              />
             </div>
-
-            <form onSubmit={handleSubmit} className="grid gap-4">
-              <label className="grid gap-1">
-                <span className="text-sm font-semibold">Email</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                />
-              </label>
-
-              <label className="grid gap-1">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-semibold">Password</span>
-
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm font-semibold text-[#0d2140]"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                />
-              </label>
-
-              {formError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {formError}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSubmitting ? "Logging in..." : "Login"}
-              </button>
-            </form>
-
-            <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50/90 p-4 text-sm text-slate-600">
-              Need access? Ask an admin to create your account.
-            </div>
-
           </div>
+
+          <aside className="self-start lg:sticky lg:top-0 lg:justify-self-end">
+            <div className="w-full rounded-2xl bg-white/92 p-5 shadow-xl ring-1 ring-slate-200/80 backdrop-blur-sm sm:p-6 lg:max-w-[300px] xl:max-w-[290px]">
+              <div className="mb-5">
+                <h2 className="text-xl font-bold">Login</h2>
+
+                <p className="mt-2 text-sm text-slate-600">
+                  Use the email and password provided by an admin.
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="grid gap-4">
+                <label className="grid gap-1">
+                  <span className="text-sm font-semibold">Email</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                  />
+                </label>
+
+                <label className="grid gap-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">Password</span>
+
+                    <Link
+                      href="/forgot-password"
+                      className="text-xs font-semibold text-[#0d2140]"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                  />
+                </label>
+
+                {formError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {formError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? "Logging in..." : "Login"}
+                </button>
+              </form>
+
+              <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
+                Need access? Ask an admin to create your account.
+              </div>
+            </div>
+          </aside>
         </div>
       </section>
     </main>
