@@ -2191,6 +2191,24 @@ export default function ActivityCreator({
         rotationDegrees: pitchRotationDegrees,
         pitchAssetVersion,
         coordinateSystem: pitchCoordinateSystem,
+
+        // Save the exact editor viewport dimensions used when these CSS-pixel
+        // pan offsets were created. Animation export needs these values to
+        // reproduce the same framing on its fixed 600 × 800 canvas.
+        viewportWidth:
+          pitchRef.current?.getBoundingClientRect().width ?? 1000,
+        viewportHeight:
+          pitchRef.current?.getBoundingClientRect().height ?? 1333.333333,
+      } as {
+        background: PitchBackgroundType;
+        zoom: number;
+        offsetX: number;
+        offsetY: number;
+        rotationDegrees: number;
+        pitchAssetVersion: number;
+        coordinateSystem: "legacyCanvas" | "canonicalPitchV1";
+        viewportWidth: number;
+        viewportHeight: number;
       },
       settings: {
         playerDisplayMode,
@@ -3346,8 +3364,8 @@ export default function ActivityCreator({
   }
 
   async function getCreatorPreviewDataUrl() {
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
+    const renderCanvas = document.createElement("canvas");
+    const context = renderCanvas.getContext("2d");
 
     if (!context) {
       return undefined;
@@ -3356,8 +3374,8 @@ export default function ActivityCreator({
     const canvasWidth = 1200;
     const canvasHeight = 1600;
 
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
+    renderCanvas.width = canvasWidth;
+    renderCanvas.height = canvasHeight;
 
     const editorPitchRect = pitchRef.current?.getBoundingClientRect();
     const editorPitchWidth = editorPitchRect?.width || canvasWidth;
@@ -3416,7 +3434,64 @@ export default function ActivityCreator({
 
     context.restore();
 
-    return canvas.toDataURL("image/png");
+    // The editor viewport remains 3:4 even when the pitch is panned upward.
+    // Determine the transformed pitch's lowest visible edge and crop the saved
+    // preview there so the empty white area below the pitch is not exported.
+    const rotationRadians = (pitchRotationDegrees * Math.PI) / 180;
+    const scaledWidth = canvasWidth * zoom;
+    const scaledHeight = canvasHeight * zoom;
+    const transformedCorners = [
+      { x: 0, y: 0 },
+      { x: scaledWidth, y: 0 },
+      { x: 0, y: scaledHeight },
+      { x: scaledWidth, y: scaledHeight },
+    ].map((corner) => ({
+      x:
+        exportPanX +
+        corner.x * Math.cos(rotationRadians) -
+        corner.y * Math.sin(rotationRadians),
+      y:
+        exportPanY +
+        corner.x * Math.sin(rotationRadians) +
+        corner.y * Math.cos(rotationRadians),
+    }));
+
+    const transformedPitchBottom = Math.max(
+      ...transformedCorners.map((corner) => corner.y),
+    );
+    const croppedHeight = clamp(
+      Math.ceil(transformedPitchBottom),
+      1,
+      canvasHeight,
+    );
+
+    if (croppedHeight === canvasHeight) {
+      return renderCanvas.toDataURL("image/png");
+    }
+
+    const croppedCanvas = document.createElement("canvas");
+    croppedCanvas.width = canvasWidth;
+    croppedCanvas.height = croppedHeight;
+
+    const croppedContext = croppedCanvas.getContext("2d");
+
+    if (!croppedContext) {
+      return renderCanvas.toDataURL("image/png");
+    }
+
+    croppedContext.drawImage(
+      renderCanvas,
+      0,
+      0,
+      canvasWidth,
+      croppedHeight,
+      0,
+      0,
+      canvasWidth,
+      croppedHeight,
+    );
+
+    return croppedCanvas.toDataURL("image/png");
   }
 
   function createHistorySnapshot(): HistorySnapshot {
@@ -3525,7 +3600,7 @@ export default function ActivityCreator({
   function getPanBounds(forZoom: number) {
     const rect = pitchRef.current?.getBoundingClientRect();
 
-    if (!rect || forZoom <= 1) {
+    if (!rect) {
       return {
         minX: 0,
         maxX: 0,
@@ -3535,9 +3610,15 @@ export default function ActivityCreator({
     }
 
     return {
-      minX: rect.width * (1 - forZoom),
+      // Keep horizontal panning disabled at 1.00x. When zoomed in, preserve
+      // the existing left/right boundaries so no white space is exposed.
+      minX: forZoom <= 1 ? 0 : rect.width * (1 - forZoom),
       maxX: 0,
-      minY: rect.height * (1 - forZoom),
+
+      // Allow upward panning even at 1.00x. Because the transformed pitch uses
+      // a top-left origin, moving it up by half of its scaled height places
+      // the center line exactly at the top edge of the visible pitch window.
+      minY: -(rect.height * forZoom) / 2,
       maxY: 0,
     };
   }
@@ -3668,34 +3749,57 @@ export default function ActivityCreator({
     saveHistorySnapshot();
 
     const nextPlayerNumber = playerCount + 1;
-
-    const rowY =
-      type === "team1"
-        ? 12
-        : type === "team2"
-          ? 20
-          : type === "cone"
-            ? 28
-            : type === "ball"
-              ? 36
-              : type === "mannequin"
-                ? 44
-                : type === "textBox"
-                  ? 62
-                  : 54;
-
     const similarObjects = objects.filter((object) => object.type === type);
+    const pitchRect = pitchRef.current?.getBoundingClientRect();
 
-    const shouldShiftRightOnMobile =
-      type === "team1" || type === "team2" || type === "cone";
+    // Add new objects relative to the center of the pitch area that is
+    // currently visible on screen. getPitchPointFromClient reverses the
+    // current pan, rotation, and zoom so the stored x/y coordinates remain
+    // anchored to the pitch.
+    let visiblePlacementPoint = { x: 22, y: 50 };
 
-    const isMobileViewport =
-      typeof window !== "undefined" && window.innerWidth < 768;
+    if (pitchRect) {
+      // Determine the portion of the transformed pitch that is actually
+      // visible inside the fixed viewport. Using the viewport center directly
+      // is wrong after upward panning because the lower half of the viewport
+      // may no longer contain any pitch.
+      const transformedLeft = pitchRect.left + pan.x;
+      const transformedTop = pitchRect.top + pan.y;
+      const transformedRight =
+        transformedLeft + pitchRect.width * zoom;
+      const transformedBottom =
+        transformedTop + pitchRect.height * zoom;
 
-    const startingX = isMobileViewport && shouldShiftRightOnMobile ? 26 : 10;
-    const spacingX = isMobileViewport && shouldShiftRightOnMobile ? 8 : 7;
+      const visibleLeft = Math.max(pitchRect.left, transformedLeft);
+      const visibleTop = Math.max(pitchRect.top, transformedTop);
+      const visibleRight = Math.min(pitchRect.right, transformedRight);
+      const visibleBottom = Math.min(pitchRect.bottom, transformedBottom);
 
-    const nextX = clamp(startingX + similarObjects.length * spacingX, 5, 95);
+      const hasVisiblePitch =
+        visibleRight > visibleLeft && visibleBottom > visibleTop;
+
+      const placementClientX = hasVisiblePitch
+        ? visibleLeft + (visibleRight - visibleLeft) * 0.22
+        : pitchRect.left + pitchRect.width * 0.22;
+
+      const placementClientY = hasVisiblePitch
+        ? visibleTop + (visibleBottom - visibleTop) * 0.5
+        : pitchRect.top + pitchRect.height * 0.5;
+
+      visiblePlacementPoint = getPitchPointFromClient(
+        placementClientX,
+        placementClientY,
+      );
+    }
+
+    // Start on the left-middle of the visible pitch. Offset repeated objects
+    // slightly to the right and downward so they do not stack exactly.
+    const objectIndex = similarObjects.length;
+    const columnOffset = (objectIndex % 5) * 6;
+    const rowOffset = Math.floor(objectIndex / 5) * 6;
+
+    const nextX = clamp(visiblePlacementPoint.x + columnOffset, 5, 95);
+    const rowY = clamp(visiblePlacementPoint.y + rowOffset, 5, 95);
 
     const newObject: PitchObject = {
       id: makeId(),
@@ -3750,6 +3854,19 @@ export default function ActivityCreator({
       setSelectedObjectIds([]);
     }
 
+    // When zoom/pan is unlocked, dragging the empty pitch must always begin a
+    // pan gesture, regardless of which drawing tool was selected previously.
+    if (!isZoomLocked) {
+      setPanState({
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startPanX: pan.x,
+        startPanY: pan.y,
+      });
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
     if (
       selectedTool === "line" ||
       selectedTool === "freehand" ||
@@ -3762,17 +3879,6 @@ export default function ActivityCreator({
 
     if (selectedTool === "eraser") {
       eraseNearestLine(point);
-      return;
-    }
-
-    if (!isZoomLocked) {
-      setPanState({
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startPanX: pan.x,
-        startPanY: pan.y,
-      });
-      event.currentTarget.setPointerCapture(event.pointerId);
     }
   }
 

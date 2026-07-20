@@ -35,6 +35,8 @@ type Pitch = {
   offsetX: number;
   offsetY: number;
   rotationDegrees: number;
+  viewportWidth: number;
+  viewportHeight: number;
 };
 
 type Settings = {
@@ -87,12 +89,27 @@ function coordinate(value: number) {
 
 function getPitch(state: ActivityCreatorState): Pitch {
   if ("pitch" in state) {
+    const savedPitch = state.pitch as typeof state.pitch & {
+      viewportWidth?: number;
+      viewportHeight?: number;
+    };
+
     return {
       background: state.pitch.background,
       zoom: state.pitch.zoom ?? 1,
       offsetX: state.pitch.offsetX ?? 0,
       offsetY: state.pitch.offsetY ?? 0,
       rotationDegrees: state.pitch.rotationDegrees ?? 0,
+      viewportWidth:
+        typeof savedPitch.viewportWidth === "number" &&
+        savedPitch.viewportWidth > 0
+          ? savedPitch.viewportWidth
+          : 1000,
+      viewportHeight:
+        typeof savedPitch.viewportHeight === "number" &&
+        savedPitch.viewportHeight > 0
+          ? savedPitch.viewportHeight
+          : 1333.333333,
     };
   }
 
@@ -102,7 +119,84 @@ function getPitch(state: ActivityCreatorState): Pitch {
     offsetX: 0,
     offsetY: 0,
     rotationDegrees: 0,
+    viewportWidth: 1000,
+    viewportHeight: 1333.333333,
   };
+}
+
+function getExportPan(pitch: Pitch) {
+  return {
+    x: pitch.offsetX * (WIDTH / Math.max(1, pitch.viewportWidth)),
+    y: pitch.offsetY * (HEIGHT / Math.max(1, pitch.viewportHeight)),
+  };
+}
+
+function cropCanvasToVisiblePitch(
+  canvas: HTMLCanvasElement,
+  pitch: Pitch
+) {
+  const exportPan = getExportPan(pitch);
+  const rotationRadians = (pitch.rotationDegrees * Math.PI) / 180;
+  const cos = Math.cos(rotationRadians);
+  const sin = Math.sin(rotationRadians);
+
+  // ActivityCreator transforms from the upper-left corner. Calculate the
+  // transformed pitch corners using that same origin.
+  const transformedCorners = [
+    { x: 0, y: 0 },
+    { x: WIDTH * pitch.zoom, y: 0 },
+    { x: 0, y: HEIGHT * pitch.zoom },
+    { x: WIDTH * pitch.zoom, y: HEIGHT * pitch.zoom },
+  ].map((corner) => ({
+    x: exportPan.x + corner.x * cos - corner.y * sin,
+    y: exportPan.y + corner.x * sin + corner.y * cos,
+  }));
+
+  const pitchBottom = clamp(
+    Math.ceil(
+      Math.max(...transformedCorners.map((corner) => corner.y))
+    ),
+    1,
+    canvas.height
+  );
+
+  // Keep a small amount of breathing room below the transformed pitch.
+  const bottomPadding = Math.round(canvas.height * 0.025);
+  const croppedHeight = clamp(
+    pitchBottom + bottomPadding,
+    1,
+    canvas.height
+  );
+
+  if (croppedHeight >= canvas.height) {
+    return canvas;
+  }
+
+  const croppedCanvas = document.createElement("canvas");
+  croppedCanvas.width = canvas.width;
+  croppedCanvas.height = croppedHeight;
+
+  const context = croppedCanvas.getContext("2d", {
+    willReadFrequently: true,
+  });
+
+  if (!context) {
+    return canvas;
+  }
+
+  context.drawImage(
+    canvas,
+    0,
+    0,
+    canvas.width,
+    croppedHeight,
+    0,
+    0,
+    canvas.width,
+    croppedHeight
+  );
+
+  return croppedCanvas;
 }
 
 function getSettings(state: ActivityCreatorState): Settings {
@@ -164,12 +258,6 @@ async function loadImage(source: string, cache: Map<string, HTMLImageElement>) {
 }
 
 function drawPitch(context: CanvasRenderingContext2D, pitch: Pitch) {
-  context.save();
-  context.translate(WIDTH / 2 + pitch.offsetX, HEIGHT / 2 + pitch.offsetY);
-  context.rotate((pitch.rotationDegrees * Math.PI) / 180);
-  context.scale(pitch.zoom, pitch.zoom);
-  context.translate(-WIDTH / 2, -HEIGHT / 2);
-
   const isGreen =
     pitch.background === "pitchGreen" || pitch.background === "greenBlank";
   const isBlank =
@@ -268,8 +356,6 @@ function drawPitch(context: CanvasRenderingContext2D, pitch: Pitch) {
       context.fill();
     }
   }
-
-  context.restore();
 }
 
 function dribblePoints(points: { x: number; y: number }[]) {
@@ -615,10 +701,27 @@ async function renderFrame(
     throw new Error("The browser could not create an animation canvas.");
   }
 
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, WIDTH, HEIGHT);
-  drawPitch(context, getPitch(activity.creatorState));
+  const pitch = getPitch(activity.creatorState);
+  const isGreenPitch =
+    pitch.background === "pitchGreen" ||
+    pitch.background === "greenBlank";
 
+  // Fill the fixed export viewport first so panning does not expose white.
+  context.fillStyle = isGreenPitch ? "#147506" : "#ffffff";
+  context.fillRect(0, 0, WIDTH, HEIGHT);
+
+  // Match ActivityCreator exactly: the pitch, lines, and objects all live
+  // inside one top-left-origin transformed layer.
+  // Reproduce the editor framing exactly by scaling the saved CSS-pixel pan
+  // from the actual editor viewport dimensions to the fixed export canvas.
+  const exportPan = getExportPan(pitch);
+
+  context.save();
+  context.translate(exportPan.x, exportPan.y);
+  context.rotate((pitch.rotationDegrees * Math.PI) / 180);
+  context.scale(pitch.zoom, pitch.zoom);
+
+  drawPitch(context, pitch);
   frame.lines.forEach((line) => drawLine(context, line));
 
   const settings = getSettings(activity.creatorState);
@@ -634,7 +737,9 @@ async function renderFrame(
     }
   }
 
-  return canvas;
+  context.restore();
+
+  return cropCanvasToVisiblePitch(canvas, pitch);
 }
 
 function interpolateNumber(
@@ -936,8 +1041,15 @@ async function renderMp4Frames(activity: Activity) {
 
 function canvasToCompressedMp4Frame(canvas: HTMLCanvasElement) {
   const compressedCanvas = document.createElement("canvas");
+  const outputHeight = Math.max(
+    1,
+    Math.round(
+      MP4_UPLOAD_WIDTH * (canvas.height / canvas.width)
+    )
+  );
+
   compressedCanvas.width = MP4_UPLOAD_WIDTH;
-  compressedCanvas.height = MP4_UPLOAD_HEIGHT;
+  compressedCanvas.height = outputHeight;
 
   const context = compressedCanvas.getContext("2d");
   if (!context) {
@@ -945,13 +1057,13 @@ function canvasToCompressedMp4Frame(canvas: HTMLCanvasElement) {
   }
 
   context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, MP4_UPLOAD_WIDTH, MP4_UPLOAD_HEIGHT);
+  context.fillRect(0, 0, MP4_UPLOAD_WIDTH, outputHeight);
   context.drawImage(
     canvas,
     0,
     0,
     MP4_UPLOAD_WIDTH,
-    MP4_UPLOAD_HEIGHT
+    outputHeight
   );
 
   return compressedCanvas.toDataURL(
@@ -1013,10 +1125,17 @@ export async function downloadActivityAnimationAsGif(
     const context = frame.canvas.getContext("2d", { willReadFrequently: true });
     if (!context) throw new Error("The GIF frame could not be read.");
 
-    const imageData = context.getImageData(0, 0, WIDTH, HEIGHT);
+    const frameWidth = frame.canvas.width;
+    const frameHeight = frame.canvas.height;
+    const imageData = context.getImageData(
+      0,
+      0,
+      frameWidth,
+      frameHeight
+    );
     const palette = quantize(imageData.data, 256);
     const indexed = applyPalette(imageData.data, palette);
-    gif.writeFrame(indexed, WIDTH, HEIGHT, {
+    gif.writeFrame(indexed, frameWidth, frameHeight, {
       palette,
       delay: getGifFrameDelayMs(
         frame.durationMs,
