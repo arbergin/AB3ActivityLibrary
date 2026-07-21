@@ -30,7 +30,13 @@ const ASSETS = {
 };
 
 type Pitch = {
-  background: "pitchGreen" | "pitchWhite" | "greenBlank" | "whiteBlank";
+  background:
+    | "pitchGreen"
+    | "pitchGreenTilted"
+    | "greenBlank"
+    | "pitchWhite"
+    | "pitchWhiteTilted"
+    | "whiteBlank";
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -258,8 +264,13 @@ async function loadImage(source: string, cache: Map<string, HTMLImageElement>) {
 }
 
 function drawPitch(context: CanvasRenderingContext2D, pitch: Pitch) {
+  const isTilted =
+    pitch.background === "pitchGreenTilted" ||
+    pitch.background === "pitchWhiteTilted";
   const isGreen =
-    pitch.background === "pitchGreen" || pitch.background === "greenBlank";
+    pitch.background === "pitchGreen" ||
+    pitch.background === "pitchGreenTilted" ||
+    pitch.background === "greenBlank";
   const isBlank =
     pitch.background === "greenBlank" || pitch.background === "whiteBlank";
   const gradient = context.createLinearGradient(0, 0, 0, HEIGHT);
@@ -298,6 +309,195 @@ function drawPitch(context: CanvasRenderingContext2D, pitch: Pitch) {
     context.lineWidth = Math.max(2, Math.min(WIDTH, HEIGHT) * 0.0045);
     context.lineCap = "round";
     context.lineJoin = "round";
+
+    if (isTilted) {
+      function strokePath(
+        points: Array<[number, number]>,
+        close = false
+      ) {
+        context.beginPath();
+
+        points.forEach(([pointX, pointY], index) => {
+          if (index === 0) {
+            context.moveTo(x(pointX), y(pointY));
+          } else {
+            context.lineTo(x(pointX), y(pointY));
+          }
+        });
+
+        if (close) {
+          context.closePath();
+        }
+
+        context.stroke();
+      }
+
+      // Outer touchlines: narrower at the far end and wider at the near end.
+      strokePath(
+        [
+          [18, 7],
+          [82, 7],
+          [94, 127.333333],
+          [6, 127.333333],
+        ],
+        true
+      );
+
+      // Halfway line and perspective center circle.
+      strokePath([
+        [12, 66.666667],
+        [88, 66.666667],
+      ]);
+
+      context.beginPath();
+      context.ellipse(
+        x(50),
+        y(66.666667),
+        x(9.5),
+        y(7.2),
+        0,
+        0,
+        Math.PI * 2
+      );
+      context.stroke();
+
+      // Far penalty area and goal area.
+      strokePath(
+        [
+          [28, 7],
+          [72, 7],
+          [73.5, 23.5],
+          [26.5, 23.5],
+        ],
+        true
+      );
+      strokePath(
+        [
+          [39, 7],
+          [61, 7],
+          [61.5, 14.333333],
+          [38.5, 14.333333],
+        ],
+        true
+      );
+
+      // Near penalty area and goal area.
+      strokePath(
+        [
+          [24, 108],
+          [76, 108],
+          [78, 127.333333],
+          [22, 127.333333],
+        ],
+        true
+      );
+      strokePath(
+        [
+          [36, 120],
+          [64, 120],
+          [64.5, 127.333333],
+          [35.5, 127.333333],
+        ],
+        true
+      );
+
+      // Perspective-flattened penalty arcs.
+      context.beginPath();
+      context.moveTo(x(43.5), y(23.5));
+      context.bezierCurveTo(
+        x(45.8),
+        y(28.1),
+        x(54.2),
+        y(28.1),
+        x(56.5),
+        y(23.5)
+      );
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(41.5), y(108));
+      context.bezierCurveTo(
+        x(44),
+        y(101.5),
+        x(56),
+        y(101.5),
+        x(58.5),
+        y(108)
+      );
+      context.stroke();
+
+      // Corner arcs.
+      context.beginPath();
+      context.moveTo(x(20.8), y(7));
+      context.bezierCurveTo(
+        x(20.8),
+        y(8.5),
+        x(19.4),
+        y(9.6),
+        x(17.8),
+        y(9.6)
+      );
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(79.2), y(7));
+      context.bezierCurveTo(
+        x(79.2),
+        y(8.5),
+        x(80.6),
+        y(9.6),
+        x(82.2),
+        y(9.6)
+      );
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(8.8), y(127.333333));
+      context.bezierCurveTo(
+        x(8.8),
+        y(125.8),
+        x(7.7),
+        y(124.5),
+        x(6.28),
+        y(124.5)
+      );
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(91.2), y(127.333333));
+      context.bezierCurveTo(
+        x(91.2),
+        y(125.8),
+        x(92.3),
+        y(124.5),
+        x(93.72),
+        y(124.5)
+      );
+      context.stroke();
+
+      const tiltedDotRadius = Math.max(
+        2,
+        Math.min(WIDTH, HEIGHT) * 0.0048
+      );
+
+      for (const [dotX, dotY] of [
+        [50, 66.666667],
+        [50, 18.666667],
+        [50, 114.666667],
+      ] as Array<[number, number]>) {
+        context.beginPath();
+        context.arc(
+          x(dotX),
+          y(dotY),
+          tiltedDotRadius,
+          0,
+          Math.PI * 2
+        );
+        context.fill();
+      }
+
+      return;
+    }
 
     context.strokeRect(x(8), y(6), x(84), y(121.333333));
     context.beginPath();
@@ -704,6 +904,7 @@ async function renderFrame(
   const pitch = getPitch(activity.creatorState);
   const isGreenPitch =
     pitch.background === "pitchGreen" ||
+    pitch.background === "pitchGreenTilted" ||
     pitch.background === "greenBlank";
 
   // Fill the fixed export viewport first so panning does not expose white.

@@ -32,7 +32,12 @@ type ObjectToolType = Exclude<
 >;
 
 type PitchBackgroundType =
-  "pitchGreen" | "pitchWhite" | "greenBlank" | "whiteBlank";
+  | "pitchGreen"
+  | "pitchGreenTilted"
+  | "greenBlank"
+  | "pitchWhite"
+  | "pitchWhiteTilted"
+  | "whiteBlank";
 
 type PlayerDisplayMode = "number" | "name" | "both" | "none";
 
@@ -113,14 +118,24 @@ const pitchBackgrounds: {
     assetPath: "/activity-assets/pitch_green.png",
   },
   {
-    type: "pitchWhite",
-    label: "White Pitch",
-    assetPath: "/activity-assets/pitch_white.png",
+    type: "pitchGreenTilted",
+    label: "Green Tilted",
+    assetPath: "",
   },
   {
     type: "greenBlank",
     label: "Green Blank",
     assetPath: "/activity-assets/green_blank.png",
+  },
+  {
+    type: "pitchWhite",
+    label: "White Pitch",
+    assetPath: "/activity-assets/pitch_white.png",
+  },
+  {
+    type: "pitchWhiteTilted",
+    label: "White Tilted",
+    assetPath: "",
   },
   {
     type: "whiteBlank",
@@ -674,7 +689,13 @@ function CodedPitchBackground({
   panY?: number;
   rotationDegrees?: number;
 }) {
-  const isGreen = background === "pitchGreen" || background === "greenBlank";
+  const isTilted =
+    background === "pitchGreenTilted" ||
+    background === "pitchWhiteTilted";
+  const isGreen =
+    background === "pitchGreen" ||
+    background === "pitchGreenTilted" ||
+    background === "greenBlank";
   const isBlank = background === "greenBlank" || background === "whiteBlank";
   const lineColor = isGreen ? "#ffffff" : "#111827";
 
@@ -742,41 +763,84 @@ function CodedPitchBackground({
             />
           ))}
 
-        {!isBlank && (
-          <g
-            fill="none"
-            stroke={lineColor}
-            strokeWidth="0.55"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="8" y="6" width="84" height="121.333333" />
+        {!isBlank && isTilted && (
+          <>
+            <g
+              fill="none"
+              stroke={lineColor}
+              strokeWidth="0.55"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {/* Outer touchlines: narrower at the far end, wider at the near end. */}
+              <path d="M 18 7 L 82 7 L 94 127.333333 L 6 127.333333 Z" />
 
-            <line x1="8" y1="66.666667" x2="92" y2="66.666667" />
-            <circle cx="50" cy="66.666667" r="9.5" />
+              {/* Halfway line and perspective center circle. */}
+              <line x1="12" y1="66.666667" x2="88" y2="66.666667" />
+              <ellipse cx="50" cy="66.666667" rx="9.5" ry="7.2" />
 
-            <rect x="26" y="6" width="48" height="19.333333" />
-            <rect x="38" y="6" width="24" height="7.333333" />
+              {/* Far penalty area and goal area. */}
+              <path d="M 28 7 L 72 7 L 73.5 23.5 L 26.5 23.5 Z" />
+              <path d="M 39 7 L 61 7 L 61.5 14.333333 L 38.5 14.333333 Z" />
 
-            <rect x="26" y="108" width="48" height="19.333333" />
-            <rect x="38" y="120" width="24" height="7.333333" />
+              {/* Near penalty area and goal area. */}
+              <path d="M 24 108 L 76 108 L 78 127.333333 L 22 127.333333 Z" />
+              <path d="M 36 120 L 64 120 L 64.5 127.333333 L 35.5 127.333333 Z" />
 
-            <path d="M 43.04 25.333333 A 8.5 8.5 0 0 0 56.96 25.333333" />
-            <path d="M 43.04 108 A 8.5 8.5 0 0 1 56.96 108" />
+              {/* Perspective-flattened penalty arcs. */}
+              <path d="M 43.5 23.5 C 45.8 28.1 54.2 28.1 56.5 23.5" />
+              <path d="M 41.5 108 C 44 101.5 56 101.5 58.5 108" />
 
-            <path d="M 10.8 6 A 2.8 2.8 0 0 1 8 8.8" />
-            <path d="M 89.2 6 A 2.8 2.8 0 0 0 92 8.8" />
-            <path d="M 10.8 127.333333 A 2.8 2.8 0 0 0 8 124.533333" />
-            <path d="M 89.2 127.333333 A 2.8 2.8 0 0 1 92 124.533333" />
-          </g>
+              {/* Corner arcs. */}
+              <path d="M 20.8 7 C 20.8 8.5 19.4 9.6 17.8 9.6" />
+              <path d="M 79.2 7 C 79.2 8.5 80.6 9.6 82.2 9.6" />
+              <path d="M 8.8 127.333333 C 8.8 125.8 7.7 124.5 6.28 124.5" />
+              <path d="M 91.2 127.333333 C 91.2 125.8 92.3 124.5 93.72 124.5" />
+            </g>
+
+            <g fill={lineColor}>
+              <circle cx="50" cy="66.666667" r="0.65" />
+              <circle cx="50" cy="18.666667" r="0.65" />
+              <circle cx="50" cy="114.666667" r="0.65" />
+            </g>
+          </>
         )}
 
-        {!isBlank && (
-          <g fill={lineColor}>
-            <circle cx="50" cy="66.666667" r="0.65" />
-            <circle cx="50" cy="18.666667" r="0.65" />
-            <circle cx="50" cy="114.666667" r="0.65" />
-          </g>
+        {!isBlank && !isTilted && (
+          <>
+            <g
+              fill="none"
+              stroke={lineColor}
+              strokeWidth="0.55"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="8" y="6" width="84" height="121.333333" />
+
+              <line x1="8" y1="66.666667" x2="92" y2="66.666667" />
+              <circle cx="50" cy="66.666667" r="9.5" />
+
+              <rect x="26" y="6" width="48" height="19.333333" />
+              <rect x="38" y="6" width="24" height="7.333333" />
+
+              <rect x="26" y="108" width="48" height="19.333333" />
+              <rect x="38" y="120" width="24" height="7.333333" />
+
+              <path d="M 43.04 25.333333 A 8.5 8.5 0 0 0 56.96 25.333333" />
+              <path d="M 43.04 108 A 8.5 8.5 0 0 1 56.96 108" />
+
+              <path d="M 10.8 6 A 2.8 2.8 0 0 1 8 8.8" />
+              <path d="M 89.2 6 A 2.8 2.8 0 0 0 92 8.8" />
+              <path d="M 10.8 127.333333 A 2.8 2.8 0 0 0 8 124.533333" />
+              <path d="M 89.2 127.333333 A 2.8 2.8 0 0 1 92 124.533333" />
+            </g>
+
+            <g fill={lineColor}>
+              <circle cx="50" cy="66.666667" r="0.65" />
+              <circle cx="50" cy="18.666667" r="0.65" />
+              <circle cx="50" cy="114.666667" r="0.65" />
+            </g>
+          </>
         )}
       </svg>
     </div>
@@ -936,7 +1000,9 @@ function getFiniteNumber(value: unknown, fallback: number) {
 function isPitchBackground(value: unknown): value is PitchBackgroundType {
   return (
     value === "pitchGreen" ||
+    value === "pitchGreenTilted" ||
     value === "pitchWhite" ||
+    value === "pitchWhiteTilted" ||
     value === "greenBlank" ||
     value === "whiteBlank"
   );
@@ -3228,7 +3294,13 @@ export default function ActivityCreator({
     canvasHeight: number,
     background: PitchBackgroundType,
   ) {
-    const isGreen = background === "pitchGreen" || background === "greenBlank";
+    const isTilted =
+      background === "pitchGreenTilted" ||
+      background === "pitchWhiteTilted";
+    const isGreen =
+      background === "pitchGreen" ||
+      background === "pitchGreenTilted" ||
+      background === "greenBlank";
     const isBlank = background === "greenBlank" || background === "whiteBlank";
 
     const gradient = context.createLinearGradient(0, 0, 0, canvasHeight);
@@ -3275,6 +3347,95 @@ export default function ActivityCreator({
     );
     context.lineCap = "round";
     context.lineJoin = "round";
+
+    if (isTilted) {
+      function strokePath(points: Array<[number, number]>, close = false) {
+        context.beginPath();
+        points.forEach(([pointX, pointY], index) => {
+          if (index === 0) {
+            context.moveTo(x(pointX), y(pointY));
+          } else {
+            context.lineTo(x(pointX), y(pointY));
+          }
+        });
+        if (close) context.closePath();
+        context.stroke();
+      }
+
+      strokePath(
+        [
+          [18, 7],
+          [82, 7],
+          [94, 127.333333],
+          [6, 127.333333],
+        ],
+        true,
+      );
+      strokePath([[12, 66.666667], [88, 66.666667]]);
+
+      context.beginPath();
+      context.ellipse(x(50), y(66.666667), x(9.5), y(7.2), 0, 0, Math.PI * 2);
+      context.stroke();
+
+      strokePath([[28, 7], [72, 7], [73.5, 23.5], [26.5, 23.5]], true);
+      strokePath([[39, 7], [61, 7], [61.5, 14.333333], [38.5, 14.333333]], true);
+      strokePath([[24, 108], [76, 108], [78, 127.333333], [22, 127.333333]], true);
+      strokePath([[36, 120], [64, 120], [64.5, 127.333333], [35.5, 127.333333]], true);
+
+      context.beginPath();
+      context.moveTo(x(43.5), y(23.5));
+      context.bezierCurveTo(x(45.8), y(28.1), x(54.2), y(28.1), x(56.5), y(23.5));
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(41.5), y(108));
+      context.bezierCurveTo(x(44), y(101.5), x(56), y(101.5), x(58.5), y(108));
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(20.8), y(7));
+      context.bezierCurveTo(x(20.8), y(8.5), x(19.4), y(9.6), x(17.8), y(9.6));
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(79.2), y(7));
+      context.bezierCurveTo(x(79.2), y(8.5), x(80.6), y(9.6), x(82.2), y(9.6));
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(8.8), y(127.333333));
+      context.bezierCurveTo(
+        x(8.8),
+        y(125.8),
+        x(7.7),
+        y(124.5),
+        x(6.28),
+        y(124.5),
+      );
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x(91.2), y(127.333333));
+      context.bezierCurveTo(
+        x(91.2),
+        y(125.8),
+        x(92.3),
+        y(124.5),
+        x(93.72),
+        y(124.5),
+      );
+      context.stroke();
+
+      const tiltedDotRadius = Math.max(3, Math.min(canvasWidth, canvasHeight) * 0.0048);
+      for (const [dotX, dotY] of [[50, 66.666667], [50, 18.666667], [50, 114.666667]] as Array<[number, number]>) {
+        context.beginPath();
+        context.arc(x(dotX), y(dotY), tiltedDotRadius, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      context.restore();
+      return;
+    }
 
     context.strokeRect(x(8), y(6), x(84), y(121.333333));
 

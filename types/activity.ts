@@ -88,7 +88,13 @@ export type ActivityCreatorSettingsV1 = {
 };
 
 export type ActivityCreatorPitchStateV2 = {
-  background: "pitchGreen" | "pitchWhite" | "greenBlank" | "whiteBlank";
+  background:
+    | "pitchGreen"
+    | "pitchGreenTilted"
+    | "greenBlank"
+    | "pitchWhite"
+    | "pitchWhiteTilted"
+    | "whiteBlank";
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -116,7 +122,13 @@ export type ActivityCreatorSettingsV2 = {
 };
 
 export type ActivityCreatorStateV1 = {
-  selectedPitchBackground: "pitchGreen" | "pitchWhite" | "greenBlank" | "whiteBlank";
+  selectedPitchBackground:
+    | "pitchGreen"
+    | "pitchGreenTilted"
+    | "greenBlank"
+    | "pitchWhite"
+    | "pitchWhiteTilted"
+    | "whiteBlank";
   objects: ActivityCreatorObject[];
   lines: ActivityCreatorLine[];
   settings: ActivityCreatorSettingsV1;
