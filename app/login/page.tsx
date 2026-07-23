@@ -786,23 +786,24 @@ export default function LoginPage() {
 
                     <p className="mt-5 text-lg leading-8 text-slate-700">
                       I was unhappy with the current tools out there—complicated,
-                      over-engineered, still missing what I needed, and priced
-                      accordingly. So I set out to build the tool I wanted to
+                      over-engineered, still missing what I needed, and the price
+                      (in this economy??)...
+                      So I set out to build the tool I wanted to
                       use myself.
                     </p>
+
+                     <p className="mt-5 text-base leading-7 text-slate-700 sm:text-lg">
+                    And then I thought, well, maybe some other coaches could get
+                    some use out of it too.
+                  </p>
                   </div>
                 </div>
 
                 <div className="mt-8 rounded-3xl bg-slate-50/90 p-6 ring-1 ring-slate-200 sm:p-8">
                   <p className="text-xl font-semibold leading-8 text-[#0d2140] sm:text-2xl sm:leading-9">
                     My guiding principle in designing this website is the same
-                    as my tactical coaching philosophy: do the simple things
+                    as my coaching philosophy: do the simple things
                     really, really well.
-                  </p>
-
-                  <p className="mt-5 text-base leading-7 text-slate-700 sm:text-lg">
-                    And then I thought, well, maybe some other coaches could get
-                    some use out of it too.
                   </p>
 
                   <Link
