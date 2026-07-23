@@ -5902,11 +5902,6 @@ export default function ActivityCreator({
           </button>
         </div>
 
-        {message && (
-          <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-            {message}
-          </div>
-        )}
       </section>
 
       <section
