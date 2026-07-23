@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toPng } from "html-to-image";
@@ -5252,29 +5253,29 @@ export default function ActivityCreator({
         }`}
       >
         {showActivityTabs && (
-          <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-1 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+            <div className="flex flex-wrap items-center gap-1">
               <button
                 type="button"
                 onClick={openFrameManager}
                 disabled={isPlayingAnimation}
-                className="mr-1 flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-[#0d2140] shadow-sm hover:bg-slate-100 disabled:opacity-40"
+                className="mr-0.5 flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-[#0d2140] shadow-sm hover:bg-slate-100 disabled:opacity-40"
                 title="Open Frame Manager"
                 aria-label="Open Frame Manager"
               >
-                <FrameManagerIcon />
+                <FrameManagerIcon className="h-4 w-4" />
               </button>
               {frames.map((frame, index) => (
                 <div
                   key={frame.id}
-                  className="flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white"
+                  className="flex items-center overflow-hidden rounded-md border border-slate-300 bg-white"
                 >
                   <button
                     type="button"
                     onClick={() => switchFrame(frame.id)}
                     onDoubleClick={() => renameFrame(frame.id)}
                     disabled={isPlayingAnimation}
-                    className={`px-3 py-2 text-sm font-bold ${
+                    className={`px-2 py-1 text-xs font-bold ${
                       frame.id === activeFrameId && !isPlayingAnimation
                         ? "bg-[#0d2140] text-white"
                         : isPlayingAnimation && index === playbackFrameIndex
@@ -5299,7 +5300,7 @@ export default function ActivityCreator({
                         )
                       }
                       disabled={isPlayingAnimation}
-                      className="w-20 border-l border-slate-200 px-2 py-2 text-xs text-slate-600"
+                      className="w-16 border-l border-slate-200 px-1.5 py-1 text-[10px] text-slate-600"
                       title="Animation duration in milliseconds"
                     />
                   )}
@@ -5307,7 +5308,7 @@ export default function ActivityCreator({
                     type="button"
                     onClick={() => deleteFrame(frame.id)}
                     disabled={isPlayingAnimation || frames.length === 1}
-                    className="border-l border-slate-200 px-2 py-2 text-xs font-bold text-red-600 disabled:text-slate-300"
+                    className="border-l border-slate-200 px-1.5 py-1 text-[10px] font-bold text-red-600 disabled:text-slate-300"
                     title="Delete tab"
                   >
                     ×
@@ -5318,21 +5319,21 @@ export default function ActivityCreator({
                 type="button"
                 onClick={addFrame}
                 disabled={isPlayingAnimation}
-                className="rounded-lg bg-[#0d2140] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+                className="rounded-md bg-[#0d2140] px-2 py-1 text-xs font-bold text-white disabled:opacity-50"
               >
                 + New Tab
               </button>
               <button
                 type="button"
                 onClick={toggleAnimationPlayback}
-                className={`rounded-lg px-3 py-2 text-sm font-bold text-white ${
+                className={`rounded-md px-2 py-1 text-xs font-bold text-white ${
                   isPlayingAnimation ? "bg-red-600" : "bg-emerald-600"
                 }`}
               >
                 {isPlayingAnimation ? "Stop Animation" : "Play Animation"}
               </button>
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-1 text-[10px] leading-tight text-slate-500">
               New tabs copy the most recent tab and preserve object IDs so
               movement can animate between tabs. Animation plays once and stops
               on the final tab.
@@ -5864,6 +5865,15 @@ export default function ActivityCreator({
           >
             Redo
           </button>
+
+          {initialActivity?.id && (
+            <Link
+              href={`/activity/${initialActivity.id}`}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              Back to Activity
+            </Link>
+          )}
 
           <button
             type="button"

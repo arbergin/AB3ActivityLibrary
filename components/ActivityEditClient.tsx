@@ -775,22 +775,6 @@ export default function ActivityEditClient({
         <AppHeader />
 
         <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-bold">Edit Activity</h2>
-              <p className="mt-2 text-slate-600">
-                Adjust the saved pitch icons, lines, tabs, animation sequence, colors, and metadata.
-              </p>
-            </div>
-
-            <Link
-              href={`/activity/${activity.id}`}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700"
-            >
-              Back to Activity
-            </Link>
-          </div>
-
           <ActivityCreator initialActivity={activity} />
         </section>
       </main>
