@@ -759,6 +759,65 @@ export default function LoginPage() {
               </section>
 
               <section className="mt-12 border-t border-slate-200 pt-9">
+                <div className="mb-8 text-center">
+                  <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">
+                    Simple pricing
+                  </p>
+                  <h2 className="mt-2 text-3xl font-black text-[#0d2140] sm:text-4xl">
+                    Professional tools without the professional-tool price
+                  </h2>
+                  <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-700 sm:text-lg">
+                    Get the full AB3 Soccer Activity Library for a fraction of
+                    the cost of competing tools that can run around $60 per
+                    year.
+                  </p>
+                </div>
+
+                <div className="mx-auto grid max-w-3xl gap-5 md:grid-cols-2">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-lg sm:p-8">
+                    <p className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+                      Monthly
+                    </p>
+                    <div className="mt-4 flex items-end justify-center gap-1 text-[#0d2140]">
+                      <span className="text-5xl font-black">$1.99</span>
+                      <span className="pb-1 text-base font-semibold text-slate-500">
+                        /month
+                      </span>
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-slate-600">
+                      Flexible month-to-month access with no long-term
+                      commitment.
+                    </p>
+                  </div>
+
+                  <div className="relative rounded-3xl border-2 border-[#0d2140] bg-[#0d2140] p-6 text-center text-white shadow-xl sm:p-8">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-4 py-1 text-xs font-black uppercase tracking-wide text-white shadow-md">
+                      Best value
+                    </div>
+                    <p className="text-sm font-bold uppercase tracking-[0.16em] text-slate-300">
+                      Annual
+                    </p>
+                    <div className="mt-4 flex items-end justify-center gap-1">
+                      <span className="text-5xl font-black">$14.99</span>
+                      <span className="pb-1 text-base font-semibold text-slate-300">
+                        /year
+                      </span>
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-slate-200">
+                      Save nearly 37% compared with paying monthly for a full
+                      year.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mx-auto mt-6 max-w-3xl rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-center">
+                  <p className="font-bold text-emerald-900">
+                    About $45 less per year than a $60 competitor subscription.
+                  </p>
+                </div>
+              </section>
+
+              <section className="mt-12 border-t border-slate-200 pt-9">
                 <div className="mb-7">
                   <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">
                     The person behind AB3
