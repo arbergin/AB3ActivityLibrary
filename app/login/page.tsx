@@ -873,6 +873,39 @@ export default function LoginPage() {
                   </Link>
                 </div>
               </section>
+
+              <footer className="mt-12 border-t border-slate-200 pt-6">
+                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-600">
+                  <Link
+                    href="/terms-of-service"
+                    className="transition hover:text-[#0d2140]"
+                  >
+                    Terms of Service
+                  </Link>
+                  <Link
+                    href="/refund-policy"
+                    className="transition hover:text-[#0d2140]"
+                  >
+                    Refund Policy
+                  </Link>
+                  <Link
+                    href="/privacy-policy"
+                    className="transition hover:text-[#0d2140]"
+                  >
+                    Privacy Policy
+                  </Link>
+                  <a
+                    href="mailto:Support@ab3soccer.com"
+                    className="transition hover:text-[#0d2140]"
+                  >
+                    Support@ab3soccer.com
+                  </a>
+                </div>
+
+                <p className="mt-3 text-center text-xs text-slate-500">
+                  © 2026 AB3 Analytics, LLC. All rights reserved.
+                </p>
+              </footer>
             </div>
           </div>
         </div>
