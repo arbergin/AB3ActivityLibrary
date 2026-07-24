@@ -5955,7 +5955,7 @@ export default function ActivityCreator({
           onWheel={handleWheel}
         >
           <div
-            className={`pointer-events-none z-50 ${
+            className={`pointer-events-none z-40 ${
               dockedPitchControls.isDocked
                 ? "fixed"
                 : "absolute inset-0"
