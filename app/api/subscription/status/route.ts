@@ -75,7 +75,7 @@ export async function GET(request: Request) {
       "role, subscription_status, subscription_plan, subscription_current_period_end, subscription_cancel_at_period_end, subscription_exempt"
     )
     .eq("id", user.id)
-    .single<SubscriptionProfile>();
+    .single();
 
   if (profileError || !profile) {
     console.error("Unable to read subscription profile.", profileError);
@@ -86,15 +86,39 @@ export async function GET(request: Request) {
     );
   }
 
+  const typedProfile: SubscriptionProfile = {
+    role: typeof profile.role === "string" ? profile.role : null,
+    subscription_status:
+      typeof profile.subscription_status === "string"
+        ? profile.subscription_status
+        : null,
+    subscription_plan:
+      typeof profile.subscription_plan === "string"
+        ? profile.subscription_plan
+        : null,
+    subscription_current_period_end:
+      typeof profile.subscription_current_period_end === "string"
+        ? profile.subscription_current_period_end
+        : null,
+    subscription_cancel_at_period_end:
+      typeof profile.subscription_cancel_at_period_end === "boolean"
+        ? profile.subscription_cancel_at_period_end
+        : null,
+    subscription_exempt:
+      typeof profile.subscription_exempt === "boolean"
+        ? profile.subscription_exempt
+        : null,
+  };
+
   return NextResponse.json(
     {
-      status: profile.subscription_status || "none",
-      plan: profile.subscription_plan,
-      currentPeriodEnd: profile.subscription_current_period_end,
+      status: typedProfile.subscription_status || "none",
+      plan: typedProfile.subscription_plan,
+      currentPeriodEnd: typedProfile.subscription_current_period_end,
       cancelAtPeriodEnd:
-        profile.subscription_cancel_at_period_end === true,
-      exempt: profile.subscription_exempt === true,
-      hasAccess: hasSubscriptionAccess(profile),
+        typedProfile.subscription_cancel_at_period_end === true,
+      exempt: typedProfile.subscription_exempt === true,
+      hasAccess: hasSubscriptionAccess(typedProfile),
     },
     {
       headers: {
