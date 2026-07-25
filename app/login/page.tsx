@@ -645,7 +645,7 @@ export default function LoginPage() {
                 </Link>
 
                 <Link
-                  href="/subscribe"
+                  href="/pricing"
                   className="text-center text-sm font-semibold text-[#0d2140] underline"
                 >
                   View subscription options
