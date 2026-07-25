@@ -582,7 +582,7 @@ export default function LoginPage() {
                 <h2 className="text-xl font-bold">Login</h2>
 
                 <p className="mt-2 text-sm text-slate-600">
-                  Use the email and password provided by an admin.
+                  Log in to your AB3 Activity Library account.
                 </p>
               </div>
 
@@ -636,8 +636,20 @@ export default function LoginPage() {
                 </button>
               </form>
 
-              <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                Need access? Ask an admin to create your account.
+              <div className="mt-5 grid gap-3">
+                <Link
+                  href="/signup"
+                  className="inline-flex w-full justify-center rounded-lg border border-[#0d2140] bg-white px-4 py-2 font-bold text-[#0d2140] transition hover:bg-slate-50"
+                >
+                  Create Account
+                </Link>
+
+                <Link
+                  href="/subscribe"
+                  className="text-center text-sm font-semibold text-[#0d2140] underline"
+                >
+                  View subscription options
+                </Link>
               </div>
             </div>
           </aside>
