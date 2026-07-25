@@ -69,22 +69,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const { data, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select(
-      [
-        "role",
-        "subscription_status",
-        "subscription_plan",
-        "subscription_current_period_end",
-        "subscription_cancel_at_period_end",
-        "subscription_exempt",
-      ].join(",")
+      "role, subscription_status, subscription_plan, subscription_current_period_end, subscription_cancel_at_period_end, subscription_exempt"
     )
     .eq("id", user.id)
-    .single();
+    .single<SubscriptionProfile>();
 
-  if (profileError || !data) {
+  if (profileError || !profile) {
     console.error("Unable to read subscription profile.", profileError);
 
     return NextResponse.json(
@@ -92,8 +85,6 @@ export async function GET(request: Request) {
       { status: 404 }
     );
   }
-
-  const profile = data as SubscriptionProfile;
 
   return NextResponse.json(
     {
