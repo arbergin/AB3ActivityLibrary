@@ -19,31 +19,23 @@ type PaddleCustomData = {
   plan?: unknown;
 };
 
-type PaddlePrice = {
-  id?: unknown;
-};
-
-type PaddleSubscriptionItem = {
-  price?: PaddlePrice | null;
-};
-
-type PaddleBillingPeriod = {
-  starts_at?: unknown;
-  ends_at?: unknown;
-};
-
-type PaddleScheduledChange = {
-  action?: unknown;
-};
-
 type PaddleSubscriptionPayload = {
   id?: unknown;
   customer_id?: unknown;
   status?: unknown;
   custom_data?: PaddleCustomData | null;
-  current_billing_period?: PaddleBillingPeriod | null;
-  scheduled_change?: PaddleScheduledChange | null;
-  items?: PaddleSubscriptionItem[] | null;
+  current_billing_period?: {
+    starts_at?: unknown;
+    ends_at?: unknown;
+  } | null;
+  scheduled_change?: {
+    action?: unknown;
+  } | null;
+  items?: Array<{
+    price?: {
+      id?: unknown;
+    } | null;
+  }> | null;
 };
 
 type PaddleWebhookPayload = {
@@ -53,10 +45,13 @@ type PaddleWebhookPayload = {
   data?: PaddleSubscriptionPayload | Record<string, unknown> | null;
 };
 
+type ExistingWebhookEvent = {
+  id: string;
+  processing_status: string;
+};
+
 function asString(value: unknown): string | null {
-  return typeof value === "string" && value.trim()
-    ? value.trim()
-    : null;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function normalizeSubscriptionStatus(value: unknown) {
@@ -77,11 +72,9 @@ function normalizePlan(value: unknown): "monthly" | "annual" | null {
 }
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Unknown webhook processing error.";
+  return error instanceof Error
+    ? error.message
+    : "Unknown webhook processing error.";
 }
 
 export async function POST(request: Request) {
@@ -109,7 +102,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Paddle signature verification requires the exact, unmodified request body.
   const rawBody = await request.text();
 
   try {
@@ -155,7 +147,8 @@ export async function POST(request: Request) {
     },
   });
 
-  // The unique paddle_event_id constraint makes webhook processing idempotent.
+  let eventRowId: string;
+
   const { data: insertedEvent, error: insertError } = await supabaseAdmin
     .from("paddle_webhook_events")
     .insert({
@@ -163,28 +156,71 @@ export async function POST(request: Request) {
       event_type: eventType,
       occurred_at: occurredAt,
       processing_status: "processing",
+      processing_error: null,
+      processed_at: null,
       payload,
     })
     .select("id")
     .single();
 
-  if (insertError) {
-    if (insertError.code === "23505") {
+  if (!insertError && insertedEvent) {
+    eventRowId = insertedEvent.id as string;
+  } else if (insertError?.code === "23505") {
+    const { data: existingEvent, error: existingEventError } =
+      await supabaseAdmin
+        .from("paddle_webhook_events")
+        .select("id, processing_status")
+        .eq("paddle_event_id", paddleEventId)
+        .single<ExistingWebhookEvent>();
+
+    if (existingEventError || !existingEvent) {
+      return NextResponse.json(
+        { error: "Unable to load existing webhook." },
+        { status: 500 }
+      );
+    }
+
+    if (
+      existingEvent.processing_status === "processed" ||
+      existingEvent.processing_status === "ignored"
+    ) {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+
+    if (existingEvent.processing_status === "processing") {
       return NextResponse.json({
         received: true,
         duplicate: true,
+        processing: true,
       });
     }
 
-    console.error("Unable to record Paddle webhook.", insertError);
+    eventRowId = existingEvent.id;
 
+    const { error: resetError } = await supabaseAdmin
+      .from("paddle_webhook_events")
+      .update({
+        event_type: eventType,
+        occurred_at: occurredAt,
+        processing_status: "processing",
+        processing_error: null,
+        processed_at: null,
+        payload,
+      })
+      .eq("id", eventRowId);
+
+    if (resetError) {
+      return NextResponse.json(
+        { error: "Unable to retry webhook." },
+        { status: 500 }
+      );
+    }
+  } else {
     return NextResponse.json(
       { error: "Unable to record webhook." },
       { status: 500 }
     );
   }
-
-  const eventRowId = insertedEvent.id as string;
 
   try {
     if (!HANDLED_SUBSCRIPTION_EVENTS.has(eventType)) {
@@ -201,10 +237,7 @@ export async function POST(request: Request) {
         throw ignoredError;
       }
 
-      return NextResponse.json({
-        received: true,
-        ignored: true,
-      });
+      return NextResponse.json({ received: true, ignored: true });
     }
 
     const subscription = payload.data as PaddleSubscriptionPayload | null;
@@ -215,18 +248,14 @@ export async function POST(request: Request) {
 
     const subscriptionId = asString(subscription.id);
     const paddleCustomerId = asString(subscription.customer_id);
-    const userId = asString(
-      subscription.custom_data?.supabase_user_id
-    );
+    const userId = asString(subscription.custom_data?.supabase_user_id);
     const plan = normalizePlan(subscription.custom_data?.plan);
     const status = normalizeSubscriptionStatus(subscription.status);
     const priceId = asString(subscription.items?.[0]?.price?.id);
     const periodStart = asString(
       subscription.current_billing_period?.starts_at
     );
-    const periodEnd = asString(
-      subscription.current_billing_period?.ends_at
-    );
+    const periodEnd = asString(subscription.current_billing_period?.ends_at);
     const cancelAtPeriodEnd =
       subscription.scheduled_change?.action === "cancel";
 
@@ -238,6 +267,40 @@ export async function POST(request: Request) {
       throw new Error(
         "Subscription webhook did not contain custom_data.supabase_user_id."
       );
+    }
+
+    const { data: authUserData, error: authUserError } =
+      await supabaseAdmin.auth.admin.getUserById(userId);
+
+    if (authUserError || !authUserData.user) {
+      throw new Error(`Supabase auth user ${userId} could not be loaded.`);
+    }
+
+    const authUser = authUserData.user;
+    const metadata = authUser.user_metadata ?? {};
+    const fallbackName =
+      (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
+      (typeof metadata.name === "string" && metadata.name.trim()) ||
+      authUser.email?.split("@")[0] ||
+      "AB3 User";
+
+    const { error: ensureProfileError } = await supabaseAdmin
+      .from("profiles")
+      .upsert(
+        {
+          id: userId,
+          email: authUser.email ?? null,
+          name: fallbackName,
+          role: "user",
+        },
+        {
+          onConflict: "id",
+          ignoreDuplicates: true,
+        }
+      );
+
+    if (ensureProfileError) {
+      throw ensureProfileError;
     }
 
     const gracePeriodEnd =
@@ -268,9 +331,7 @@ export async function POST(request: Request) {
     }
 
     if (!updatedProfile) {
-      throw new Error(
-        `No public.profiles row matched Supabase user ID ${userId}.`
-      );
+      throw new Error(`No public.profiles row matched Supabase user ID ${userId}.`);
     }
 
     const { error: processedError } = await supabaseAdmin
@@ -292,7 +353,7 @@ export async function POST(request: Request) {
 
     console.error("Paddle webhook processing failed.", error);
 
-    const { error: failedUpdateError } = await supabaseAdmin
+    await supabaseAdmin
       .from("paddle_webhook_events")
       .update({
         processing_status: "failed",
@@ -300,13 +361,6 @@ export async function POST(request: Request) {
         processing_error: message,
       })
       .eq("id", eventRowId);
-
-    if (failedUpdateError) {
-      console.error(
-        "Unable to record webhook processing failure.",
-        failedUpdateError
-      );
-    }
 
     return NextResponse.json(
       { error: "Webhook processing failed." },
