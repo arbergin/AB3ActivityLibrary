@@ -273,12 +273,12 @@ export default function AboutPage() {
               </p>
 
               <p className={paragraphClass}>
-                I think back to one of my early U10 boys games at Sporting City
+                I think back to one of my early U10 boys games at
                 a few years back. One of our players was in goal for the first
                 time. It didn’t go well. After the game, he was fighting back
                 tears. I told him I was proud of him for stepping up for the
                 team. He worked hard &amp; he did his best (he is still a
-                goalkeeper at Sporting City, by the way).
+                goalkeeper, by the way).
               </p>
 
               <p className={paragraphClass}>
