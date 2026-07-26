@@ -55,16 +55,21 @@ const items: LegalDocumentItem[] = [
       "Activities performed through your account;",
       "Keeping your email address current; and",
       "Promptly reporting suspected unauthorized access.",
+    ]
+  },
+  {
+    "type": "paragraph",
+    "text": "You may not:"
+  },
+    {
+    "type": "bullets",
+    "items": [
       "Share an individual account with unauthorized users;",
       "Impersonate another person;",
       "Create an account using false information;",
       "Transfer or sell an account without our permission; or",
       "Use another person’s account without authorization."
     ]
-  },
-  {
-    "type": "paragraph",
-    "text": "You may not:"
   },
   {
     "type": "paragraph",
