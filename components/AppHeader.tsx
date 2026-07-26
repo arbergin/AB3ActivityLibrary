@@ -60,20 +60,28 @@ function readStorageValue(key: string) {
 
 export default function AppHeader() {
 
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return readStorageValue(IS_LOGGED_IN_STORAGE_KEY) === "true";
-  });
-
-  const [displayName, setDisplayName] = useState(() => {
-    return readStorageValue(DISPLAY_NAME_STORAGE_KEY);
-  });
-
-  const [userRole, setUserRole] = useState<string | null>(() => {
-    return readStorageValue(USER_ROLE_STORAGE_KEY) || null;
-  });
+  // Keep the server render and the browser's first render identical.
+  // Reading localStorage during state initialization causes a hydration mismatch
+  // because localStorage is unavailable on the server.
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+
+    // Restore cached values only after hydration. This avoids a server/client
+    // text mismatch while still preventing unnecessary UI delay.
+    const cachedIsLoggedIn =
+      readStorageValue(IS_LOGGED_IN_STORAGE_KEY) === "true";
+    const cachedDisplayName = readStorageValue(DISPLAY_NAME_STORAGE_KEY);
+    const cachedUserRole = readStorageValue(USER_ROLE_STORAGE_KEY) || null;
+
+    if (cachedIsLoggedIn) {
+      setIsLoggedIn(true);
+      setDisplayName(cachedDisplayName);
+      setUserRole(cachedUserRole);
+    }
 
     async function refreshUserProfile() {
       const {
@@ -279,9 +287,10 @@ export default function AppHeader() {
               </>
             ) : (
               <>
-                <span className="hidden max-w-[140px] truncate text-sm font-semibold text-white/90 sm:inline">
-                  {" "}
-                </span>
+                <span
+                  className="hidden max-w-[140px] truncate text-sm font-semibold text-white/90 sm:inline"
+                  aria-hidden="true"
+                />
 
                 <Link
                   href="/login#login-form"
