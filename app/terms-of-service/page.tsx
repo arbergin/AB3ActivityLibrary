@@ -612,7 +612,7 @@ export default function Page() {
       title="AB3 Activity Library Terms of Service"
       effectiveDate="July 23, 2026"
       lastUpdated="July 23, 2026"
-      introduction="These Terms of Service (\u201cTerms\u201d) form a binding agreement between you and AB3 Analytics, LLC (\u201cAB3,\u201d \u201cwe,\u201d \u201cus,\u201d or \u201cour\u201d) concerning your access to and use of the AB3 Activity Library. By creating an account, purchasing a subscription, accessing the service, or using the service, you agree to these Terms. If you do not agree, do not use the service."
+      introduction="These Terms of Service form a binding agreement between you and AB3 Analytics, LLC concerning your access to and use of the AB3 Activity Library. By creating an account, purchasing a subscription, accessing the service, or using the service, you agree to these Terms. If you do not agree, do not use the service."
       items={items}
     />
   );
