@@ -10,6 +10,7 @@ export default function PayPage() {
     "Loading secure payment options..."
   );
   const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -22,6 +23,7 @@ export default function PayPage() {
       if (!clientToken) {
         if (isMounted) {
           setHasError(true);
+          setIsLoading(false);
           setStatusMessage(
             "Payment services are not configured. Please contact Support@ab3soccer.com."
           );
@@ -49,12 +51,14 @@ export default function PayPage() {
         ).get("_ptxn");
 
         if (transactionId) {
+          setIsLoading(true);
           setStatusMessage(
             "Your secure Paddle payment window should open automatically."
           );
         } else {
+          setIsLoading(false);
           setStatusMessage(
-            "This page is ready to securely open Paddle payment and payment-method update links."
+            "No payment link was provided. Use a Paddle payment or payment-method update link to open the secure checkout."
           );
         }
       } catch (error) {
@@ -62,6 +66,7 @@ export default function PayPage() {
 
         if (isMounted) {
           setHasError(true);
+          setIsLoading(false);
           setStatusMessage(
             "The secure payment window could not be loaded. Please refresh the page or contact Support@ab3soccer.com."
           );
@@ -97,7 +102,7 @@ export default function PayPage() {
             Secure payment
           </h1>
 
-          {!hasError && (
+          {isLoading && !hasError && (
             <div className="mx-auto mt-7 h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-[#0d2140]" />
           )}
 
