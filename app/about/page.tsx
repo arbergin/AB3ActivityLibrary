@@ -273,7 +273,7 @@ export default function AboutPage() {
               </p>
 
               <p className={paragraphClass}>
-                I think back to one of my early U10 boys games at
+                I think back to one of my early U10 boys games
                 a few years back. One of our players was in goal for the first
                 time. It didn’t go well. After the game, he was fighting back
                 tears. I told him I was proud of him for stepping up for the
