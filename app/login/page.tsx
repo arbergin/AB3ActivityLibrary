@@ -780,8 +780,8 @@ export default function LoginPage() {
                   </h2>
                   <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-700 sm:text-lg">
                     Get the full AB3 Soccer Activity Library for a fraction of
-                    the cost of competing tools that can run around $60 per
-                    year.
+                    the cost of competing tools that can run $60 or more per
+                    year and don't even have an iOS app for offline activity creation.
                   </p>
                 </div>
 
