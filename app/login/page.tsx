@@ -717,7 +717,7 @@ export default function LoginPage() {
                       </h2>
                       <p className="mt-4 max-w-2xl text-base leading-7 text-slate-200 sm:text-lg">
                         Create activities in the iOS app while offline, upload
-                        them later, and continue organizing or editing them on
+                        them later, and continue editing or organizing them on
                         your computer.
                       </p>
                     </div>
