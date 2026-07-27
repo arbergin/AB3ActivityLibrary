@@ -851,7 +851,7 @@ export default function LoginPage() {
                   <div className="rounded-3xl border border-slate-200 bg-slate-50/90 p-6 sm:p-7">
                     <p className="text-lg leading-8 text-slate-700">
                       I like to think of myself as the premier local,
-                      non-platform U13 coach of moderately sized Midwestern
+                      non-platform U13 coach of moderately-sized midwestern
                       cities.
                     </p>
 
@@ -863,7 +863,7 @@ export default function LoginPage() {
                       use myself.
                     </p>
 
-                     <p className="mt-5 text-base leading-7 text-slate-700 sm:text-lg">
+                     <p className="mt-5 text-lg leading-8 text-slate-700">
                     And then I thought, well, maybe some other coaches could get
                     some use out of it too.
                   </p>
