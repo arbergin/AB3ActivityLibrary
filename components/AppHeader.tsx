@@ -53,16 +53,30 @@ function SettingsIcon() {
   );
 }
 
+function AccountIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  );
+}
+
 function readStorageValue(key: string) {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(key) || "";
 }
 
 export default function AppHeader() {
-
-  // Keep the server render and the browser's first render identical.
-  // Reading localStorage during state initialization causes a hydration mismatch
-  // because localStorage is unavailable on the server.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -70,8 +84,6 @@ export default function AppHeader() {
   useEffect(() => {
     let isMounted = true;
 
-    // Restore cached values only after hydration. This avoids a server/client
-    // text mismatch while still preventing unnecessary UI delay.
     const cachedIsLoggedIn =
       readStorageValue(IS_LOGGED_IN_STORAGE_KEY) === "true";
     const cachedDisplayName = readStorageValue(DISPLAY_NAME_STORAGE_KEY);
@@ -98,7 +110,6 @@ export default function AppHeader() {
         window.localStorage.removeItem(IS_LOGGED_IN_STORAGE_KEY);
         window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
         window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
-
         return;
       }
 
@@ -145,7 +156,6 @@ export default function AppHeader() {
         window.localStorage.removeItem(IS_LOGGED_IN_STORAGE_KEY);
         window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
         window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
-
         return;
       }
 
@@ -200,7 +210,6 @@ export default function AppHeader() {
     window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
     window.localStorage.removeItem(USER_ROLE_STORAGE_KEY);
 
-    // Force a full navigation so protected client state is discarded immediately.
     window.location.replace("/login");
   }
 
@@ -209,7 +218,10 @@ export default function AppHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0d2140] text-white shadow-sm">
       <div className="mx-auto flex min-h-[72px] w-full max-w-7xl items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex min-w-0 flex-shrink items-center gap-2 sm:gap-3">
+        <Link
+          href="/"
+          className="flex min-w-0 flex-shrink items-center gap-2 sm:gap-3"
+        >
           <Image
             src="/ab3-activity-library-logo.png"
             alt="AB3 Soccer Activity Library"
@@ -260,9 +272,19 @@ export default function AppHeader() {
           <div className="ml-1 flex min-w-0 flex-shrink-0 items-center justify-end gap-1 border-l border-white/20 pl-2 sm:ml-2 sm:min-w-[220px] sm:gap-3 sm:pl-4">
             {isLoggedIn ? (
               <>
-                <span className="hidden max-w-[140px] truncate text-sm font-semibold text-white/90 sm:inline">
-                  {displayName}
-                </span>
+                <Link
+                  href="/account"
+                  title="My Account"
+                  aria-label="My Account"
+                  className="flex min-w-0 items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+                >
+                  <span className="sm:hidden">
+                    <AccountIcon />
+                  </span>
+                  <span className="hidden max-w-[140px] truncate sm:inline">
+                    {displayName || "My Account"}
+                  </span>
+                </Link>
 
                 <button
                   type="button"
