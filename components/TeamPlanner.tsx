@@ -1,9 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PlannerActivityPicker from "@/components/PlannerActivityPicker";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import {
   assignActivityToPlanningRow,
   clearActivityFromPlanningRow,
@@ -22,6 +35,8 @@ import {
   getPlanningWeeks,
   renamePlanningPractice,
   renamePlanningWeek,
+  reorderPlanningPracticeActivities,
+  reorderPlanningPractices,
   updatePlanningNote,
   updatePlanningPracticeKeyFocus,
   updatePlanningWeekObjectives,
@@ -43,6 +58,75 @@ type SelectedRow =
 type TeamPlannerProps = {
   teamId: string;
 };
+
+type PlannerDragData =
+  | { type: "practice"; id: string; weekId: string; label: string }
+  | { type: "activity"; id: string; practiceId: string; label: string };
+
+type PlannerDropData =
+  | { type: "practice-drop"; weekId: string; index: number }
+  | { type: "activity-drop"; practiceId: string; index: number };
+
+function PlannerDragHandle({
+  data,
+  disabled,
+  label,
+}: {
+  data: PlannerDragData;
+  disabled: boolean;
+  label: string;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: `${data.type}:${data.id}`,
+      data,
+      disabled,
+    });
+
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      {...listeners}
+      {...attributes}
+      onClick={(event) => event.stopPropagation()}
+      style={{ transform: CSS.Translate.toString(transform) }}
+      disabled={disabled}
+      className={`flex h-7 w-7 shrink-0 touch-none items-center justify-center rounded-md border border-slate-300 bg-white text-sm font-bold text-slate-500 hover:bg-slate-50 hover:text-[#0d2140] disabled:cursor-not-allowed disabled:opacity-40 ${
+        isDragging ? "opacity-30" : ""
+      }`}
+      aria-label={label}
+      title={label}
+    >
+      ⋮⋮
+    </button>
+  );
+}
+
+function PlannerDropZone({
+  id,
+  data,
+  disabled,
+}: {
+  id: string;
+  data: PlannerDropData;
+  disabled: boolean;
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id, data, disabled });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`transition-all ${
+        isOver
+          ? "my-1 h-8 rounded-md border-2 border-dashed border-[#0d2140] bg-[#e8eef7]"
+          : "h-2"
+      }`}
+      aria-hidden="true"
+    />
+  );
+}
+
 
 export default function TeamPlanner({ teamId }: TeamPlannerProps) {
   const router = useRouter();
@@ -75,6 +159,13 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
   const [collapsedPracticeIds, setCollapsedPracticeIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [activeDrag, setActiveDrag] = useState<PlannerDragData | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 8 },
+    })
+  );
 
   const activitiesById = useMemo(() => {
     return new Map(
@@ -91,6 +182,10 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
       map.set(practice.weekId, current);
     }
 
+    for (const current of map.values()) {
+      current.sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+
     return map;
   }, [practices]);
 
@@ -101,6 +196,10 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
       const current = map.get(row.practiceId) ?? [];
       current.push(row);
       map.set(row.practiceId, current);
+    }
+
+    for (const current of map.values()) {
+      current.sort((a, b) => a.sortOrder - b.sortOrder);
     }
 
     return map;
@@ -765,6 +864,208 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     });
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    const data = event.active.data.current as PlannerDragData | undefined;
+    setActiveDrag(data ?? null);
+  }
+
+  function resetDragState() {
+    setActiveDrag(null);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const dragData = event.active.data.current as PlannerDragData | undefined;
+    const dropData = event.over?.data.current as PlannerDropData | undefined;
+    resetDragState();
+
+    if (!dragData || !dropData || isSaving) return;
+
+    if (dragData.type === "practice" && dropData.type === "practice-drop") {
+      const sourceWeekPractices = practicesByWeek.get(dragData.weekId) ?? [];
+      const sourceIndex = sourceWeekPractices.findIndex(
+        (practice) => practice.id === dragData.id
+      );
+
+      if (sourceIndex < 0) return;
+
+      const sourceWeekNotes = notes.filter(
+        (note) => note.noteScope === "week" && note.weekId === dragData.weekId
+      );
+
+      if (
+        dragData.weekId !== dropData.weekId &&
+        sourceWeekPractices.length === 1 &&
+        sourceWeekNotes.length > 0
+      ) {
+        setMessage(
+          "This week has a week note. Keep at least one practice in the week so the note remains anchored."
+        );
+        return;
+      }
+
+      const previousPractices = practices;
+      const sourceWithoutDragged = sourceWeekPractices.filter(
+        (practice) => practice.id !== dragData.id
+      );
+      const destinationOriginal =
+        dragData.weekId === dropData.weekId
+          ? sourceWithoutDragged
+          : practicesByWeek.get(dropData.weekId) ?? [];
+      const requestedDestinationIndex =
+        dragData.weekId === dropData.weekId && sourceIndex < dropData.index
+          ? dropData.index - 1
+          : dropData.index;
+      const destinationIndex = Math.max(
+        0,
+        Math.min(requestedDestinationIndex, destinationOriginal.length)
+      );
+      const draggedPractice = sourceWeekPractices[sourceIndex];
+      const destinationNext = [...destinationOriginal];
+      destinationNext.splice(destinationIndex, 0, {
+        ...draggedPractice,
+        weekId: dropData.weekId,
+      });
+
+      const nextByWeek = new Map<string, PlanningPractice[]>();
+      nextByWeek.set(dragData.weekId, sourceWithoutDragged);
+      nextByWeek.set(dropData.weekId, destinationNext);
+
+      const affectedWeekIds = new Set([dragData.weekId, dropData.weekId]);
+      const nextPractices = practices.map((practice) => {
+        if (!affectedWeekIds.has(practice.weekId) && practice.id !== dragData.id) {
+          return practice;
+        }
+
+        for (const [weekId, ordered] of nextByWeek) {
+          const index = ordered.findIndex((item) => item.id === practice.id);
+          if (index >= 0) {
+            return { ...practice, weekId, sortOrder: index };
+          }
+        }
+
+        return practice;
+      });
+
+      const updates = Array.from(nextByWeek.entries()).flatMap(
+        ([weekId, ordered]) =>
+          ordered.map((practice, index) => ({
+            id: practice.id,
+            weekId,
+            sortOrder: index,
+          }))
+      );
+
+      setPractices(nextPractices);
+      setIsSaving(true);
+      setMessage("");
+
+      try {
+        await reorderPlanningPractices(updates);
+        setMessage(`"${dragData.label}" moved successfully.`);
+      } catch (error) {
+        console.error("Unable to move practice.", error);
+        setPractices(previousPractices);
+        setMessage("The practice could not be moved.");
+      } finally {
+        setIsSaving(false);
+      }
+
+      return;
+    }
+
+    if (dragData.type === "activity" && dropData.type === "activity-drop") {
+      const sourceActivities = activitiesByPractice.get(dragData.practiceId) ?? [];
+      const sourceIndex = sourceActivities.findIndex((row) => row.id === dragData.id);
+      if (sourceIndex < 0) return;
+
+      const previousRows = activityRows;
+      const previousNotes = notes;
+      const sourceWithoutDragged = sourceActivities.filter(
+        (row) => row.id !== dragData.id
+      );
+      const destinationOriginal =
+        dragData.practiceId === dropData.practiceId
+          ? sourceWithoutDragged
+          : activitiesByPractice.get(dropData.practiceId) ?? [];
+      const requestedDestinationIndex =
+        dragData.practiceId === dropData.practiceId &&
+        sourceIndex < dropData.index
+          ? dropData.index - 1
+          : dropData.index;
+      const destinationIndex = Math.max(
+        0,
+        Math.min(requestedDestinationIndex, destinationOriginal.length)
+      );
+      const draggedRow = sourceActivities[sourceIndex];
+      const destinationNext = [...destinationOriginal];
+      destinationNext.splice(destinationIndex, 0, {
+        ...draggedRow,
+        practiceId: dropData.practiceId,
+      });
+
+      const nextByPractice = new Map<string, PlanningPracticeActivity[]>();
+      nextByPractice.set(dragData.practiceId, sourceWithoutDragged);
+      nextByPractice.set(dropData.practiceId, destinationNext);
+
+      const affectedPracticeIds = new Set([
+        dragData.practiceId,
+        dropData.practiceId,
+      ]);
+      const nextRows = activityRows.map((row) => {
+        if (
+          !affectedPracticeIds.has(row.practiceId) &&
+          row.id !== dragData.id
+        ) {
+          return row;
+        }
+
+        for (const [practiceId, ordered] of nextByPractice) {
+          const index = ordered.findIndex((item) => item.id === row.id);
+          if (index >= 0) {
+            return { ...row, practiceId, sortOrder: index };
+          }
+        }
+
+        return row;
+      });
+
+      const updates = Array.from(nextByPractice.entries()).flatMap(
+        ([practiceId, ordered]) =>
+          ordered.map((row, index) => ({
+            id: row.id,
+            practiceId,
+            sortOrder: index,
+          }))
+      );
+
+      setActivityRows(nextRows);
+      if (dragData.practiceId !== dropData.practiceId) {
+        setNotes((current) =>
+          current.map((note) =>
+            note.noteScope === "activity" &&
+            note.afterActivityRowId === dragData.id
+              ? { ...note, practiceId: dropData.practiceId }
+              : note
+          )
+        );
+      }
+      setIsSaving(true);
+      setMessage("");
+
+      try {
+        await reorderPlanningPracticeActivities(updates);
+        setMessage(`"${dragData.label}" moved successfully.`);
+      } catch (error) {
+        console.error("Unable to move activity.", error);
+        setActivityRows(previousRows);
+        setNotes(previousNotes);
+        setMessage("The activity could not be moved.");
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  }
+
   function rowIsSelected(
     type: "week" | "practice" | "activity",
     id: string
@@ -800,7 +1101,12 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
   const canCreateActivity = selectedRow?.type === "practice";
 
   return (
-    <>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragCancel={resetDragState}
+      onDragEnd={handleDragEnd}
+    >
       <div className="grid gap-6">
         <section className="rounded-xl bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1131,12 +1437,22 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                     {!collapsedWeekIds.has(week.id) && (
                       <>
                         <div className="ml-5 grid gap-2 border-l-2 border-slate-200 pl-4 sm:ml-8 sm:pl-5">
-                      {weekPractices.map((practice) => {
+                      {weekPractices.map((practice, practiceIndex) => {
                         const practiceActivities =
                           activitiesByPractice.get(practice.id) ?? [];
 
                         return (
-                          <div key={practice.id} className="grid gap-2">
+                          <Fragment key={practice.id}>
+                            <PlannerDropZone
+                              id={`practice-drop:${week.id}:${practiceIndex}`}
+                              data={{
+                                type: "practice-drop",
+                                weekId: week.id,
+                                index: practiceIndex,
+                              }}
+                              disabled={isSaving || activeDrag?.type === "activity"}
+                            />
+                            <div className="grid gap-2">
                             <div
                               onClick={() =>
                                 setSelectedRow({
@@ -1201,6 +1517,16 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                 ) : (
                                   <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
                                     <div className="flex min-w-0 items-center gap-2">
+                                      <PlannerDragHandle
+                                        data={{
+                                          type: "practice",
+                                          id: practice.id,
+                                          weekId: practice.weekId,
+                                          label: practice.name,
+                                        }}
+                                        disabled={isSaving || editingRow?.id === practice.id}
+                                        label={`Move ${practice.name}`}
+                                      />
                                       <button
                                         type="button"
                                         onClick={(event) => {
@@ -1405,13 +1731,23 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                             {!collapsedPracticeIds.has(practice.id) && (
                               <>
                                 <div className="ml-5 grid gap-2 border-l-2 border-dashed border-slate-200 pl-4 sm:ml-8 sm:pl-5">
-                              {practiceActivities.map((row) => {
+                              {practiceActivities.map((row, activityIndex) => {
                                 const activity = row.activityId
                                   ? activitiesById.get(row.activityId)
                                   : undefined;
 
                                 return (
-                                  <div key={row.id} className="grid gap-2">
+                                  <Fragment key={row.id}>
+                                    <PlannerDropZone
+                                      id={`activity-drop:${practice.id}:${activityIndex}`}
+                                      data={{
+                                        type: "activity-drop",
+                                        practiceId: practice.id,
+                                        index: activityIndex,
+                                      }}
+                                      disabled={isSaving || activeDrag?.type === "practice"}
+                                    />
+                                    <div className="grid gap-2">
                                     <div
                                       onClick={() =>
                                         setSelectedRow({
@@ -1425,6 +1761,21 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                           : "border-slate-200 bg-white hover:bg-slate-50"
                                       }`}
                                     >
+                                    <div className="mb-2 flex items-center gap-2">
+                                      <PlannerDragHandle
+                                        data={{
+                                          type: "activity",
+                                          id: row.id,
+                                          practiceId: row.practiceId,
+                                          label: activity?.activityName ?? "Add Activity",
+                                        }}
+                                        disabled={isSaving}
+                                        label={`Move ${activity?.activityName ?? "activity row"}`}
+                                      />
+                                      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                        Drag to move
+                                      </span>
+                                    </div>
                                     {activity ? (
                                       <div className="grid gap-3 sm:grid-cols-[150px_minmax(0,1fr)_auto] sm:items-center">
                                         <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
@@ -1644,9 +1995,20 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                         )}
                                       </div>
                                     ))}
-                                </div>
+                                    </div>
+                                  </Fragment>
                                 );
                               })}
+
+                              <PlannerDropZone
+                                id={`activity-drop:${practice.id}:${practiceActivities.length}`}
+                                data={{
+                                  type: "activity-drop",
+                                  practiceId: practice.id,
+                                  index: practiceActivities.length,
+                                }}
+                                disabled={isSaving || activeDrag?.type === "practice"}
+                              />
 
                               {(notesByPractice.get(practice.id) ?? []).map(
                                 (note) => {
@@ -1871,9 +2233,19 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                               ))}
                               </>
                             )}
-                          </div>
+                            </div>
+                          </Fragment>
                         );
                       })}
+                      <PlannerDropZone
+                        id={`practice-drop:${week.id}:${weekPractices.length}`}
+                        data={{
+                          type: "practice-drop",
+                          weekId: week.id,
+                          index: weekPractices.length,
+                        }}
+                        disabled={isSaving || activeDrag?.type === "activity"}
+                      />
                     </div>
 
                     {(notesByPractice.get(
@@ -1971,6 +2343,14 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
           onClose={() => setSearchingRowId(null)}
         />
       )}
-    </>
+
+      <DragOverlay>
+        {activeDrag ? (
+          <div className="max-w-sm rounded-lg border border-[#0d2140] bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-xl">
+            {activeDrag.label}
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }

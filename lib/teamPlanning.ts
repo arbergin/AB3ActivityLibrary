@@ -606,3 +606,100 @@ export async function deletePlanningPracticeActivity(
 
   if (error) throw error;
 }
+export type PlanningPracticeOrderUpdate = {
+  id: string;
+  weekId: string;
+  sortOrder: number;
+};
+
+export type PlanningActivityOrderUpdate = {
+  id: string;
+  practiceId: string;
+  sortOrder: number;
+};
+
+/**
+ * Persists practice ordering, including moves between weeks. Week-level notes
+ * are re-anchored to the final practice in their week so they continue to
+ * render in the correct location after a reorder.
+ */
+export async function reorderPlanningPractices(
+  updates: PlanningPracticeOrderUpdate[]
+): Promise<void> {
+  if (updates.length === 0) return;
+
+  const results = await Promise.all(
+    updates.map((update) =>
+      supabase
+        .from("planning_practices")
+        .update({
+          week_id: update.weekId,
+          sort_order: update.sortOrder,
+        })
+        .eq("id", update.id)
+    )
+  );
+
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw failed.error;
+
+  const finalPracticeByWeek = new Map<string, PlanningPracticeOrderUpdate>();
+
+  for (const update of updates) {
+    const current = finalPracticeByWeek.get(update.weekId);
+    if (!current || update.sortOrder > current.sortOrder) {
+      finalPracticeByWeek.set(update.weekId, update);
+    }
+  }
+
+  const noteResults = await Promise.all(
+    Array.from(finalPracticeByWeek.entries()).map(([weekId, lastPractice]) =>
+      supabase
+        .from("planning_notes")
+        .update({ practice_id: lastPractice.id })
+        .eq("note_scope", "week")
+        .eq("week_id", weekId)
+    )
+  );
+
+  const failedNoteUpdate = noteResults.find((result) => result.error);
+  if (failedNoteUpdate?.error) throw failedNoteUpdate.error;
+}
+
+/**
+ * Persists activity-row ordering, including moves between practices. Notes
+ * attached to an activity row follow that row into its destination practice.
+ */
+export async function reorderPlanningPracticeActivities(
+  updates: PlanningActivityOrderUpdate[]
+): Promise<void> {
+  if (updates.length === 0) return;
+
+  const results = await Promise.all(
+    updates.map((update) =>
+      supabase
+        .from("planning_practice_activities")
+        .update({
+          practice_id: update.practiceId,
+          sort_order: update.sortOrder,
+        })
+        .eq("id", update.id)
+    )
+  );
+
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw failed.error;
+
+  const noteResults = await Promise.all(
+    updates.map((update) =>
+      supabase
+        .from("planning_notes")
+        .update({ practice_id: update.practiceId })
+        .eq("note_scope", "activity")
+        .eq("after_activity_row_id", update.id)
+    )
+  );
+
+  const failedNoteUpdate = noteResults.find((result) => result.error);
+  if (failedNoteUpdate?.error) throw failedNoteUpdate.error;
+}
