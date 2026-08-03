@@ -27,6 +27,185 @@ type FeatureRowProps = {
   videoPosition?: "left" | "right";
 };
 
+type FAQItem = {
+  question: string;
+  answer: React.ReactNode;
+};
+
+
+function FAQSection() {
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
+
+  const faqItems: FAQItem[] = [
+    {
+      question: "Where do my activities go after I save them?",
+      answer: (
+        <div className="space-y-4">
+          <p>
+            Once you create an activity, you can save it to your own private
+            Activity Library.
+          </p>
+
+          <ul className="space-y-3 pl-5">
+            <li className="list-square">
+              If your account is connected to a club, you can also save
+              activities to your Club Library so other coaches in your club can
+              access and share them.
+            </li>
+            <li className="list-square">
+              You can choose to make an activity available to the public AB3
+              Activity Library, allowing other coaches to find and use it.
+            </li>
+            <li className="list-square">
+              Activities can also be downloaded directly to the AB3 Activity
+              Planner on your iPhone or iPad, so you can take them with you when
+              planning or coaching.
+            </li>
+          </ul>
+        </div>
+      ),
+    },
+    {
+      question: "Can I use AB3 on both the web and my iPhone or iPad?",
+      answer: (
+        <p>
+          Yes. The AB3 Activity Library works alongside the AB3 Activity Planner
+          for iOS. You can create and organize activities online, download them
+          to your iPhone or iPad, and upload activities created in the app back
+          to your online library.
+        </p>
+      ),
+    },
+    {
+      question: "Can I create my own soccer activities?",
+      answer: (
+        <p>
+          Yes. The built-in Activity Creator lets you design activities using
+          players, cones, balls, goals, lines, text, and other coaching tools.
+          You can then add details such as activity type, phase of play, field
+          location, positions involved, and number of players.
+        </p>
+      ),
+    },
+    {
+      question: "Can I search for activities instead of creating everything myself?",
+      answer: (
+        <p>
+          Absolutely. You can search the Activity Library using the details
+          attached to each activity, making it easier to find something that
+          fits what you are working on rather than digging through folders or
+          old PDFs.
+        </p>
+      ),
+    },
+    {
+      question: "Can other coaches see my activities?",
+      answer: (
+        <p>
+          Only if you want them to. When saving an activity, you can control who
+          has access. Activities can be kept Private, shared with your Club, or
+          made available to Everyone.
+        </p>
+      ),
+    },
+    {
+      question: "Can I organize activities for future practices?",
+      answer: (
+        <p>
+          Yes. You can use AB3 to build out practices and organize activities
+          into your team and season planning rather than keeping everything
+          scattered across documents, notes, screenshots, and spreadsheets.
+        </p>
+      ),
+    },
+    {
+      question: "Can I download or print my activities?",
+      answer: (
+        <p>
+          Yes. Activities can be downloaded for use outside the site, including
+          formats that are easy to save, share, or print for a training session.
+        </p>
+      ),
+    },
+    {
+      question: "Do I have to belong to a club to use AB3?",
+      answer: (
+        <p>
+          No. Individual coaches can use AB3 with their own private library.
+          Club accounts simply add the ability to share activities and planning
+          resources among coaches within the same club.
+        </p>
+      ),
+    },
+  ];
+
+  return (
+    <section className="mt-12 border-t border-slate-200 pt-9">
+      <div className="mb-8">
+        <p className="text-sm font-bold uppercase tracking-[0.18em] text-slate-500">
+          Frequently Asked Questions
+        </p>
+        <h2 className="mt-2 text-3xl font-black text-[#0d2140] sm:text-4xl">
+          A few things coaches usually want to know
+        </h2>
+      </div>
+
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+        {faqItems.map((item, index) => {
+          const isOpen = openIndex === index;
+
+          return (
+            <div
+              key={item.question}
+              className="border-t border-slate-200 first:border-t-0"
+            >
+              <button
+                type="button"
+                onClick={() => setOpenIndex(isOpen ? null : index)}
+                className="flex w-full items-center justify-between gap-5 px-5 py-5 text-left transition hover:bg-slate-50 sm:px-7 sm:py-6"
+                aria-expanded={isOpen}
+              >
+                <span className="text-lg font-bold leading-7 text-[#0d2140] sm:text-xl">
+                  {item.question}
+                </span>
+
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                    isOpen
+                      ? "border-[#0d2140] bg-[#0d2140] text-white"
+                      : "border-slate-400 text-slate-500"
+                  }`}
+                  aria-hidden="true"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M5 12h14" />
+                    {!isOpen && <path d="M12 5v14" />}
+                  </svg>
+                </span>
+              </button>
+
+              {isOpen && (
+                <div className="px-5 pb-6 sm:px-7 sm:pb-7">
+                  <div className="max-w-4xl text-base leading-7 text-slate-700 sm:text-lg sm:leading-8">
+                    {item.answer}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function getAccessTokenFromSignInResult(result: PossibleSignInResult) {
   return (
     result?.session?.access_token || result?.data?.session?.access_token || null
@@ -885,6 +1064,8 @@ export default function LoginPage() {
                   </Link>
                 </div>
               </section>
+
+              <FAQSection />
 
               <footer className="mt-12 border-t border-slate-200 pt-6">
                 <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-600">
