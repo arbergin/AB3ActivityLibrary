@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toPng } from "html-to-image";
 import type {
   MouseEvent as ReactMouseEvent,
@@ -1540,6 +1540,10 @@ export default function ActivityCreator({
   initialActivity,
 }: ActivityCreatorProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const planningTeamId = searchParams.get("planningTeamId");
+  const planningActivityRowId = searchParams.get("planningActivityRowId");
+  const planningPracticeId = searchParams.get("planningPracticeId");
   const initialCreatorState = getInitialCreatorState(initialActivity);
   const normalizedInitialCreatorState = useMemo(() => {
     if (
@@ -2521,8 +2525,34 @@ export default function ActivityCreator({
     setIsSavePanelOpen(true);
   }
 
-  function handleActivitySaved() {
+  function handleActivitySaved(savedActivity: Activity) {
     savedCreatorStateSnapshotRef.current = serializedCreatorState;
+
+    if (
+      planningTeamId &&
+      (planningActivityRowId || planningPracticeId) &&
+      !initialActivity
+    ) {
+      allowNavigationRef.current = true;
+
+      const query = new URLSearchParams({
+        attachActivityId: savedActivity.id,
+      });
+
+      if (planningActivityRowId) {
+        query.set("planningActivityRowId", planningActivityRowId);
+      }
+
+      if (planningPracticeId) {
+        query.set("planningPracticeId", planningPracticeId);
+      }
+
+      router.push(
+        `/team-planning/${planningTeamId}?${query.toString()}`
+      );
+
+      return false;
+    }
 
     if (pendingNavigationUrl) {
       window.setTimeout(() => {

@@ -61,6 +61,14 @@ function DashboardPrimaryActions() {
       iconAlt: "Search Activities",
     },
     {
+      href: "/team-planning",
+      title: "Team Planning",
+      description:
+        "Build team plans with weeks, practices, and activities from your library.",
+      icon: "/team_planning.svg",
+      iconAlt: "Team Planning",
+    },
+    {
       href: "/import",
       title: "Import Activities",
       description:
@@ -71,23 +79,28 @@ function DashboardPrimaryActions() {
   ];
 
   return (
-    <section className="grid gap-4 md:grid-cols-3">
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
-          className="flex min-h-44 items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          className="flex min-h-44 items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
-          <div className="min-w-0">
-            <div className="text-xl font-bold text-slate-900">
-              {action.title}
+          <div className="min-w-0 flex-1">
+            <div className="flex h-8 items-start">
+              <div className="text-xl font-bold leading-8 text-slate-900">
+                {action.title}
+              </div>
             </div>
+
             <p className="mt-3 text-sm leading-6 text-slate-600">
               {action.description}
             </p>
           </div>
 
-          <DashboardActionIcon src={action.icon} alt={action.iconAlt} />
+          <div className="pt-10">
+            <DashboardActionIcon src={action.icon} alt={action.iconAlt} />
+          </div>
         </Link>
       ))}
     </section>
