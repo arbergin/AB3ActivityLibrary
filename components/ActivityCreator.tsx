@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toPng } from "html-to-image";
 import type {
@@ -79,6 +80,14 @@ type PanState = {
   startClientY: number;
   startPanX: number;
   startPanY: number;
+};
+
+type LineDragState = {
+  lineId: string;
+  mode: "whole" | "endpoint";
+  endpointIndex?: number;
+  startPoint: { x: number; y: number };
+  originalPoints: { x: number; y: number }[];
 };
 
 type PopOutDragState = {
@@ -190,6 +199,8 @@ type PersistedCreatorUserSettings = {
   coneColor: string;
   lineColor: string;
   lineWidth: number;
+  snapToLines: boolean;
+  straightGuideEnabled: boolean;
   playerDefaultSize: number;
   coneDefaultSize: number;
   mannequinDefaultSize: number;
@@ -1629,10 +1640,20 @@ export default function ActivityCreator({
   );
   const [isDashed, setIsDashed] = useState(false);
   const [isArrow, setIsArrow] = useState(false);
+  const [isSnapToLines, setIsSnapToLines] = useState(false);
+  const [isStraightGuideEnabled, setIsStraightGuideEnabled] = useState(true);
+  const [showLineOptions, setShowLineOptions] = useState(false);
+  const [lineOptionsPopupPosition, setLineOptionsPopupPosition] = useState({
+    left: 16,
+    top: 16,
+  });
+  const [straightGuideAngle, setStraightGuideAngle] = useState<number | null>(null);
   const [draggingObjectId, setDraggingObjectId] = useState<string | null>(null);
   const [activeLinePoints, setActiveLinePoints] = useState<
     { x: number; y: number }[]
   >([]);
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [lineDragState, setLineDragState] = useState<LineDragState | null>(null);
   const [message, setMessage] = useState("");
   const [showToolbarSettings, setShowToolbarSettings] = useState(false);
   const [isToolbarOnLeft, setIsToolbarOnLeft] = useState(false);
@@ -2027,6 +2048,14 @@ export default function ActivityCreator({
             setLineWidth(clamp(savedSettings.lineWidth, 1, 12));
           }
 
+          if (typeof savedSettings.snapToLines === "boolean") {
+            setIsSnapToLines(savedSettings.snapToLines);
+          }
+
+          if (typeof savedSettings.straightGuideEnabled === "boolean") {
+            setIsStraightGuideEnabled(savedSettings.straightGuideEnabled);
+          }
+
           if (
             typeof savedSettings.playerDefaultSize === "number" &&
             Number.isFinite(savedSettings.playerDefaultSize)
@@ -2092,6 +2121,8 @@ export default function ActivityCreator({
       coneColor,
       lineColor,
       lineWidth,
+      snapToLines: isSnapToLines,
+      straightGuideEnabled: isStraightGuideEnabled,
       playerDefaultSize,
       coneDefaultSize,
       mannequinDefaultSize,
@@ -2116,6 +2147,8 @@ export default function ActivityCreator({
     coneColor,
     lineColor,
     lineWidth,
+    isSnapToLines,
+    isStraightGuideEnabled,
     playerDefaultSize,
     coneDefaultSize,
     mannequinDefaultSize,
@@ -4038,8 +4071,211 @@ export default function ActivityCreator({
     }
   }
 
+  function getLineEndpointSnap(
+    proposedPoint: { x: number; y: number },
+    excludeLineId?: string,
+  ) {
+    if (!isSnapToLines) {
+      return null;
+    }
+
+    const pitchRect = pitchRef.current?.getBoundingClientRect();
+    if (!pitchRect) {
+      return null;
+    }
+
+    // Match the iOS feel: about a 38px capture radius on screen.
+    // Pitch coordinates are percentages, so compare in rendered pixels.
+    const proposedPixelX = (proposedPoint.x / 100) * pitchRect.width * zoom;
+    const proposedPixelY = (proposedPoint.y / 100) * pitchRect.height * zoom;
+    const snapRadius = 38;
+    let closest: { point: { x: number; y: number }; distance: number } | null = null;
+
+    for (const line of lines) {
+      if (line.id === excludeLineId || line.points.length < 2) {
+        continue;
+      }
+
+      const candidates = [line.points[0], line.points[line.points.length - 1]];
+
+      for (const candidate of candidates) {
+        const candidatePixelX = (candidate.x / 100) * pitchRect.width * zoom;
+        const candidatePixelY = (candidate.y / 100) * pitchRect.height * zoom;
+        const distance = Math.hypot(
+          candidatePixelX - proposedPixelX,
+          candidatePixelY - proposedPixelY,
+        );
+
+        if (
+          distance <= snapRadius &&
+          (!closest || distance < closest.distance)
+        ) {
+          closest = {
+            point: { x: candidate.x, y: candidate.y },
+            distance,
+          };
+        }
+      }
+    }
+
+    return closest?.point ?? null;
+  }
+
+  function getLineHit(
+    point: { x: number; y: number },
+  ): { line: PitchLine; mode: "whole" | "endpoint"; endpointIndex?: number } | null {
+    const pitchRect = pitchRef.current?.getBoundingClientRect();
+    if (!pitchRect) return null;
+
+    const toPixels = (candidate: { x: number; y: number }) => ({
+      x: (candidate.x / 100) * pitchRect.width * zoom,
+      y: (candidate.y / 100) * pitchRect.height * zoom,
+    });
+
+    const pointer = toPixels(point);
+    const endpointRadius = 14;
+    const bodyRadius = 10;
+
+    // Endpoints win over the line body, matching the iOS interaction.
+    for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
+      const line = lines[lineIndex];
+      if (line.points.length < 2) continue;
+
+      const endpointIndexes = [0, line.points.length - 1];
+      for (const endpointIndex of endpointIndexes) {
+        const endpoint = toPixels(line.points[endpointIndex]);
+        if (Math.hypot(endpoint.x - pointer.x, endpoint.y - pointer.y) <= endpointRadius) {
+          return { line, mode: "endpoint", endpointIndex };
+        }
+      }
+    }
+
+    for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
+      const line = lines[lineIndex];
+      if (line.points.length < 2) continue;
+
+      const renderedPoints =
+        line.lineStyle === "dribble" ? getDribblePolylinePoints(line.points) : line.points;
+
+      for (let index = 0; index < renderedPoints.length - 1; index += 1) {
+        const start = toPixels(renderedPoints[index]);
+        const end = toPixels(renderedPoints[index + 1]);
+        const distance = distanceFromPointToSegment({
+          point: pointer,
+          start,
+          end,
+        });
+
+        if (distance <= bodyRadius) {
+          return { line, mode: "whole" };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function clampWholeLineDelta(
+    originalPoints: { x: number; y: number }[],
+    deltaX: number,
+    deltaY: number,
+  ) {
+    const minX = Math.min(...originalPoints.map((point) => point.x));
+    const maxX = Math.max(...originalPoints.map((point) => point.x));
+    const minY = Math.min(...originalPoints.map((point) => point.y));
+    const maxY = Math.max(...originalPoints.map((point) => point.y));
+
+    return {
+      x: clamp(deltaX, -minX, 100 - maxX),
+      y: clamp(deltaY, -minY, 100 - maxY),
+    };
+  }
+
+  function getGuidedStraightEndpoint(
+    start: { x: number; y: number },
+    proposedEnd: { x: number; y: number },
+  ) {
+    if (!isStraightGuideEnabled) {
+      return { point: proposedEnd, angle: null as number | null };
+    }
+
+    const pitchRect = pitchRef.current?.getBoundingClientRect();
+    if (!pitchRect) {
+      return { point: proposedEnd, angle: null as number | null };
+    }
+
+    // Work in rendered pixels so 45 degrees looks like 45 degrees on the
+    // 3:4 pitch instead of using distorted percentage-space angles.
+    const dx = ((proposedEnd.x - start.x) / 100) * pitchRect.width;
+    const dy = ((proposedEnd.y - start.y) / 100) * pitchRect.height;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance <= 4) {
+      return { point: proposedEnd, angle: null as number | null };
+    }
+
+    const rawAngle = Math.atan2(dy, dx);
+    const step = Math.PI / 4;
+    const snappedAngle = Math.round(rawAngle / step) * step;
+    const difference = Math.abs(
+      Math.atan2(
+        Math.sin(rawAngle - snappedAngle),
+        Math.cos(rawAngle - snappedAngle),
+      ),
+    );
+    const tolerance = (9 * Math.PI) / 180;
+
+    if (difference > tolerance) {
+      return { point: proposedEnd, angle: null as number | null };
+    }
+
+    const guidedPoint = {
+      x:
+        start.x +
+        ((Math.cos(snappedAngle) * distance) / pitchRect.width) * 100,
+      y:
+        start.y +
+        ((Math.sin(snappedAngle) * distance) / pitchRect.height) * 100,
+    };
+    const normalizedAngle =
+      ((Math.round((snappedAngle * 180) / Math.PI) % 360) + 360) % 360;
+
+    return {
+      point: {
+        x: clamp(guidedPoint.x, 0, 100),
+        y: clamp(guidedPoint.y, 0, 100),
+      },
+      angle: normalizedAngle,
+    };
+  }
+
+  function resolveStraightLinePoint(
+    start: { x: number; y: number },
+    rawPoint: { x: number; y: number },
+  ) {
+    // Snap To gets first priority when the pointer is already near an endpoint.
+    const directSnap = getLineEndpointSnap(rawPoint);
+    if (directSnap) {
+      setStraightGuideAngle(null);
+      return directSnap;
+    }
+
+    const guided = getGuidedStraightEndpoint(start, rawPoint);
+
+    // When Guide moves the visible endpoint, check that guided endpoint too.
+    // This lets Snap To and Guide work at the same time rather than competing.
+    const guidedSnap = getLineEndpointSnap(guided.point);
+    if (guidedSnap) {
+      setStraightGuideAngle(null);
+      return guidedSnap;
+    }
+
+    setStraightGuideAngle(guided.angle);
+    return guided.point;
+  }
+
   function handlePitchPointerDown(event: PointerEvent<HTMLDivElement>) {
-    const point = getPitchPoint(event);
+    let point = getPitchPoint(event);
 
     if (selectedObjectId || selectedObjectIds.length > 0) {
       setSelectedObjectId(null);
@@ -4059,11 +4295,37 @@ export default function ActivityCreator({
       return;
     }
 
+    if (selectedTool !== "eraser") {
+      const lineHit = getLineHit(point);
+
+      if (lineHit) {
+        saveHistorySnapshot();
+        setSelectedLineId(lineHit.line.id);
+        setActiveLinePoints([]);
+        setStraightGuideAngle(null);
+        setLineDragState({
+          lineId: lineHit.line.id,
+          mode: lineHit.mode,
+          endpointIndex: lineHit.endpointIndex,
+          startPoint: point,
+          originalPoints: lineHit.line.points.map((linePoint) => ({ ...linePoint })),
+        });
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
+
+      setSelectedLineId(null);
+    }
+
     if (
       selectedTool === "line" ||
       selectedTool === "freehand" ||
       selectedTool === "dribble"
     ) {
+      if (selectedTool === "line") {
+        point = getLineEndpointSnap(point) ?? point;
+        setStraightGuideAngle(null);
+      }
       setActiveLinePoints([point]);
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
@@ -4105,6 +4367,57 @@ export default function ActivityCreator({
       return;
     }
 
+    if (lineDragState) {
+      const deltaX = point.x - lineDragState.startPoint.x;
+      const deltaY = point.y - lineDragState.startPoint.y;
+
+      setLines((currentLines) =>
+        currentLines.map((line) => {
+          if (line.id !== lineDragState.lineId) return line;
+
+          if (lineDragState.mode === "whole") {
+            const clampedDelta = clampWholeLineDelta(
+              lineDragState.originalPoints,
+              deltaX,
+              deltaY,
+            );
+
+            return {
+              ...line,
+              points: lineDragState.originalPoints.map((originalPoint) => ({
+                x: originalPoint.x + clampedDelta.x,
+                y: originalPoint.y + clampedDelta.y,
+              })),
+            };
+          }
+
+          const endpointIndex = lineDragState.endpointIndex;
+          if (endpointIndex === undefined) return line;
+
+          const movedPoint = {
+            x: clamp(
+              lineDragState.originalPoints[endpointIndex].x + deltaX,
+              0,
+              100,
+            ),
+            y: clamp(
+              lineDragState.originalPoints[endpointIndex].y + deltaY,
+              0,
+              100,
+            ),
+          };
+
+          const nextPoints = lineDragState.originalPoints.map((originalPoint) => ({
+            ...originalPoint,
+          }));
+          nextPoints[endpointIndex] = movedPoint;
+
+          return { ...line, points: nextPoints };
+        }),
+      );
+      return;
+    }
+
     if (
       (selectedTool === "freehand" || selectedTool === "dribble") &&
       activeLinePoints.length > 0
@@ -4114,7 +4427,9 @@ export default function ActivityCreator({
     }
 
     if (selectedTool === "line" && activeLinePoints.length > 0) {
-      setActiveLinePoints([activeLinePoints[0], point]);
+      const start = activeLinePoints[0];
+      const resolvedPoint = resolveStraightLinePoint(start, point);
+      setActiveLinePoints([start, resolvedPoint]);
       return;
     }
 
@@ -4124,6 +4439,66 @@ export default function ActivityCreator({
   }
 
   function handlePitchPointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (lineDragState) {
+      if (isSnapToLines) {
+        setLines((currentLines) =>
+          currentLines.map((line) => {
+            if (line.id !== lineDragState.lineId || line.points.length < 2) {
+              return line;
+            }
+
+            if (lineDragState.mode === "endpoint") {
+              const endpointIndex = lineDragState.endpointIndex;
+              if (endpointIndex === undefined) return line;
+              const snappedPoint = getLineEndpointSnap(
+                line.points[endpointIndex],
+                line.id,
+              );
+              if (!snappedPoint) return line;
+
+              const nextPoints = line.points.map((point) => ({ ...point }));
+              nextPoints[endpointIndex] = snappedPoint;
+              return { ...line, points: nextPoints };
+            }
+
+            const first = line.points[0];
+            const lastIndex = line.points.length - 1;
+            const last = line.points[lastIndex];
+            const snapFirst = getLineEndpointSnap(first, line.id);
+            const snapLast = getLineEndpointSnap(last, line.id);
+
+            const snapTarget = snapFirst ?? snapLast;
+            const sourcePoint = snapFirst ? first : snapLast ? last : null;
+            if (!snapTarget || !sourcePoint) return line;
+
+            const delta = {
+              x: snapTarget.x - sourcePoint.x,
+              y: snapTarget.y - sourcePoint.y,
+            };
+            const clampedDelta = clampWholeLineDelta(line.points, delta.x, delta.y);
+
+            return {
+              ...line,
+              points: line.points.map((point) => ({
+                x: point.x + clampedDelta.x,
+                y: point.y + clampedDelta.y,
+              })),
+            };
+          }),
+        );
+      }
+
+      setLineDragState(null);
+      setStraightGuideAngle(null);
+
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // Pointer may not have been captured.
+      }
+      return;
+    }
+
     if (draggingObjectId) {
       setDraggingObjectId(null);
       return;
@@ -4164,6 +4539,7 @@ export default function ActivityCreator({
     }
 
     setActiveLinePoints([]);
+    setStraightGuideAngle(null);
 
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -4484,6 +4860,8 @@ export default function ActivityCreator({
     setObjects([]);
     setLines([]);
     setActiveLinePoints([]);
+    setSelectedLineId(null);
+    setLineDragState(null);
     setDraggingObjectId(null);
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
@@ -4502,6 +4880,8 @@ export default function ActivityCreator({
       setDraggingObjectId(null);
       return;
     }
+
+    setSelectedLineId(null);
 
     // A normal click highlights the object for moving/deleting, but does not
     // open its properties. Properties open only by double-click or right-click.
@@ -4542,6 +4922,190 @@ export default function ActivityCreator({
         />
         <span className="leading-none">{tool.shortLabel}</span>
       </button>
+    );
+  }
+
+  function renderLineOptionsButton(placement: "horizontal" | "left" = "horizontal") {
+    function toggleLineOptions(event: ReactMouseEvent<HTMLButtonElement>) {
+      if (showLineOptions) {
+        setShowLineOptions(false);
+        return;
+      }
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const popupWidth = 310;
+      const popupMargin = 8;
+      const viewportPadding = 12;
+
+      let left =
+        placement === "left"
+          ? rect.right + popupMargin
+          : rect.left + rect.width / 2 - popupWidth / 2;
+
+      left = clamp(
+        left,
+        viewportPadding,
+        Math.max(viewportPadding, window.innerWidth - popupWidth - viewportPadding),
+      );
+
+      const estimatedPopupHeight = 430;
+      let top = placement === "left" ? rect.top : rect.bottom + popupMargin;
+      top = clamp(
+        top,
+        viewportPadding,
+        Math.max(
+          viewportPadding,
+          window.innerHeight - Math.min(estimatedPopupHeight, window.innerHeight - viewportPadding * 2) - viewportPadding,
+        ),
+      );
+
+      setLineOptionsPopupPosition({ left, top });
+      setShowLineOptions(true);
+    }
+
+    const popup =
+      showLineOptions && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed z-[1000] w-[310px] max-h-[calc(100vh-24px)] overflow-y-auto rounded-xl border border-slate-300 bg-white p-4 text-slate-800 shadow-2xl"
+              style={{
+                left: `${lineOptionsPopupPosition.left}px`,
+                top: `${lineOptionsPopupPosition.top}px`,
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-sm font-bold text-slate-900">Line Options</div>
+                <button
+                  type="button"
+                  onClick={() => setShowLineOptions(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-lg font-bold text-slate-500 hover:bg-slate-100"
+                  aria-label="Close line options"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="grid grid-cols-[1fr_auto] gap-4">
+                <div>
+                  <div className="text-xs font-bold text-slate-700">Color</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {presetColors.map((color) => (
+                      <button
+                        key={`line-popup-${color.value}`}
+                        type="button"
+                        onClick={() => setLineColor(color.value)}
+                        title={color.label}
+                        aria-label={`${color.label} line color`}
+                        className={`h-7 w-7 rounded-full border-2 ${
+                          lineColor.toLowerCase() === color.value.toLowerCase()
+                            ? "border-sky-500 ring-2 ring-sky-200"
+                            : "border-slate-400"
+                        }`}
+                        style={{ backgroundColor: color.value }}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={lineColor}
+                      onChange={(event) => setLineColor(event.target.value)}
+                      className="h-9 w-11 cursor-pointer rounded border border-slate-300 bg-white p-1"
+                      aria-label="Custom line color"
+                    />
+                    <input
+                      type="text"
+                      value={lineColor}
+                      onChange={(event) => setLineColor(event.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+                      aria-label="Line color hex value"
+                    />
+                  </div>
+                </div>
+
+                <div className="w-24 border-l border-slate-200 pl-4">
+                  <div className="text-xs font-bold text-slate-700">Thickness</div>
+                  <div className="mt-2 flex h-28 justify-center">
+                    <input
+                      type="range"
+                      min="1"
+                      max="12"
+                      step="1"
+                      value={lineWidth}
+                      onChange={(event) => setLineWidth(Number(event.target.value))}
+                      className="h-28 w-6 cursor-pointer [appearance:slider-vertical]"
+                      style={{ writingMode: "vertical-lr", direction: "rtl" }}
+                      aria-label="Line thickness"
+                    />
+                  </div>
+                  <div className="mt-1 text-center text-[11px] font-bold text-slate-600">
+                    {lineWidth}px
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2 border-t border-slate-200 pt-3">
+                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  <span>
+                    <span className="block font-bold text-slate-800">Snap To</span>
+                    <span className="block text-[10px] font-normal leading-tight text-slate-500">
+                      Snap endpoints to nearby line endpoints.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={isSnapToLines}
+                    onChange={(event) => setIsSnapToLines(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                </label>
+
+                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  <span>
+                    <span className="block font-bold text-slate-800">Guide</span>
+                    <span className="block text-[10px] font-normal leading-tight text-slate-500">
+                      Assist with horizontal, vertical, and 45° lines.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={isStraightGuideEnabled}
+                    onChange={(event) =>
+                      setIsStraightGuideEnabled(event.target.checked)
+                    }
+                    className="h-4 w-4"
+                  />
+                </label>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null;
+
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={toggleLineOptions}
+          className={`flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[9px] font-semibold md:h-14 md:w-14 md:text-[10px] ${
+            showLineOptions
+              ? "bg-[#0d2140] text-white"
+              : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+          title="Line color, thickness, Snap To, and Guide"
+          aria-label="Line options"
+          aria-expanded={showLineOptions}
+        >
+          <span
+            className="h-6 w-6 rounded-full border-2 border-slate-400 shadow-sm"
+            style={{ backgroundColor: lineColor }}
+          />
+          <span className="leading-none">Line</span>
+        </button>
+
+        {popup}
+      </div>
     );
   }
 
@@ -5415,6 +5979,7 @@ export default function ActivityCreator({
 
               {mobileToolGroup === "draw" && (
                 <>
+                  {renderLineOptionsButton("horizontal")}
                   <label className="flex h-14 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-slate-300 text-[10px] font-semibold text-slate-700">
                     <input
                       type="checkbox"
@@ -5457,6 +6022,7 @@ export default function ActivityCreator({
         {!isToolbarOnLeft && (
           <div className="hidden flex-wrap items-center gap-2 md:flex">
             {tools.map((tool) => renderToolButton(tool))}
+            {renderLineOptionsButton("horizontal")}
 
             <div className="mx-1 hidden h-10 w-px bg-slate-200 sm:block" />
 
@@ -6072,6 +6638,7 @@ export default function ActivityCreator({
                     </button>
 
                     {tools.map((tool) => renderToolButton(tool))}
+                    {renderLineOptionsButton("left")}
 
                     <label className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-300 bg-white text-[9px] font-semibold text-slate-700 md:h-14 md:w-14 md:text-[10px]">
                       <input
@@ -6134,7 +6701,9 @@ export default function ActivityCreator({
               onPointerUp={handlePitchPointerUp}
               onPointerCancel={() => {
                 setDraggingObjectId(null);
+                setLineDragState(null);
                 setActiveLinePoints([]);
+                setStraightGuideAngle(null);
                 setPanState(null);
               }}
               className={`relative aspect-[3/4] max-w-full touch-none overflow-hidden rounded-xl bg-white shadow-inner ${
@@ -6143,7 +6712,7 @@ export default function ActivityCreator({
                   : "h-full max-h-full w-auto md:h-auto md:w-full"
               } ${
                 !isZoomLocked && !panState ? "cursor-grab" : ""
-              } ${panState ? "cursor-grabbing" : ""}`}
+              } ${panState || lineDragState ? "cursor-grabbing" : ""}`}
               style={{
                 transform: "none",
               }}
@@ -6163,6 +6732,45 @@ export default function ActivityCreator({
                   preserveAspectRatio="none"
                 >
                   {displayedLines.map((line) => renderLine(line))}
+
+                  {!isPlayingAnimation && selectedLineId && (() => {
+                    const selectedLine = lines.find((line) => line.id === selectedLineId);
+                    if (!selectedLine || selectedLine.points.length < 2) return null;
+                    const endpointIndexes = [0, selectedLine.points.length - 1];
+
+                    return endpointIndexes.map((endpointIndex) => {
+                      const endpoint = selectedLine.points[endpointIndex];
+                      return (
+                        <circle
+                          key={`${selectedLine.id}-handle-${endpointIndex}`}
+                          cx={endpoint.x}
+                          cy={endpoint.y}
+                          r="1.35"
+                          fill="#2563eb"
+                          stroke="white"
+                          strokeWidth="0.55"
+                          pointerEvents="none"
+                        />
+                      );
+                    });
+                  })()}
+
+                  {selectedTool === "line" &&
+                    activeLinePoints.length > 1 &&
+                    straightGuideAngle !== null && (
+                      <text
+                        x={activeLinePoints[1].x + 1.5}
+                        y={activeLinePoints[1].y - 1.5}
+                        fill="#0d2140"
+                        fontSize="2.4"
+                        fontWeight="700"
+                        paintOrder="stroke"
+                        stroke="white"
+                        strokeWidth="0.7"
+                      >
+                        {straightGuideAngle}°
+                      </text>
+                    )}
 
                   {activeLinePoints.length > 1 &&
                     renderLine(
