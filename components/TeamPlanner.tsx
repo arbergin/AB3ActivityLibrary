@@ -150,6 +150,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteValue, setNoteValue] = useState("");
   const [searchingRowId, setSearchingRowId] = useState<string | null>(null);
+  const [searchingPracticeId, setSearchingPracticeId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -657,22 +658,44 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
   }
 
   async function handleSelectLibraryActivity(activity: Activity) {
-    if (!searchingRowId || isSaving) return;
+    if ((!searchingRowId && !searchingPracticeId) || isSaving) return;
 
     setIsSaving(true);
     setMessage("");
 
     try {
-      const updatedRow = await assignActivityToPlanningRow(
-        searchingRowId,
-        activity.id
-      );
+      let updatedRow: PlanningPracticeActivity;
 
-      setActivityRows((current) =>
-        current.map((row) => (row.id === updatedRow.id ? updatedRow : row))
-      );
+      if (searchingRowId) {
+        // Replacing/filling an existing planning row.
+        updatedRow = await assignActivityToPlanningRow(
+          searchingRowId,
+          activity.id
+        );
+
+        setActivityRows((current) =>
+          current.map((row) =>
+            row.id === updatedRow.id ? updatedRow : row
+          )
+        );
+      } else {
+        // Adding another activity: do not create the planning row until the
+        // user actually selects an activity from the picker.
+        const createdRow = await createPlanningActivitySlot(
+          searchingPracticeId as string
+        );
+
+        updatedRow = await assignActivityToPlanningRow(
+          createdRow.id,
+          activity.id
+        );
+
+        setActivityRows((current) => [...current, updatedRow]);
+      }
+
       setSelectedRow({ type: "activity", id: updatedRow.id });
       setSearchingRowId(null);
+      setSearchingPracticeId(null);
       setMessage(`"${activity.activityName}" added to the practice.`);
     } catch (error) {
       console.error("Unable to add activity to practice.", error);
@@ -711,23 +734,16 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     }
   }
 
-  async function handleSearchAnotherActivity(practiceId: string) {
+  function handleSearchAnotherActivity(practiceId: string) {
     if (isSaving) return;
 
-    setIsSaving(true);
     setMessage("");
+    setSelectedRow({ type: "practice", id: practiceId });
 
-    try {
-      const row = await createPlanningActivitySlot(practiceId);
-      setActivityRows((current) => [...current, row]);
-      setSelectedRow({ type: "practice", id: practiceId });
-      setSearchingRowId(row.id);
-    } catch (error) {
-      console.error("Unable to create another activity row.", error);
-      setMessage("Another activity row could not be created.");
-    } finally {
-      setIsSaving(false);
-    }
+    // Do not create an empty planning row yet. The row is only created after
+    // the user selects an activity and clicks Add to Practice.
+    setSearchingRowId(null);
+    setSearchingPracticeId(practiceId);
   }
 
   function handleCreateAnotherActivity(practiceId: string) {
@@ -1833,6 +1849,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                             type="button"
                                             onClick={(event) => {
                                               event.stopPropagation();
+                                              setSearchingPracticeId(null);
                                               setSearchingRowId(row.id);
                                             }}
                                             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
@@ -1878,6 +1895,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                             type="button"
                                             onClick={(event) => {
                                               event.stopPropagation();
+                                              setSearchingPracticeId(null);
                                               setSearchingRowId(row.id);
                                             }}
                                             className="rounded-md border border-[#0d2140] bg-white px-3 py-1.5 text-xs font-semibold text-[#0d2140] hover:bg-slate-50"
@@ -2336,11 +2354,14 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
         </section>
       </div>
 
-      {searchingRowId && (
+      {(searchingRowId || searchingPracticeId) && (
         <PlannerActivityPicker
           activities={libraryActivities}
           onSelect={handleSelectLibraryActivity}
-          onClose={() => setSearchingRowId(null)}
+          onClose={() => {
+            setSearchingRowId(null);
+            setSearchingPracticeId(null);
+          }}
         />
       )}
 

@@ -245,8 +245,8 @@ export default function PlannerActivityPicker({
     null;
 
   return (
-    <div className="fixed inset-0 z-[170] flex items-start justify-center overflow-y-auto bg-slate-900/55 p-4 sm:p-8">
-      <div className="w-full max-w-7xl rounded-2xl bg-[#e8eef7] shadow-2xl">
+    <div className="fixed inset-0 z-[170] flex items-start justify-center overflow-hidden bg-slate-900/55 p-4 sm:p-8">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-[#e8eef7] shadow-2xl sm:max-h-[calc(100vh-4rem)]">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-4 rounded-t-2xl border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900">
@@ -267,7 +267,8 @@ export default function PlannerActivityPicker({
           </button>
         </div>
 
-        <div className="grid gap-5 p-4 sm:p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="grid gap-5 p-4 sm:p-6">
           <SearchFilters
             filters={filters}
             onFiltersChange={setFilters}
@@ -341,6 +342,14 @@ export default function PlannerActivityPicker({
                 </div>
               ) : (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(selectedActivity)}
+                    className="mt-4 w-full rounded-lg bg-[#0d2140] px-4 py-3 text-sm font-bold text-white hover:bg-[#17345f]"
+                  >
+                    Add to Practice
+                  </button>
+
                   <div className="mt-4 flex min-h-72 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3">
                     {selectedActivity.previewDataUrl &&
                     selectedActivity.fileType === "application/pdf" ? (
@@ -371,18 +380,11 @@ export default function PlannerActivityPicker({
                         "No activity details provided."}
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => onSelect(selectedActivity)}
-                    className="mt-5 w-full rounded-lg bg-[#0d2140] px-4 py-3 text-sm font-bold text-white hover:bg-[#17345f]"
-                  >
-                    Add to Practice
-                  </button>
                 </>
               )}
             </section>
           </div>
+        </div>
         </div>
       </div>
     </div>

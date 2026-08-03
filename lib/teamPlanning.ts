@@ -703,3 +703,36 @@ export async function reorderPlanningPracticeActivities(
   const failedNoteUpdate = noteResults.find((result) => result.error);
   if (failedNoteUpdate?.error) throw failedNoteUpdate.error;
 }
+
+
+export type PlanningNotePlacementUpdate = {
+  noteId: string;
+  practiceId: string;
+  weekId: string | null;
+  afterActivityRowId: string | null;
+  noteScope: "week" | "practice" | "activity";
+  sortOrder: number;
+};
+
+/** Moves a note to a new week, practice, or activity placement. */
+export async function movePlanningNote(
+  update: PlanningNotePlacementUpdate
+): Promise<PlanningNote> {
+  const { data, error } = await supabase
+    .from("planning_notes")
+    .update({
+      practice_id: update.practiceId,
+      week_id: update.weekId,
+      after_activity_row_id: update.afterActivityRowId,
+      note_scope: update.noteScope,
+      sort_order: update.sortOrder,
+    })
+    .eq("id", update.noteId)
+    .select(
+      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, sort_order, created_at, updated_at"
+    )
+    .single();
+
+  if (error) throw error;
+  return rowToPlanningNote(data as PlanningNoteRow);
+}
