@@ -1124,7 +1124,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
       onDragEnd={handleDragEnd}
     >
       <div className="grid gap-6">
-        <section className="rounded-xl bg-white p-5 shadow-sm">
+        <section className="sticky top-[72px] z-40 rounded-xl bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -1150,7 +1150,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
               disabled={isSaving}
               className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
-              + Create Week
+              + Add Week
             </button>
 
             <button
@@ -1159,7 +1159,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
               disabled={!canCreatePractice || isSaving}
               className="rounded-lg border border-[#0d2140] bg-white px-4 py-2 text-sm font-semibold text-[#0d2140] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              + Create Practice
+              + Add Practice
             </button>
 
             <button
@@ -1168,7 +1168,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
               disabled={!canCreateActivity || isSaving}
               className="rounded-lg border border-[#0d2140] bg-white px-4 py-2 text-sm font-semibold text-[#0d2140] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              + Create Activity
+              + Add Activity
             </button>
 
             <button

@@ -1280,6 +1280,13 @@ export default function ActivityViewClient({
               </button>
 
               <Link
+                href="/my-activities"
+                className="rounded-lg border border-[#0d2140] bg-white px-4 py-2 font-semibold text-[#0d2140]"
+              >
+                My Activities
+              </Link>
+
+              <Link
                 href="/"
                 className="rounded-lg bg-[#0d2140] px-4 py-2 font-semibold text-white"
               >
