@@ -1,12 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import SearchFilters from "@/components/SearchFilters";
 import type {
   SearchFilterValues,
   SearchSortValue,
 } from "@/components/SearchPageClient";
 import type { Activity } from "@/types/activity";
+import {
+  parseActivityDetailsMarkdown,
+  type ActivityDetailsMarkdownRun,
+} from "@/lib/activityDetailsMarkdown";
 
 const emptyFilters: SearchFilterValues = {
   activityName: "",
@@ -102,6 +106,79 @@ function getTime(value?: string) {
   if (!value) return 0;
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? 0 : time;
+}
+
+function renderMarkdownRun(
+  run: ActivityDetailsMarkdownRun,
+  key: string
+) {
+  let content: ReactNode = run.text;
+
+  if (run.bold) {
+    content = <strong>{content}</strong>;
+  }
+
+  if (run.italic) {
+    content = <em>{content}</em>;
+  }
+
+  if (run.underline) {
+    content = <span className="underline underline-offset-2">{content}</span>;
+  }
+
+  return <span key={key}>{content}</span>;
+}
+
+function ActivityDetailsPreview({ value }: { value?: string | null }) {
+  const blocks = parseActivityDetailsMarkdown(value);
+
+  if (blocks.length === 0) {
+    return (
+      <div className="text-sm text-slate-600">
+        No activity details provided.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 text-sm leading-6 text-slate-700">
+      {blocks.map((block, blockIndex) => {
+        if (block.type === "blank") {
+          return <div key={`blank-${blockIndex}`} className="h-2" />;
+        }
+
+        if (block.type === "bullet") {
+          return (
+            <div
+              key={`bullet-${blockIndex}`}
+              className="grid grid-cols-[auto_minmax(0,1fr)] gap-2"
+            >
+              <span aria-hidden="true">•</span>
+              <div className="min-w-0">
+                {block.runs.map((run, runIndex) =>
+                  renderMarkdownRun(
+                    run,
+                    `bullet-${blockIndex}-run-${runIndex}`
+                  )
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={`paragraph-${blockIndex}`}>
+            {block.runs.map((run, runIndex) =>
+              renderMarkdownRun(
+                run,
+                `paragraph-${blockIndex}-run-${runIndex}`
+              )
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 type PlannerActivityPickerProps = {
@@ -375,9 +452,10 @@ export default function PlannerActivityPicker({
                     <div className="text-lg font-bold text-slate-900">
                       {selectedActivity.activityName}
                     </div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      {selectedActivity.activityDetails ||
-                        "No activity details provided."}
+                    <div className="mt-3">
+                      <ActivityDetailsPreview
+                        value={selectedActivity.activityDetails}
+                      />
                     </div>
                   </div>
                 </>
