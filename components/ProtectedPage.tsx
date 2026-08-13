@@ -1,14 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import type { User } from "@supabase/supabase-js";
+import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { ensureUserProfile } from "@/lib/userProfile";
 
 type ProtectedPageProps = {
   children: React.ReactNode;
 };
+
+const AUTH_TIMEOUT_MS = 10000;
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(message));
+      }, timeoutMs);
+    }),
+  ]);
+}
 
 export default function ProtectedPage({ children }: ProtectedPageProps) {
   const router = useRouter();
@@ -17,67 +34,113 @@ export default function ProtectedPage({ children }: ProtectedPageProps) {
   const [user, setUser] = useState<User | null>(null);
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
 
+  // Prevent an older async auth check from overwriting a newer one.
+  const authCheckIdRef = useRef(0);
+
   useEffect(() => {
     let isMounted = true;
 
-    async function checkAuth() {
-      const { data } = await supabase.auth.getSession();
-
-      if (!isMounted) {
-        return;
-      }
-
-      const sessionUser = data.session?.user ?? null;
+    async function finishAuthCheck(session: Session | null) {
+      const checkId = ++authCheckIdRef.current;
+      const sessionUser = session?.user ?? null;
 
       if (!sessionUser) {
-        router.replace("/login");
+        if (isMounted && checkId === authCheckIdRef.current) {
+          setUser(null);
+          setHasCheckedAuth(true);
+          router.replace("/login");
+        }
         return;
       }
 
       try {
-        const profile = await ensureUserProfile(sessionUser);
+        const profile = await withTimeout(
+          ensureUserProfile(sessionUser),
+          AUTH_TIMEOUT_MS,
+          "Timed out while checking the user profile.",
+        );
 
-        if (profile.must_change_password && pathname !== "/reset-password") {
+        if (!isMounted || checkId !== authCheckIdRef.current) {
+          return;
+        }
+
+        if (
+          profile.must_change_password &&
+          pathname !== "/reset-password"
+        ) {
+          setUser(sessionUser);
+          setHasCheckedAuth(true);
           router.replace("/reset-password");
           return;
         }
       } catch (error) {
+        // A profile lookup failure should not leave the app permanently
+        // stuck on "Checking login...".
         console.error("Unable to check profile access.", error);
+      }
+
+      if (!isMounted || checkId !== authCheckIdRef.current) {
+        return;
       }
 
       setUser(sessionUser);
       setHasCheckedAuth(true);
     }
 
-    checkAuth();
+    async function checkAuth() {
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_TIMEOUT_MS,
+          "Timed out while checking the login session.",
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (error) {
+          console.error("Unable to get auth session.", error);
+        }
+
+        await finishAuthCheck(data.session ?? null);
+      } catch (error) {
+        console.error("Unable to initialize authentication.", error);
+
+        if (!isMounted) {
+          return;
+        }
+
+        // Do not leave the page permanently stuck if Supabase fails to respond.
+        setUser(null);
+        setHasCheckedAuth(true);
+        router.replace("/login");
+      }
+    }
+
+    void checkAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const sessionUser = session?.user ?? null;
-
-      if (!sessionUser) {
-        router.replace("/login");
-        return;
-      }
-
-      try {
-        const profile = await ensureUserProfile(sessionUser);
-
-        if (profile.must_change_password && pathname !== "/reset-password") {
-          router.replace("/reset-password");
-          return;
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      /*
+       * Keep the Supabase auth callback synchronous.
+       *
+       * Supabase recommends avoiding awaited Supabase/database work directly
+       * inside onAuthStateChange callbacks. Scheduling the async profile check
+       * for the next task prevents the auth callback from blocking Supabase's
+       * internal auth processing.
+       */
+      window.setTimeout(() => {
+        if (isMounted) {
+          void finishAuthCheck(session);
         }
-      } catch (error) {
-        console.error("Unable to check profile access.", error);
-      }
-
-      setUser(sessionUser);
-      setHasCheckedAuth(true);
+      }, 0);
     });
 
     return () => {
       isMounted = false;
+      authCheckIdRef.current += 1;
       subscription.unsubscribe();
     };
   }, [pathname, router]);
