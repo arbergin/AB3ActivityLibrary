@@ -97,6 +97,13 @@ type PopOutDragState = {
   startTop: number;
 };
 
+type LineOptionsResizeState = {
+  startClientX: number;
+  startClientY: number;
+  startWidth: number;
+  startHeight: number;
+};
+
 type HistorySnapshot = {
   objects: PitchObject[];
   lines: PitchLine[];
@@ -183,6 +190,7 @@ const objectToolTypes: ToolType[] = [
 const drawToolTypes: ToolType[] = ["line", "freehand", "dribble", "eraser"];
 
 const USER_CREATOR_SETTINGS_KEY = "ab3-activity-creator-user-settings";
+const LINE_OPTIONS_SIZE_KEY = "ab3-activity-creator-line-options-size-v3";
 const DEFAULT_FRAME_DURATION_MS = 1500;
 
 type PersistedCreatorUserSettings = {
@@ -1590,6 +1598,7 @@ export default function ActivityCreator({
   const pitchControlsBoundaryRef = useRef<HTMLDivElement | null>(null);
   const controlBarRef = useRef<HTMLElement | null>(null);
   const frameManagerRef = useRef<HTMLDivElement | null>(null);
+  const lineOptionsPopupRef = useRef<HTMLDivElement | null>(null);
   const [pinnedControlBarHeight, setPinnedControlBarHeight] = useState(0);
   const [dockedPitchControls, setDockedPitchControls] = useState<{
     isDocked: boolean;
@@ -1647,7 +1656,147 @@ export default function ActivityCreator({
     left: 16,
     top: 16,
   });
+  const [lineOptionsPopupSize, setLineOptionsPopupSize] = useState({
+    width: 330,
+    height: 440,
+  });
+  const [lineOptionsResizeState, setLineOptionsResizeState] =
+    useState<LineOptionsResizeState | null>(null);
   const [straightGuideAngle, setStraightGuideAngle] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const savedSize = window.localStorage.getItem(LINE_OPTIONS_SIZE_KEY);
+
+      if (!savedSize) {
+        return;
+      }
+
+      const parsed = JSON.parse(savedSize) as {
+        width?: unknown;
+        height?: unknown;
+      };
+
+      if (
+        typeof parsed.width === "number" &&
+        Number.isFinite(parsed.width) &&
+        typeof parsed.height === "number" &&
+        Number.isFinite(parsed.height)
+      ) {
+        setLineOptionsPopupSize({
+          width: clamp(parsed.width, 300, 620),
+          height: clamp(parsed.height, 320, 760),
+        });
+      }
+    } catch (error) {
+      console.error("Unable to load saved Line Options size.", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!lineOptionsResizeState) {
+      return;
+    }
+
+    const resizeState = lineOptionsResizeState;
+
+    function handleLineOptionsResizeMove(event: globalThis.PointerEvent) {
+      const maxWidth = Math.max(
+        300,
+        window.innerWidth - lineOptionsPopupPosition.left - 12,
+      );
+      const maxHeight = Math.max(
+        320,
+        window.innerHeight - lineOptionsPopupPosition.top - 12,
+      );
+
+      const width = clamp(
+        resizeState.startWidth + (event.clientX - resizeState.startClientX),
+        300,
+        Math.min(700, maxWidth),
+      );
+      const height = clamp(
+        resizeState.startHeight + (event.clientY - resizeState.startClientY),
+        320,
+        Math.min(900, maxHeight),
+      );
+
+      setLineOptionsPopupSize({ width, height });
+    }
+
+    function handleLineOptionsResizeEnd() {
+      setLineOptionsResizeState(null);
+
+      try {
+        window.localStorage.setItem(
+          LINE_OPTIONS_SIZE_KEY,
+          JSON.stringify(lineOptionsPopupSize),
+        );
+      } catch (error) {
+        console.error("Unable to save Line Options size.", error);
+      }
+    }
+
+    window.addEventListener("pointermove", handleLineOptionsResizeMove);
+    window.addEventListener("pointerup", handleLineOptionsResizeEnd);
+    window.addEventListener("pointercancel", handleLineOptionsResizeEnd);
+
+    return () => {
+      window.removeEventListener("pointermove", handleLineOptionsResizeMove);
+      window.removeEventListener("pointerup", handleLineOptionsResizeEnd);
+      window.removeEventListener("pointercancel", handleLineOptionsResizeEnd);
+    };
+  }, [
+    lineOptionsResizeState,
+    lineOptionsPopupPosition.left,
+    lineOptionsPopupPosition.top,
+    lineOptionsPopupSize,
+  ]);
+
+  useEffect(() => {
+    if (!showLineOptions) {
+      return;
+    }
+
+    function handleLineOptionsOutsidePointerDown(event: globalThis.PointerEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      if (
+        target.closest('[data-line-options-popup="true"]') ||
+        target.closest('[data-line-options-trigger="true"]')
+      ) {
+        return;
+      }
+
+      setShowLineOptions(false);
+    }
+
+    function handleLineOptionsEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowLineOptions(false);
+      }
+    }
+
+    document.addEventListener(
+      "pointerdown",
+      handleLineOptionsOutsidePointerDown,
+      true,
+    );
+    window.addEventListener("keydown", handleLineOptionsEscape);
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handleLineOptionsOutsidePointerDown,
+        true,
+      );
+      window.removeEventListener("keydown", handleLineOptionsEscape);
+    };
+  }, [showLineOptions]);
   const [draggingObjectId, setDraggingObjectId] = useState<string | null>(null);
   const [activeLinePoints, setActiveLinePoints] = useState<
     { x: number; y: number }[]
@@ -4960,9 +5109,9 @@ export default function ActivityCreator({
       }
 
       const rect = event.currentTarget.getBoundingClientRect();
-      const popupWidth = 310;
       const popupMargin = 8;
       const viewportPadding = 12;
+      const popupWidth = lineOptionsPopupSize.width;
 
       let left =
         placement === "left"
@@ -4972,19 +5121,29 @@ export default function ActivityCreator({
       left = clamp(
         left,
         viewportPadding,
-        Math.max(viewportPadding, window.innerWidth - popupWidth - viewportPadding),
-      );
-
-      const estimatedPopupHeight = 430;
-      let top = placement === "left" ? rect.top : rect.bottom + popupMargin;
-      top = clamp(
-        top,
-        viewportPadding,
         Math.max(
           viewportPadding,
-          window.innerHeight - Math.min(estimatedPopupHeight, window.innerHeight - viewportPadding * 2) - viewportPadding,
+          window.innerWidth - popupWidth - viewportPadding,
         ),
       );
+
+      let top =
+        placement === "left"
+          ? Math.max(viewportPadding, rect.top - 200)
+          : rect.bottom + popupMargin;
+
+      if (placement !== "left") {
+        top = clamp(
+          top,
+          viewportPadding,
+          Math.max(
+            viewportPadding,
+            window.innerHeight -
+              Math.min(lineOptionsPopupSize.height, window.innerHeight - viewportPadding * 2) -
+              viewportPadding,
+          ),
+        );
+      }
 
       setLineOptionsPopupPosition({ left, top });
       setShowLineOptions(true);
@@ -4994,13 +5153,36 @@ export default function ActivityCreator({
       showLineOptions && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed z-[1000] w-[310px] max-h-[calc(100vh-24px)] overflow-y-auto rounded-xl border border-slate-300 bg-white p-4 text-slate-800 shadow-2xl"
+              ref={lineOptionsPopupRef}
+              data-line-options-popup="true"
+              className="fixed z-[1000] overflow-hidden rounded-xl border border-slate-300 bg-white text-slate-800 shadow-2xl"
               style={{
                 left: `${lineOptionsPopupPosition.left}px`,
                 top: `${lineOptionsPopupPosition.top}px`,
+                width: `${Math.min(
+                  lineOptionsPopupSize.width,
+                  Math.max(
+                    300,
+                    window.innerWidth - lineOptionsPopupPosition.left - 12,
+                  ),
+                )}px`,
+                height: `${Math.min(
+                  lineOptionsPopupSize.height,
+                  Math.max(
+                    320,
+                    window.innerHeight -
+                      lineOptionsPopupPosition.top -
+                      12,
+                  ),
+                )}px`,
+                minWidth: "300px",
+                minHeight: "320px",
+                maxWidth: `calc(100vw - ${lineOptionsPopupPosition.left + 12}px)`,
+                maxHeight: `calc(100vh - ${lineOptionsPopupPosition.top + 12}px)`,
               }}
               onPointerDown={(event) => event.stopPropagation()}
             >
+              <div className="h-full overflow-y-auto p-4 pb-10">
               <div className="mb-3 flex items-center justify-between">
                 <div className="text-sm font-bold text-slate-900">Line Options</div>
                 <button
@@ -5105,6 +5287,31 @@ export default function ActivityCreator({
                   />
                 </label>
               </div>
+              </div>
+
+              <button
+                type="button"
+                aria-label="Resize Line Options"
+                title="Drag to resize"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+
+                  setLineOptionsResizeState({
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    startWidth:
+                      lineOptionsPopupRef.current?.offsetWidth ??
+                      lineOptionsPopupSize.width,
+                    startHeight:
+                      lineOptionsPopupRef.current?.offsetHeight ??
+                      lineOptionsPopupSize.height,
+                  });
+                }}
+                className="absolute bottom-1 right-1 flex h-8 w-8 cursor-nwse-resize items-center justify-center rounded-md border border-slate-300 bg-white text-base font-bold text-slate-500 shadow-sm hover:bg-slate-50"
+              >
+                ↘
+              </button>
             </div>,
             document.body,
           )
@@ -5114,6 +5321,7 @@ export default function ActivityCreator({
       <div className="relative">
         <button
           type="button"
+          data-line-options-trigger="true"
           onClick={toggleLineOptions}
           className={`flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[9px] font-semibold md:h-14 md:w-14 md:text-[10px] ${
             showLineOptions
