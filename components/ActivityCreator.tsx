@@ -290,9 +290,9 @@ function getSizeRange(type: ObjectToolType) {
   switch (type) {
     case "team1":
     case "team2":
-      return { min: 24, max: 72 };
+      return { min: 12, max: 72 };
     case "cone":
-      return { min: 14, max: 52 };
+      return { min: 8, max: 52 };
     case "ball":
       return { min: 14, max: 64 };
     case "mannequin":
@@ -2210,7 +2210,7 @@ export default function ActivityCreator({
             Number.isFinite(savedSettings.playerDefaultSize)
           ) {
             setPlayerDefaultSize(
-              clamp(savedSettings.playerDefaultSize, 24, 72),
+              clamp(savedSettings.playerDefaultSize, 12, 72),
             );
           }
 
@@ -2218,7 +2218,7 @@ export default function ActivityCreator({
             typeof savedSettings.coneDefaultSize === "number" &&
             Number.isFinite(savedSettings.coneDefaultSize)
           ) {
-            setConeDefaultSize(clamp(savedSettings.coneDefaultSize, 14, 52));
+            setConeDefaultSize(clamp(savedSettings.coneDefaultSize, 8, 52));
           }
 
           if (
@@ -3235,11 +3235,17 @@ export default function ActivityCreator({
         underlyingEndY - startY,
         underlyingEndX - startX,
       );
+      // The entire pitch is scaled by zoom during preview/export. Counter-scale
+      // the arrowhead geometry so its visible size stays consistent, matching
+      // the iOS Activity Planner behavior.
+      const inverseZoom = 1 / Math.max(zoom, 0.01);
       const arrowExtension =
-        line.lineStyle === "dribble" ? canvasWidth * 0.036 : 0;
+        line.lineStyle === "dribble"
+          ? canvasWidth * 0.036 * inverseZoom
+          : 0;
       const tipX = endX + arrowExtension * Math.cos(angle);
       const tipY = endY + arrowExtension * Math.sin(angle);
-      const arrowLength = canvasWidth * 0.03;
+      const arrowLength = canvasWidth * 0.03 * inverseZoom;
       const arrowAngle = Math.PI / 6;
 
       context.beginPath();
@@ -5044,6 +5050,139 @@ export default function ActivityCreator({
     setMessage("Pitch cleared.");
   }
 
+  function duplicateObject(objectId: string) {
+    const sourceObject = objects.find((object) => object.id === objectId);
+
+    if (!sourceObject) {
+      return;
+    }
+
+    saveHistorySnapshot();
+
+    const pitchRect = pitchRef.current?.getBoundingClientRect();
+    const objectWidth = getObjectPixelSize(sourceObject);
+    const horizontalGap = 16;
+
+    // Put the copy just to the right of the original, similar to the iOS
+    // Activity Planner. Convert the object's pixel width into pitch-percent
+    // coordinates so the spacing stays sensible across different screen sizes.
+    const offsetPercent = pitchRect
+      ? ((objectWidth + horizontalGap) / Math.max(pitchRect.width, 1)) * 100
+      : 7;
+
+    // Each press of + should create another visible copy instead of stacking
+    // every duplicate in exactly the same spot. Walk outward from the original
+    // until we find an open position.
+    const existingObjects = objects.filter(
+      (candidate) => candidate.id !== sourceObject.id,
+    );
+
+    function positionIsOccupied(candidateX: number, candidateY: number) {
+      const horizontalTolerance = Math.max(offsetPercent * 0.45, 2.5);
+      const verticalTolerance = 3;
+
+      return existingObjects.some(
+        (candidate) =>
+          Math.abs(candidate.x - candidateX) <= horizontalTolerance &&
+          Math.abs(candidate.y - candidateY) <= verticalTolerance,
+      );
+    }
+
+    let duplicateX = sourceObject.x;
+    let duplicateY = sourceObject.y;
+    let foundOpenPosition = false;
+
+    // Prefer creating copies to the right, just like iOS.
+    for (let step = 1; step <= 8; step += 1) {
+      const candidateX = sourceObject.x + offsetPercent * step;
+
+      if (candidateX <= 96 && !positionIsOccupied(candidateX, sourceObject.y)) {
+        duplicateX = candidateX;
+        foundOpenPosition = true;
+        break;
+      }
+    }
+
+    // If the right side is full, work back to the left.
+    if (!foundOpenPosition) {
+      for (let step = 1; step <= 8; step += 1) {
+        const candidateX = sourceObject.x - offsetPercent * step;
+
+        if (candidateX >= 4 && !positionIsOccupied(candidateX, sourceObject.y)) {
+          duplicateX = candidateX;
+          foundOpenPosition = true;
+          break;
+        }
+      }
+    }
+
+    // Final fallback: stagger slightly downward rather than stacking exactly.
+    if (!foundOpenPosition) {
+      duplicateX = clamp(sourceObject.x + offsetPercent, 4, 96);
+      duplicateY = clamp(sourceObject.y + 5, 4, 96);
+    }
+
+    const duplicate: PitchObject = {
+      ...sourceObject,
+      id: makeId(),
+      x: clamp(duplicateX, 4, 96),
+      y: clamp(duplicateY, 4, 96),
+    };
+
+    setObjects((currentObjects) => [...currentObjects, duplicate]);
+
+    // Keep the original selected so the + button stays on the same object,
+    // matching the iOS behavior.
+    setSelectedObjectIds([sourceObject.id]);
+    setSelectedObjectId(null);
+    setDraggingObjectId(null);
+    setMessage(`${getObjectDisplayName(sourceObject.type)} duplicated.`);
+  }
+
+  function renderSelectedObjectDuplicateControl() {
+    if (isPlayingAnimation || selectedObjectIds.length !== 1) {
+      return null;
+    }
+
+    const selectedId = selectedObjectIds[0];
+    const object = objects.find((candidate) => candidate.id === selectedId);
+
+    if (!object) {
+      return null;
+    }
+
+    const width = getObjectPixelSize(object);
+    const height = getObjectPixelHeight(object);
+    const inverseZoom = 1 / Math.max(zoom, 0.01);
+
+    return (
+      <button
+        type="button"
+        data-preview-exclude="true"
+        aria-label={`Duplicate ${getObjectDisplayName(object.type)}`}
+        title="Duplicate"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          duplicateObject(object.id);
+        }}
+        className="absolute z-50 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#0d2140] text-xl font-black leading-none text-white shadow-lg hover:bg-sky-700"
+        style={{
+          left: `calc(${object.x}% - ${width / 2 + 10}px)`,
+          top: `calc(${object.y}% - ${height / 2 + 10}px)`,
+          transform: `translate(-50%, -50%) scale(${inverseZoom})`,
+          transformOrigin: "center center",
+        }}
+      >
+        +
+      </button>
+    );
+  }
+
   function startDraggingObject(
     event: PointerEvent<HTMLButtonElement>,
     objectId: string,
@@ -5406,12 +5545,18 @@ export default function ActivityCreator({
       line.points[line.points.length - 1].y - directionStart.y,
       line.points[line.points.length - 1].x - directionStart.x,
     );
-    const arrowExtension = line.lineStyle === "dribble" ? 3.6 : 0;
+    // The SVG lives inside the pitch transform layer, so zoom would normally
+    // enlarge the arrowhead along with the pitch. Counter-scale the arrowhead
+    // geometry so arrows remain the same visible size at every zoom level.
+    // This mirrors the iOS arrowHeadPath implementation.
+    const inverseZoom = 1 / Math.max(zoom, 0.01);
+    const arrowExtension =
+      line.lineStyle === "dribble" ? 3.6 * inverseZoom : 0;
     const arrowTip = {
       x: end.x + arrowExtension * Math.cos(angle),
       y: end.y + arrowExtension * Math.sin(angle),
     };
-    const arrowLength = 2.5;
+    const arrowLength = 2.5 * inverseZoom;
     const arrowAngle = Math.PI / 6;
 
     const arrowPoint1 = {
@@ -6564,7 +6709,7 @@ export default function ActivityCreator({
               <SizeSetting
                 label="Player Default Size"
                 value={playerDefaultSize}
-                min={24}
+                min={12}
                 max={72}
                 onChange={setPlayerDefaultSize}
                 onApply={() =>
@@ -6579,7 +6724,7 @@ export default function ActivityCreator({
               <SizeSetting
                 label="Cone Default Size"
                 value={coneDefaultSize}
-                min={14}
+                min={8}
                 max={52}
                 onChange={setConeDefaultSize}
                 onApply={() =>
@@ -7024,6 +7169,7 @@ export default function ActivityCreator({
                 </svg>
 
                 {displayedObjects.map((object) => renderObject(object))}
+                {!isPlayingAnimation && renderSelectedObjectDuplicateControl()}
                 {!isPlayingAnimation && renderSelectedObjectPitchControls()}
               </div>
             </div>
