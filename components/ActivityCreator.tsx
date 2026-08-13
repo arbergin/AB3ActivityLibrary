@@ -4433,9 +4433,9 @@ export default function ActivityCreator({
       return;
     }
 
-    if (selectedTool === "eraser") {
-      eraseNearestLine(point);
-    }
+    // Eraser intentionally does nothing on pointer move.
+    // A line is erased only when the eraser tool is active and the user
+    // clicks/taps the line in handlePitchPointerDown.
   }
 
   function handlePitchPointerUp(event: PointerEvent<HTMLDivElement>) {
