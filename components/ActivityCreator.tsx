@@ -1599,7 +1599,7 @@ export default function ActivityCreator({
   }>({ isDocked: false, left: 0, width: 0, top: 0 });
   const [hasLoadedUserSettings, setHasLoadedUserSettings] = useState(false);
 
-  const [selectedTool, setSelectedTool] = useState<ToolType>("team1");
+  const [selectedTool, setSelectedTool] = useState<ToolType | null>("team1");
   const [mobileToolGroup, setMobileToolGroup] =
     useState<MobileToolGroup>("objects");
   const [selectedPitchBackground, setSelectedPitchBackground] =
@@ -4053,8 +4053,34 @@ export default function ActivityCreator({
   }
 
   function handleToolClick(tool: ToolType) {
+    const canToggleOff =
+      tool === "textBox" ||
+      tool === "line" ||
+      tool === "freehand" ||
+      tool === "dribble" ||
+      tool === "eraser";
+
+    if (canToggleOff && selectedTool === tool) {
+      setSelectedTool(null);
+      setSelectedObjectId(null);
+      setSelectedObjectIds([]);
+      setSelectedLineId(null);
+      setActiveLinePoints([]);
+      setLineDragState(null);
+      setDraggingObjectId(null);
+      setStraightGuideAngle(null);
+      setMessage("");
+      return;
+    }
+
     setSelectedTool(tool);
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
+    setSelectedLineId(null);
+    setActiveLinePoints([]);
+    setLineDragState(null);
+    setDraggingObjectId(null);
+    setStraightGuideAngle(null);
     setMessage("");
 
     if (
@@ -4904,6 +4930,7 @@ export default function ActivityCreator({
         onClick={() => handleToolClick(tool.type)}
         title={tool.label}
         aria-label={tool.label}
+        aria-pressed={selectedTool === tool.type}
         className={`flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[9px] font-semibold md:h-14 md:w-14 md:text-[10px] ${
           selectedTool === tool.type
             ? "bg-[#0d2140] text-white"
