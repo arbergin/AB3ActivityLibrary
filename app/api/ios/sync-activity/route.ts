@@ -19,6 +19,7 @@ type IOSSyncActivityRequestBody = {
   lastSyncedAt?: unknown;
   creatorState?: unknown;
   previewDataUrl?: unknown;
+  forceOverwrite?: unknown;
 };
 
 type RequestingUserResult = {
@@ -349,6 +350,7 @@ export async function POST(request: NextRequest) {
     const createdBy = buildCreatedByValue(userCheck.user);
     const numberOfPlayers = countPlayersFromCreatorState(creatorState);
     const previewDataUrl = getPreviewDataUrl(body.previewDataUrl);
+    const forceOverwrite = body.forceOverwrite === true;
 
     const creatorStateWithSyncMetadata = {
       ...getIOSCompatibleCreatorState(creatorState),
@@ -391,6 +393,7 @@ export async function POST(request: NextRequest) {
 
       if (existingActivity) {
         if (
+          !forceOverwrite &&
           hasSyncConflict({
             existingUpdatedAt: existingActivity.updated_at,
             clientLastSyncedAt: lastSyncedAt,
@@ -458,7 +461,10 @@ export async function POST(request: NextRequest) {
               }
             : {}),
 
-          updated_at: updatedAt || nowIso,
+          // A deliberate conflict overwrite is a new server-side update,
+          // so stamp it with the current server time instead of preserving an
+          // older local edit timestamp. Normal sync behavior remains unchanged.
+          updated_at: forceOverwrite ? nowIso : updatedAt || nowIso,
         };
 
         const { data: updatedActivity, error: updateError } =
