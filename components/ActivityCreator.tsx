@@ -3784,6 +3784,29 @@ export default function ActivityCreator({
   }
 
   async function getCreatorPreviewDataUrl() {
+    // Capture the actual editor pitch when it displays the saved preview frame.
+    // This avoids duplicating marker-sizing, pitch stripes, and transform logic
+    // in a separate canvas renderer (which previously differed from the editor).
+    const firstFrame = frames[0];
+    const pitchElement = pitchRef.current;
+    if (pitchElement && (!firstFrame || firstFrame.id === activeFrameId) && !isPlayingAnimation) {
+      const rect = pitchElement.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        try {
+          await waitForNextPaint();
+          await waitForImagesToLoad(pitchElement);
+          return await toPng(pitchElement, {
+            backgroundColor: "#ffffff",
+            pixelRatio: 1200 / rect.width,
+            cacheBust: true,
+          });
+        } catch (error) {
+          console.warn("Editor-accurate preview capture failed; using canvas fallback.", error);
+        }
+      }
+    }
+
+    // Fallback for cases where an animation's first frame is not active.
     const renderCanvas = document.createElement("canvas");
     const context = renderCanvas.getContext("2d");
 
