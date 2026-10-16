@@ -3185,25 +3185,28 @@ export default function ActivityCreator({
     return image;
   }
 
+  // iOS greenBlank uses the bundled blank_green asset rather than the
+  // generated 14-stripe pitch. Match that legacy image in both the editor
+  // and all newly saved previews, including subsequent web edits.
   const isLegacyIosPitch = sourcePlatform === "ios" && pitchAssetVersion < 2;
-  const grassStripeCount = isLegacyIosPitch ? 19 : 14;
+  const grassStripeCount = selectedPitchBackground === "greenBlank"
+    ? 18
+    : isLegacyIosPitch ? 19 : 14;
+
+  // The saved iOS object sizes are point-based, whereas the web editor uses
+  // CSS pixels. Keep the source data unchanged and correct only rendering.
+  // The preview is captured from this same editor surface on save.
+  const iosObjectDisplayScale = sourcePlatform === "ios" ? 1.3 : 1;
 
   function getPreviewObjectSize(object: PitchObject, canvasWidth: number) {
-    // The previous hard-coded 1000px base shrank markers after editing an
-    // iOS activity: iOS exported relative to its actual saved pitch viewport.
-    const editorWidth = pitchRef.current?.getBoundingClientRect().width ?? 1000;
-    const referenceWidth =
-      sourcePlatform === "ios" && sourceViewportWidth && sourceViewportWidth > 0
-        ? sourceViewportWidth
-        : Math.max(editorWidth, 1);
-
-    // iOS marker rendering is approximately 20% larger relative to the
-    // original pitch than the raw object.size / viewportWidth ratio.
-    // Keep the adjustment in the raster preview only: stored sizes and the
-    // editor remain unchanged.
-    const iosMarkerCorrection = sourcePlatform === "ios" ? 1.2 : 1;
+    // Fallback raster rendering must match the on-screen editor, not a
+    // separate fixed 1000px or iOS source-viewport reference.
+    const editorWidth = Math.max(
+      pitchRef.current?.getBoundingClientRect().width ?? 1000,
+      1,
+    );
     return (object.size ?? getDefaultObjectSize(object.type)) *
-      (canvasWidth / referenceWidth) * iosMarkerCorrection;
+      (canvasWidth / editorWidth) * iosObjectDisplayScale;
   }
 
   function drawPreviewLine(
@@ -3829,7 +3832,6 @@ export default function ActivityCreator({
     const exportPanX = pan.x * (canvasWidth / editorPitchWidth);
     const exportPanY = pan.y * (canvasHeight / editorPitchHeight);
 
-    const firstFrame = frames[0];
     const previewLines =
       firstFrame?.id === activeFrameId ? lines : (firstFrame?.lines ?? lines);
     const previewObjects =
@@ -4159,11 +4161,8 @@ export default function ActivityCreator({
   }
 
   function getObjectPixelSize(object: PitchObject) {
-    if (object.size) {
-      return object.size;
-    }
-
-    return getDefaultObjectSize(object.type);
+    return (object.size ?? getDefaultObjectSize(object.type)) *
+      iosObjectDisplayScale;
   }
 
   function getObjectPixelHeight(object: PitchObject) {
@@ -5689,7 +5688,7 @@ export default function ActivityCreator({
   function renderPlayerObject(object: PitchObject) {
     const fallbackColor = object.type === "team1" ? team1Color : team2Color;
     const fillColor = object.fillColor ?? fallbackColor;
-    const size = object.size ?? playerDefaultSize;
+    const size = (object.size ?? playerDefaultSize) * iosObjectDisplayScale;
     const playerShape =
       object.playerShape ?? (object.type === "team1" ? team1Shape : team2Shape);
     const hitSize = Math.max(size, 44);
@@ -5796,7 +5795,7 @@ export default function ActivityCreator({
   }
 
   function renderConeObject(object: PitchObject) {
-    const size = object.size ?? coneDefaultSize;
+    const size = (object.size ?? coneDefaultSize) * iosObjectDisplayScale;
     const hitSize = Math.max(size, 44);
     const fillColor = object.fillColor ?? coneColor;
 
