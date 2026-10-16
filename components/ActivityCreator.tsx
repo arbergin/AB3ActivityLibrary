@@ -721,6 +721,25 @@ function CodedPitchBackground({
   const isBlank = background === "greenBlank" || background === "whiteBlank";
   const lineColor = isGreen ? "#ffffff" : "#111827";
 
+  // Green Blank is a bundled iOS raster background, not a generated pitch.
+  // Use the exact same image in the editor and in DOM preview captures.
+  if (background === "greenBlank") {
+    return (
+      <div className="absolute inset-0 overflow-hidden rounded-xl">
+        <img
+          src="/activity-assets/green_blank_ios.png"
+          alt=""
+          draggable={false}
+          className="absolute inset-0 block h-full w-full select-none object-cover"
+          style={{
+            transform: `translate(${panX}px, ${panY}px) rotate(${rotationDegrees}deg) scale(${zoom})`,
+            transformOrigin: "center center",
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="absolute inset-0 overflow-hidden rounded-xl">
       <svg
@@ -3846,12 +3865,27 @@ export default function ActivityCreator({
     context.rotate((pitchRotationDegrees * Math.PI) / 180);
     context.scale(zoom, zoom);
 
-    drawCanonicalPitchBackground(
-      context,
-      canvasWidth,
-      canvasHeight,
-      selectedPitchBackground,
-    );
+    if (selectedPitchBackground === "greenBlank") {
+      const pitchImage = await loadCanvasImage("/activity-assets/green_blank_ios.png");
+      // Equivalent to SwiftUI scaledToFill / CSS object-cover.
+      const scale = Math.max(canvasWidth / pitchImage.width, canvasHeight / pitchImage.height);
+      const imageWidth = pitchImage.width * scale;
+      const imageHeight = pitchImage.height * scale;
+      context.drawImage(
+        pitchImage,
+        (canvasWidth - imageWidth) / 2,
+        (canvasHeight - imageHeight) / 2,
+        imageWidth,
+        imageHeight,
+      );
+    } else {
+      drawCanonicalPitchBackground(
+        context,
+        canvasWidth,
+        canvasHeight,
+        selectedPitchBackground,
+      );
+    }
 
     previewLines.forEach((line) => {
       drawPreviewLine(context, line, canvasWidth, canvasHeight);
