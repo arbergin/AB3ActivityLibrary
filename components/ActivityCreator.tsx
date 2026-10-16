@@ -933,6 +933,8 @@ type NormalizedCreatorState = {
     coordinateSystem: "legacyCanvas" | "canonicalPitchV1";
     sourcePlatform: "ios" | "web";
     clientActivityId?: string;
+    viewportWidth?: number;
+    viewportHeight?: number;
   };
   objects: PitchObject[];
   lines: PitchLine[];
@@ -1168,6 +1170,13 @@ function normalizeCreatorState(
           typeof creatorStateRecord.clientActivityId === "string"
             ? creatorStateRecord.clientActivityId
             : undefined,
+        // Preserve the source canvas used by iOS to size markers in previews.
+        viewportWidth: getFiniteNumber(creatorState.pitch?.viewportWidth, 0) > 0
+          ? getFiniteNumber(creatorState.pitch?.viewportWidth, 0)
+          : undefined,
+        viewportHeight: getFiniteNumber(creatorState.pitch?.viewportHeight, 0) > 0
+          ? getFiniteNumber(creatorState.pitch?.viewportHeight, 0)
+          : undefined,
       },
       objects: (creatorState.objects ?? []).reduce<PitchObject[]>(
         (normalizedObjects, rawObject) => {
@@ -1890,6 +1899,14 @@ export default function ActivityCreator({
   const [clientActivityId] = useState(
     normalizedInitialCreatorState.pitchView.clientActivityId,
   );
+  // Use the original coordinate canvas for iOS-origin preview sizing.
+  // Editor CSS dimensions can change as users resize their browser.
+  const [sourceViewportWidth] = useState(
+    normalizedInitialCreatorState.pitchView.viewportWidth,
+  );
+  const [sourceViewportHeight] = useState(
+    normalizedInitialCreatorState.pitchView.viewportHeight,
+  );
   const [panState, setPanState] = useState<PanState | null>(null);
   const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<HistorySnapshot[]>([]);
@@ -2449,9 +2466,13 @@ export default function ActivityCreator({
         // pan offsets were created. Animation export needs these values to
         // reproduce the same framing on its fixed 600 × 800 canvas.
         viewportWidth:
-          pitchRef.current?.getBoundingClientRect().width ?? 1000,
+          sourcePlatform === "ios" && sourceViewportWidth
+            ? sourceViewportWidth
+            : (pitchRef.current?.getBoundingClientRect().width ?? 1000),
         viewportHeight:
-          pitchRef.current?.getBoundingClientRect().height ?? 1333.333333,
+          sourcePlatform === "ios" && sourceViewportHeight
+            ? sourceViewportHeight
+            : (pitchRef.current?.getBoundingClientRect().height ?? 1333.333333),
       } as {
         background: PitchBackgroundType;
         zoom: number;
@@ -2584,6 +2605,8 @@ export default function ActivityCreator({
       pitchCoordinateSystem,
       sourcePlatform,
       clientActivityId,
+      sourceViewportWidth,
+      sourceViewportHeight,
     ],
   );
 
@@ -3161,9 +3184,16 @@ export default function ActivityCreator({
   }
 
   function getPreviewObjectSize(object: PitchObject, canvasWidth: number) {
-    return (
-      (object.size ?? getDefaultObjectSize(object.type)) * (canvasWidth / 1000)
-    );
+    // The previous hard-coded 1000px base shrank markers after editing an
+    // iOS activity: iOS exported relative to its actual saved pitch viewport.
+    const editorWidth = pitchRef.current?.getBoundingClientRect().width ?? 1000;
+    const referenceWidth =
+      sourcePlatform === "ios" && sourceViewportWidth && sourceViewportWidth > 0
+        ? sourceViewportWidth
+        : Math.max(editorWidth, 1);
+
+    return (object.size ?? getDefaultObjectSize(object.type)) *
+      (canvasWidth / referenceWidth);
   }
 
   function drawPreviewLine(
