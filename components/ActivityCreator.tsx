@@ -698,12 +698,14 @@ function SizeSetting({
 
 function CodedPitchBackground({
   background,
+  stripeCount = 14,
   zoom = 1,
   panX = 0,
   panY = 0,
   rotationDegrees = 0,
 }: {
   background: PitchBackgroundType;
+  stripeCount?: number;
   zoom?: number;
   panX?: number;
   panY?: number;
@@ -770,13 +772,13 @@ function CodedPitchBackground({
         />
 
         {isGreen &&
-          Array.from({ length: 14 }).map((_, index) => (
+          Array.from({ length: stripeCount }).map((_, index) => (
             <rect
               key={index}
               x="0"
-              y={(index * 133.333333) / 14}
+              y={(index * 133.333333) / stripeCount}
               width="100"
-              height={133.333333 / 14}
+              height={133.333333 / stripeCount}
               fill={
                 index % 2 === 0 ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
               }
@@ -3183,6 +3185,9 @@ export default function ActivityCreator({
     return image;
   }
 
+  const isLegacyIosPitch = sourcePlatform === "ios" && pitchAssetVersion < 2;
+  const grassStripeCount = isLegacyIosPitch ? 19 : 14;
+
   function getPreviewObjectSize(object: PitchObject, canvasWidth: number) {
     // The previous hard-coded 1000px base shrank markers after editing an
     // iOS activity: iOS exported relative to its actual saved pitch viewport.
@@ -3192,8 +3197,13 @@ export default function ActivityCreator({
         ? sourceViewportWidth
         : Math.max(editorWidth, 1);
 
+    // iOS marker rendering is approximately 20% larger relative to the
+    // original pitch than the raw object.size / viewportWidth ratio.
+    // Keep the adjustment in the raster preview only: stored sizes and the
+    // editor remain unchanged.
+    const iosMarkerCorrection = sourcePlatform === "ios" ? 1.2 : 1;
     return (object.size ?? getDefaultObjectSize(object.type)) *
-      (canvasWidth / referenceWidth);
+      (canvasWidth / referenceWidth) * iosMarkerCorrection;
   }
 
   function drawPreviewLine(
@@ -3568,7 +3578,7 @@ export default function ActivityCreator({
     context.fillRect(0, 0, canvasWidth, canvasHeight);
 
     if (isGreen) {
-      const stripeCount = 14;
+      const stripeCount = grassStripeCount;
       const stripeHeight = canvasHeight / stripeCount;
 
       for (let index = 0; index < stripeCount; index += 1) {
@@ -7134,7 +7144,7 @@ export default function ActivityCreator({
                   transformOrigin: "top left",
                 }}
               >
-                <CodedPitchBackground background={selectedPitchBackground} />
+                <CodedPitchBackground background={selectedPitchBackground} stripeCount={grassStripeCount} />
 
                 <svg
                   className="absolute inset-0 z-10 h-full w-full"
@@ -7282,6 +7292,7 @@ export default function ActivityCreator({
                         <div className="relative mx-auto aspect-[3/4] w-full max-w-[180px] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-inner">
                           <CodedPitchBackground
                             background={selectedPitchBackground}
+                            stripeCount={grassStripeCount}
                           />
                           <svg
                             className="absolute inset-0 z-10 h-full w-full"
