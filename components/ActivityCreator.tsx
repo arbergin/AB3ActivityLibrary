@@ -65,6 +65,8 @@ type PitchObject = {
   fontSize?: number;
 };
 
+type ShapeStyle = "line" | "rectangle" | "circle";
+
 type PitchLine = {
   id: string;
   points: { x: number; y: number }[];
@@ -72,7 +74,8 @@ type PitchLine = {
   arrow: boolean;
   color: string;
   lineWidth: number;
-  lineStyle: "standard" | "dribble";
+  lineStyle: "standard" | "dribble" | "rectangle" | "circle";
+  fillColor?: string | null;
 };
 
 type PanState = {
@@ -1305,7 +1308,8 @@ function normalizeCreatorState(
                 : Boolean(line.arrow ?? line.isArrow),
             color: colorToCss(line.color, "#111827"),
             lineWidth: getFiniteNumber(line.lineWidth, 4),
-            lineStyle: line.lineStyle === "dribble" ? "dribble" : "standard",
+            lineStyle: line.lineStyle === "dribble" || line.lineStyle === "rectangle" || line.lineStyle === "circle" ? line.lineStyle : "standard",
+            fillColor: line.fillColor == null ? null : colorToCss(line.fillColor, "#2563eb"),
           };
         })
         .filter((line) => line.points.length >= 2),
@@ -1448,7 +1452,8 @@ function normalizeCreatorState(
               ? line.color
               : defaultState.settings.lineColor,
           lineWidth: getFiniteNumber(line.lineWidth, 4),
-          lineStyle: line.lineStyle === "dribble" ? "dribble" : "standard",
+          lineStyle: line.lineStyle === "dribble" || line.lineStyle === "rectangle" || line.lineStyle === "circle" ? line.lineStyle : "standard",
+          fillColor: line.fillColor == null ? null : colorToCss(line.fillColor, "#2563eb"),
         };
       })
       .filter((line) => line.points.length >= 2),
@@ -1639,6 +1644,9 @@ export default function ActivityCreator({
   const [hasLoadedUserSettings, setHasLoadedUserSettings] = useState(false);
 
   const [selectedTool, setSelectedTool] = useState<ToolType | null>("team1");
+  const [selectedShapeStyle, setSelectedShapeStyle] = useState<ShapeStyle>("line");
+  const [showShapeMenu, setShowShapeMenu] = useState(false);
+  const [showShapeFillPicker, setShowShapeFillPicker] = useState(false);
   const [mobileToolGroup, setMobileToolGroup] =
     useState<MobileToolGroup>("objects");
   const [selectedPitchBackground, setSelectedPitchBackground] =
@@ -1719,7 +1727,7 @@ export default function ActivityCreator({
         });
       }
     } catch (error) {
-      console.error("Unable to load saved Line Options size.", error);
+      console.error("Unable to load saved Shape Options size.", error);
     }
   }, []);
 
@@ -1763,7 +1771,7 @@ export default function ActivityCreator({
           JSON.stringify(lineOptionsPopupSize),
         );
       } catch (error) {
-        console.error("Unable to save Line Options size.", error);
+        console.error("Unable to save Shape Options size.", error);
       }
     }
 
@@ -2562,6 +2570,7 @@ export default function ActivityCreator({
             color: line.color,
             lineWidth: line.lineWidth,
             lineStyle: line.lineStyle,
+            fillColor: line.fillColor == null ? null : cssToColorObject(line.fillColor),
           })),
         };
       }),
@@ -2599,6 +2608,7 @@ export default function ActivityCreator({
         color: line.color,
         lineWidth: line.lineWidth,
         lineStyle: line.lineStyle,
+        fillColor: line.fillColor == null ? null : cssToColorObject(line.fillColor),
       })),
     }),
     [
@@ -3252,6 +3262,19 @@ export default function ActivityCreator({
     }
 
     context.beginPath();
+    if (line.lineStyle === "rectangle" || line.lineStyle === "circle") {
+      const a = line.points[0], b = line.points[line.points.length - 1];
+      const x = Math.min(a.x, b.x) / 100 * canvasWidth;
+      const y = Math.min(a.y, b.y) / 100 * canvasHeight;
+      const w = Math.abs(a.x - b.x) / 100 * canvasWidth;
+      const h = Math.abs(a.y - b.y) / 100 * canvasHeight;
+      if (line.lineStyle === "rectangle") context.rect(x,y,w,h);
+      else context.ellipse(x+w/2,y+h/2,Math.max(w/2,0.1),Math.max(h/2,0.1),0,0,Math.PI*2);
+      if (line.fillColor) { context.fillStyle = line.fillColor; context.fill(); }
+      context.stroke();
+      context.restore();
+      return;
+    }
 
     const previewPoints =
       line.lineStyle === "dribble"
@@ -3821,6 +3844,7 @@ export default function ActivityCreator({
             backgroundColor: "#ffffff",
             pixelRatio: 1200 / rect.width,
             cacheBust: true,
+            filter: node => !(node instanceof HTMLElement && node.dataset.previewExclude === "true"),
           });
         } catch (error) {
           console.warn("Editor-accurate preview capture failed; using canvas fallback.", error);
@@ -4431,6 +4455,21 @@ export default function ActivityCreator({
       const line = lines[lineIndex];
       if (line.points.length < 2) continue;
 
+      if (line.lineStyle === "rectangle" || line.lineStyle === "circle") {
+        const a=toPixels(line.points[0]), b=toPixels(line.points[line.points.length-1]);
+        const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y), w=Math.abs(a.x-b.x), h=Math.abs(a.y-b.y);
+        let near=false;
+        if(line.lineStyle === "rectangle") {
+          near = pointer.x >= x-bodyRadius && pointer.x <= x+w+bodyRadius && pointer.y >= y-bodyRadius && pointer.y <= y+h+bodyRadius &&
+            (Math.min(Math.abs(pointer.x-x),Math.abs(pointer.x-(x+w)),Math.abs(pointer.y-y),Math.abs(pointer.y-(y+h))) <= bodyRadius || Boolean(line.fillColor));
+        } else {
+          const rx=Math.max(w/2,1), ry=Math.max(h/2,1);
+          const q=Math.sqrt(((pointer.x-x-w/2)/rx)**2+((pointer.y-y-h/2)/ry)**2);
+          near=Math.abs(q-1)*Math.min(rx,ry) <= bodyRadius || (Boolean(line.fillColor) && q<=1);
+        }
+        if (near) return {line, mode:"whole"};
+        continue;
+      }
       const renderedPoints =
         line.lineStyle === "dribble" ? getDribblePolylinePoints(line.points) : line.points;
 
@@ -4717,7 +4756,7 @@ export default function ActivityCreator({
 
   function handlePitchPointerUp(event: PointerEvent<HTMLDivElement>) {
     if (lineDragState) {
-      if (isSnapToLines) {
+      if (isSnapToLines && !lines.some(line => line.id === lineDragState.lineId && (line.lineStyle === "rectangle" || line.lineStyle === "circle"))) {
         setLines((currentLines) =>
           currentLines.map((line) => {
             if (line.id !== lineDragState.lineId || line.points.length < 2) {
@@ -5302,11 +5341,52 @@ export default function ActivityCreator({
     setDraggingObjectId(objectId);
   }
 
+  function addShape(style: "rectangle" | "circle") {
+    saveHistorySnapshot();
+    const rect = pitchRef.current?.getBoundingClientRect();
+    const center = rect ? getPitchPointFromClient(rect.left + rect.width * 0.5, rect.top + rect.height * 0.46) : {x:50,y:46};
+    const width = 32, height = style === "circle" ? 24 : 20;
+    const shape: PitchLine = { id: makeId(), points: [
+      {x:clamp(center.x-width/2,0,100),y:clamp(center.y-height/2,0,100)},
+      {x:clamp(center.x+width/2,0,100),y:clamp(center.y+height/2,0,100)}],
+      dashed:isDashed, arrow:false, color:lineColor, lineWidth, lineStyle:style, fillColor:null };
+    setLines(current=>[...current,shape]);
+    setSelectedLineId(shape.id);
+    setShowShapeFillPicker(false);
+    setSelectedTool("line");
+  }
+
+  function chooseShape(style: ShapeStyle) {
+    setSelectedShapeStyle(style);
+    setShowShapeMenu(false);
+    if(style === "line") { setSelectedTool("line"); setSelectedLineId(null); }
+    else addShape(style);
+  }
+
   function renderToolButton(tool: {
     type: ToolType;
     label: string;
     shortLabel: string;
   }) {
+    if (tool.type === "line") {
+      const active = selectedTool === "line";
+      return <div key="shape" className="relative flex h-12 md:h-14">
+        <button type="button" title={`Add ${selectedShapeStyle}`}
+          onClick={() => selectedShapeStyle === "line" ? handleToolClick("line") : addShape(selectedShapeStyle)}
+          className={`flex w-11 flex-col items-center justify-center rounded-l-lg text-[10px] font-semibold ${active ? "bg-[#0d2140] text-white" : "border border-slate-300 bg-white text-slate-700"}`}>
+          <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5">
+            {selectedShapeStyle === "line" ? <path d="M6 26L26 6"/> : selectedShapeStyle === "rectangle" ? <rect x="5" y="7" width="22" height="18"/> : <circle cx="16" cy="16" r="11"/>}
+          </svg><span>Shape</span>
+        </button>
+        <button type="button" aria-label="Choose shape" title="Choose Line, Rectangle, or Circle"
+          onClick={() => setShowShapeMenu(value=>!value)}
+          className={`w-5 rounded-r-lg border border-l-0 border-slate-300 text-xs ${active ? "bg-[#0d2140] text-white" : "bg-white"}`}>⌄</button>
+        {showShapeMenu && <div className="absolute left-0 top-full z-[100] mt-1 w-36 rounded-lg border border-slate-300 bg-white p-1 shadow-xl">
+          {(["line","rectangle","circle"] as ShapeStyle[]).map(style => <button key={style} type="button"
+            onClick={() => chooseShape(style)} className="block w-full rounded px-3 py-2 text-left text-sm capitalize text-slate-800 hover:bg-sky-100">{style}</button>)}
+        </div>}
+      </div>;
+    }
     return (
       <button
         key={tool.type}
@@ -5419,7 +5499,7 @@ export default function ActivityCreator({
             >
               <div className="h-full overflow-y-auto p-4 pb-10">
               <div className="mb-3 flex items-center justify-between">
-                <div className="text-sm font-bold text-slate-900">Line Options</div>
+                <div className="text-sm font-bold text-slate-900">Shape Options</div>
                 <button
                   type="button"
                   onClick={() => setShowLineOptions(false)}
@@ -5526,7 +5606,7 @@ export default function ActivityCreator({
 
               <button
                 type="button"
-                aria-label="Resize Line Options"
+                aria-label="Resize Shape Options"
                 title="Drag to resize"
                 onPointerDown={(event) => {
                   event.preventDefault();
@@ -5563,15 +5643,15 @@ export default function ActivityCreator({
               ? "bg-[#0d2140] text-white"
               : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
           }`}
-          title="Line color, thickness, Snap To, and Guide"
-          aria-label="Line options"
+          title="Shape color, thickness, Snap To, and Guide"
+          aria-label="Shape options"
           aria-expanded={showLineOptions}
         >
           <span
             className="h-6 w-6 rounded-full border-2 border-slate-400 shadow-sm"
             style={{ backgroundColor: lineColor }}
           />
-          <span className="leading-none">Line</span>
+          <span className="leading-none">Shape</span>
         </button>
 
         {popup}
@@ -5673,6 +5753,17 @@ export default function ActivityCreator({
     const dashLength = Math.max(1.2, strokeWidth * 3.25);
     const dashGap = Math.max(1, strokeWidth * 2.5);
 
+    if (line.lineStyle === "rectangle" || line.lineStyle === "circle") {
+      const a = line.points[0], b = line.points[line.points.length - 1];
+      const x = Math.min(a.x,b.x), y = Math.min(a.y,b.y);
+      const width = Math.abs(a.x-b.x), height = Math.abs(a.y-b.y);
+      const common = { fill: line.fillColor || "none", stroke: strokeColor, strokeWidth,
+        strokeDasharray: line.dashed ? `${dashLength} ${dashGap}` : undefined,
+        opacity: isPreview ? 0.75 : 1 };
+      return <g key={line.id}>{line.lineStyle === "rectangle"
+        ? <rect x={x} y={y} width={width} height={height} {...common} />
+        : <ellipse cx={x+width/2} cy={y+height/2} rx={width/2} ry={height/2} {...common} />}</g>;
+    }
     return (
       <g key={line.id}>
         <polyline
@@ -7263,6 +7354,28 @@ export default function ActivityCreator({
                       true,
                     )}
                 </svg>
+                {!isPlayingAnimation && selectedLineId && (() => {
+                  const shape = lines.find(line => line.id === selectedLineId);
+                  if (!shape || (shape.lineStyle !== "rectangle" && shape.lineStyle !== "circle") || shape.points.length < 2) return null;
+                  const x = Math.min(shape.points[0].x,shape.points[1].x);
+                  const y = Math.min(shape.points[0].y,shape.points[1].y);
+                  return <div data-preview-exclude="true" className="absolute z-50 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
+                    style={{left:`${x}%`,top:`${Math.max(2,y-4)}%`,transform:`translateY(-100%) scale(${1/Math.max(zoom,0.01)})`,transformOrigin:"left bottom"}}
+                    onPointerDown={event=>event.stopPropagation()}>
+                    <button type="button" className="rounded p-1 text-sky-700 hover:bg-sky-100" title="Fill shape" aria-label="Fill shape"
+                      onClick={event=>{event.stopPropagation();setShowShapeFillPicker(v=>!v);}}>◉</button>
+                    <button type="button" className="rounded px-2 text-lg font-bold text-sky-700 hover:bg-sky-100" title="Duplicate shape" aria-label="Duplicate shape"
+                      onClick={event=>{event.stopPropagation();saveHistorySnapshot();const copy={...shape,id:makeId(),points:shape.points.map(p=>({x:clamp(p.x+3,0,100),y:clamp(p.y+3,0,100)}))};setLines(prev=>[...prev,copy]);}}>+</button>
+                    <button type="button" className="rounded p-1 text-red-600 hover:bg-red-100" title="Delete shape" aria-label="Delete shape"
+                      onClick={event=>{event.stopPropagation();saveHistorySnapshot();setLines(prev=>prev.filter(l=>l.id!==shape.id));setSelectedLineId(null);setShowShapeFillPicker(false);}}><SmallTrashIcon/></button>
+                    {showShapeFillPicker && <div className="absolute left-0 top-full z-[60] mt-2 w-52 rounded-lg border border-slate-300 bg-white p-3 shadow-xl" onPointerDown={e=>e.stopPropagation()}>
+                      <div className="mb-2 text-xs font-bold text-slate-700">Shape fill</div>
+                      <button type="button" className="mb-2 w-full rounded border px-2 py-1 text-left text-xs" onClick={e=>{e.stopPropagation();saveHistorySnapshot();setLines(prev=>prev.map(l=>l.id===shape.id?{...l,fillColor:null}:l));}}>No Fill (transparent)</button>
+                      <div className="flex flex-wrap gap-2">{presetColors.map(color=><button key={color.value} type="button" title={color.label} className="h-7 w-7 rounded-full border border-slate-400" style={{backgroundColor:color.value}} onClick={e=>{e.stopPropagation();saveHistorySnapshot();setLines(prev=>prev.map(l=>l.id===shape.id?{...l,fillColor:color.value}:l));}}/>)}</div>
+                      <input type="color" aria-label="Custom shape fill color" className="mt-2 h-9 w-full" value={shape.fillColor || "#2563eb"} onChange={e=>setLines(prev=>prev.map(l=>l.id===shape.id?{...l,fillColor:e.target.value}:l))}/>
+                    </div>}
+                  </div>;
+                })()}
 
                 {displayedObjects.map((object) => renderObject(object))}
                 {!isPlayingAnimation && renderSelectedObjectDuplicateControl()}

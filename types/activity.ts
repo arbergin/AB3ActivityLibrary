@@ -51,7 +51,7 @@ export type ActivityCreatorObject = {
   rotationDegrees?: number;
 };
 
-export type ActivityCreatorLineStyle = "standard" | "dribble";
+export type ActivityCreatorLineStyle = "standard" | "dribble" | "rectangle" | "circle";
 
 export type ActivityCreatorLine = {
   id: string;
@@ -72,6 +72,7 @@ export type ActivityCreatorLine = {
   lineWidth?: number;
   lineStyle?: ActivityCreatorLineStyle;
   color: string | ActivityCreatorColorObject;
+  fillColor?: string | ActivityCreatorColorObject | null;
 };
 
 export type ActivityCreatorSettingsV1 = {
