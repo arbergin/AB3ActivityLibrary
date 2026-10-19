@@ -351,8 +351,9 @@ export default function ActivityMetadataForm({
       hidden: initialActivity?.hidden || false,
       visibility,
       clubId: visibility === "club" ? initialActivity?.clubId || null : null,
-      activitySource: mode,
-      creatorState: mode === "create" ? creatorState : undefined,
+      // Keep an existing activity's original source when editing on the web.
+      activitySource: initialActivity?.activitySource ?? mode,
+      creatorState: mode === "create" ? (creatorState ?? initialActivity?.creatorState) : initialActivity?.creatorState,
       fileName: activityFileName,
       fileType: activityFileType,
       previewDataUrl: activityPreviewDataUrl,

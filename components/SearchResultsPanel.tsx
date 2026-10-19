@@ -188,6 +188,29 @@ function formatDate(dateValue?: string) {
   });
 }
 
+// Use the original creator platform, rather than the preview file extension.
+// iOS activities remain iOS-origin even after being edited on the website.
+function getActivityOriginLabel(activity: Activity): string {
+  if (activity.creatorState && "sourcePlatform" in activity.creatorState) {
+    if (activity.creatorState.sourcePlatform === "ios") {
+      return "Imported from: AB3 Activity Planner";
+    }
+    if (activity.creatorState.sourcePlatform === "web") {
+      return "Activity Creator";
+    }
+  }
+
+  if (activity.activitySource === "import") {
+    return "Imported from: Web";
+  }
+  if (activity.activitySource === "create" || activity.creatorState) {
+    return "Activity Creator";
+  }
+  // Legacy records with a filename but no source metadata were web imports
+  // according to the existing import fallback. Their exact origin is unknown.
+  return "Source unavailable";
+}
+
 function PreviewFallback() {
   return (
     <div className="flex min-h-64 w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
@@ -885,12 +908,18 @@ export default function SearchResultsPanel({
                       {activity.activityName}
                     </div>
 
-                    {activity.fileName && (
-                      <div className="mt-1 text-xs text-slate-500">
-                        <span className="block">Imported from:</span>
-                        <span className="block break-words">AB3 Activity Planner</span>
-                      </div>
-                    )}
+                    <div className="mt-1 min-w-0 text-xs text-slate-500">
+                      {getActivityOriginLabel(activity).startsWith("Imported from: ") ? (
+                        <>
+                          <div>Imported from:</div>
+                          <div className="break-words">
+                            {getActivityOriginLabel(activity).slice("Imported from: ".length)}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="break-words">{getActivityOriginLabel(activity)}</div>
+                      )}
+                    </div>
 
                     {activity.hidden && (
                       <div className="mt-1 text-xs font-semibold text-amber-600">
@@ -1063,9 +1092,7 @@ export default function SearchResultsPanel({
                 <div className="mt-2">
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                      {selectedActivity.creatorState
-                        ? "Created with Activity Creator"
-                        : "Imported PNG/PDF"}
+{getActivityOriginLabel(selectedActivity)}
                     </span>
                     {selectedActivity.creatorState && (
                       <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
