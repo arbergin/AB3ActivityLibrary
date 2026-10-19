@@ -251,6 +251,12 @@ export default function TeamPlanningPage() {
                         >
                           Planning
                         </Link>
+                        <Link
+                          href={`/team-planning/${team.id}/players`}
+                          className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
+                        >
+                          Players
+                        </Link>
                         <button
                           type="button"
                           onClick={() => beginRename(team)}
