@@ -86,14 +86,16 @@ export default function SearchFilters({
       onSubmit={handleSubmit}
       className="rounded-xl bg-white p-6 shadow-sm"
     >
-      <div>
-        <h2 className="text-xl font-bold">Filters</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Enter search criteria, then click Search to view matching
-          activities.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold">Filters</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Enter search criteria, then click Search to view matching
+            activities.
+          </p>
+        </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-start gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3 sm:ml-auto">
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
             <input
               type="checkbox"
@@ -106,17 +108,17 @@ export default function SearchFilters({
             My Activities Only
           </label>
           {onHasActivityDetailsOnlyChange && (
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={hasActivityDetailsOnly ?? false}
-              onChange={(event) =>
-                onHasActivityDetailsOnlyChange(event.target.checked)
-              }
-              className="h-4 w-4"
-            />
-            Has Activity Details
-          </label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={hasActivityDetailsOnly ?? false}
+                onChange={(event) =>
+                  onHasActivityDetailsOnlyChange(event.target.checked)
+                }
+                className="h-4 w-4"
+              />
+              Has Activity Details
+            </label>
           )}
         </div>
       </div>
