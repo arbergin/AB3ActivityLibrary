@@ -21,6 +21,7 @@ import {
   getAllUserProfiles,
   updateUserName,
   updateUserRole,
+  updateUserNoDetailsPermission,
 } from "@/lib/userManagement";
 import {
   addDropdownOption,
@@ -54,6 +55,7 @@ export default function SettingsPage() {
 
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isUpdatingPermissionUserId, setIsUpdatingPermissionUserId] = useState<string | undefined>(undefined);
   const [isUpdatingRoleUserId, setIsUpdatingRoleUserId] = useState<
     string | undefined
   >(undefined);
@@ -719,6 +721,21 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleNoDetailsPermissionChange(userId: string, allowed: boolean) {
+    setIsUpdatingPermissionUserId(userId);
+    setUserManagementMessage("");
+    try {
+      const updated = await updateUserNoDetailsPermission(userId, allowed);
+      setUserProfiles((current) => current.map((user) => user.id === userId ? updated : user));
+      if (userId === currentUserId) setProfile(updated);
+      setUserManagementMessage(`No Activity Details search ${allowed ? "enabled" : "disabled"} for ${updated.email}.`);
+    } catch (error) {
+      setUserManagementMessage(error instanceof Error ? error.message : "Unable to update search permission.");
+    } finally {
+      setIsUpdatingPermissionUserId(undefined);
+    }
+  }
+
   function openResetPassword(userId: string) {
     setDeleteUserId(undefined);
     setResetPasswordUserId(userId);
@@ -1293,6 +1310,16 @@ export default function SettingsPage() {
                                   Self-change disabled
                                 </div>
                               )}
+                              <label className="mt-3 flex items-start gap-2 text-xs text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5 h-4 w-4 shrink-0"
+                                  checked={userProfile.can_search_without_activity_details === true}
+                                  disabled={isUpdatingPermissionUserId === userProfile.id}
+                                  onChange={(event) => handleNoDetailsPermissionChange(userProfile.id, event.target.checked)}
+                                />
+                                <span>Can Search Activities Without Details</span>
+                              </label>
                             </div>
 
                             <div className="relative grid justify-items-start gap-2">

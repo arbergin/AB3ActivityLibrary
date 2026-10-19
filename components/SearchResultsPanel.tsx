@@ -33,6 +33,7 @@ import type {
 type SearchResultsPanelProps = {
   myActivitiesOnly: boolean;
   hasActivityDetailsOnly: boolean;
+  noActivityDetailsOnly?: boolean;
   filters: SearchFilterValues;
   sortValue: SearchSortValue;
   hasSearched: boolean;
@@ -203,6 +204,7 @@ function PreviewFallback() {
 export default function SearchResultsPanel({
   myActivitiesOnly,
   hasActivityDetailsOnly,
+  noActivityDetailsOnly = false,
   filters,
   sortValue,
   hasSearched,
@@ -377,8 +379,9 @@ export default function SearchResultsPanel({
         filters.numberOfPlayers
       );
 
-      const hasDetailsMatch =
-        !hasActivityDetailsOnly || Boolean(activity.activityDetails?.trim());
+      const populatedDetails = Boolean(activity.activityDetails?.trim());
+      const hasDetailsMatch = !hasActivityDetailsOnly || populatedDetails;
+      const noDetailsMatch = !noActivityDetailsOnly || !populatedDetails;
 
       const detailsMatch = safeLower(activity.activityDetails).includes(
         filters.activityDetails.toLowerCase().trim()
@@ -392,10 +395,11 @@ export default function SearchResultsPanel({
         positionsMatch &&
         numberOfPlayersMatches &&
         hasDetailsMatch &&
+        noDetailsMatch &&
         detailsMatch
       );
     });
-  }, [hasSearched, searchableActivities, filters, hasActivityDetailsOnly]);
+  }, [hasSearched, searchableActivities, filters, hasActivityDetailsOnly, noActivityDetailsOnly]);
 
   const visibleActivities = useMemo(() => {
     return [...filteredActivities].sort((activityA, activityB) => {

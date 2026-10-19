@@ -8,6 +8,7 @@ export type UserProfile = {
   name: string;
   email: string;
   role: UserRole;
+  can_search_without_activity_details: boolean;
   must_change_password: boolean;
   club_id: string | null;
   created_at: string;

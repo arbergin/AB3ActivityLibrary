@@ -96,6 +96,17 @@ export async function updateUserRole(userId: string, role: UserRole) {
   return data as UserProfile;
 }
 
+/** The database RPC checks that the calling user has the admin role. */
+export async function updateUserNoDetailsPermission(userId: string, allowed: boolean): Promise<UserProfile> {
+  const { data, error } = await supabase.rpc("admin_set_no_details_search_permission", {
+    p_user_id: userId,
+    p_allowed: allowed,
+  });
+  if (error) throw error;
+  if (!data) throw new Error("User permission could not be updated.");
+  return data as UserProfile;
+}
+
 export async function getRecentLoginAudit(limit = 50) {
   const safeLimit = Math.min(Math.max(limit, 1), 100);
 

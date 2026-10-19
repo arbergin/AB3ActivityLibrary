@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import SearchFilters from "@/components/SearchFilters";
 import SearchResultsPanel from "@/components/SearchResultsPanel";
+import { getCurrentUserProfile } from "@/lib/userProfile";
 
 export type SearchFilterValues = {
   activityName: string;
@@ -42,6 +43,8 @@ type PersistedSearchPageState = {
   myActivitiesOnly: boolean;
   hasActivityDetailsOnly: boolean;
   appliedHasActivityDetailsOnly: boolean;
+  noActivityDetailsOnly: boolean;
+  appliedNoActivityDetailsOnly: boolean;
   appliedMyActivitiesOnly: boolean;
   sortValue: SearchSortValue;
   hasSearched: boolean;
@@ -89,6 +92,10 @@ function hasSearchCriteria(filters: SearchFilterValues) {
 export default function SearchPageClient() {
   const [myActivitiesOnly, setMyActivitiesOnly] = useState(false);
   const [hasActivityDetailsOnly, setHasActivityDetailsOnly] = useState(false);
+  const [noActivityDetailsOnly, setNoActivityDetailsOnly] = useState(false);
+  const [appliedNoActivityDetailsOnly, setAppliedNoActivityDetailsOnly] = useState(false);
+  const [canSearchWithoutDetails, setCanSearchWithoutDetails] = useState(false);
+  const [permissionLoaded, setPermissionLoaded] = useState(false);
   const [appliedHasActivityDetailsOnly, setAppliedHasActivityDetailsOnly] = useState(false);
   const [filters, setFilters] = useState<SearchFilterValues>(emptyFilters);
   const [appliedFilters, setAppliedFilters] =
@@ -108,6 +115,8 @@ export default function SearchPageClient() {
     setAppliedFilters(emptyFilters);
     setMyActivitiesOnly(false);
     setHasActivityDetailsOnly(false);
+    setNoActivityDetailsOnly(false);
+    setAppliedNoActivityDetailsOnly(false);
     setAppliedHasActivityDetailsOnly(false);
     setAppliedMyActivitiesOnly(false);
     setSortValue("activityNameAsc");
@@ -116,9 +125,49 @@ export default function SearchPageClient() {
     setRefreshKey((current) => current + 1);
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    async function checkPermission() {
+      try {
+        const profile = await getCurrentUserProfile();
+        const allowed = profile?.can_search_without_activity_details === true;
+        if (!mounted) return;
+        setCanSearchWithoutDetails(allowed);
+        if (!allowed) {
+          setNoActivityDetailsOnly(false);
+          setAppliedNoActivityDetailsOnly(false);
+        }
+      } catch (error) {
+        console.error("Unable to check search permission.", error);
+        if (mounted) {
+          setCanSearchWithoutDetails(false);
+          setNoActivityDetailsOnly(false);
+          setAppliedNoActivityDetailsOnly(false);
+        }
+      } finally {
+        if (mounted) setPermissionLoaded(true);
+      }
+    }
+    checkPermission();
+    const handleFocus = () => { void checkPermission(); };
+    window.addEventListener("focus", handleFocus);
+    return () => { mounted = false; window.removeEventListener("focus", handleFocus); };
+  }, []);
+
+  function handleHasDetailsChange(next: boolean) {
+    setHasActivityDetailsOnly(next);
+    if (next) setNoActivityDetailsOnly(false);
+  }
+
+  function handleNoDetailsChange(next: boolean) {
+    if (!canSearchWithoutDetails) return;
+    setNoActivityDetailsOnly(next);
+    if (next) setHasActivityDetailsOnly(false);
+  }
+
   function handleSearch() {
 
-    if (!hasSearchCriteria(filters) && !myActivitiesOnly && !hasActivityDetailsOnly) {
+    if (!hasSearchCriteria(filters) && !myActivitiesOnly && !hasActivityDetailsOnly && !(canSearchWithoutDetails && noActivityDetailsOnly)) {
       setHasSearched(false);
       setSearchMessage("Enter at least one search criteria before searching.");
       setAppliedFilters(emptyFilters);
@@ -129,6 +178,7 @@ export default function SearchPageClient() {
     setAppliedFilters(filters);
     setAppliedMyActivitiesOnly(myActivitiesOnly);
     setAppliedHasActivityDetailsOnly(hasActivityDetailsOnly);
+    setAppliedNoActivityDetailsOnly(canSearchWithoutDetails && noActivityDetailsOnly);
     setHasSearched(true);
     setSearchMessage("");
     setRefreshKey((current) => current + 1);
@@ -155,6 +205,7 @@ export default function SearchPageClient() {
           setAppliedFilters(savedState.appliedFilters);
         }
 
+        // Do not restore the restricted filter until current permissions are checked.
         if (typeof savedState.hasActivityDetailsOnly === "boolean") {
           setHasActivityDetailsOnly(savedState.hasActivityDetailsOnly);
         }
@@ -208,6 +259,8 @@ export default function SearchPageClient() {
       myActivitiesOnly,
       hasActivityDetailsOnly,
       appliedHasActivityDetailsOnly,
+      noActivityDetailsOnly,
+      appliedNoActivityDetailsOnly,
       appliedMyActivitiesOnly,
       sortValue,
       hasSearched,
@@ -225,6 +278,8 @@ export default function SearchPageClient() {
     myActivitiesOnly,
     hasActivityDetailsOnly,
     appliedHasActivityDetailsOnly,
+    noActivityDetailsOnly,
+    appliedNoActivityDetailsOnly,
     appliedMyActivitiesOnly,
     sortValue,
     hasSearched,
@@ -241,7 +296,9 @@ export default function SearchPageClient() {
           onFiltersChange={setFilters}
           myActivitiesOnly={myActivitiesOnly}
           hasActivityDetailsOnly={hasActivityDetailsOnly}
-          onHasActivityDetailsOnlyChange={setHasActivityDetailsOnly}
+          onHasActivityDetailsOnlyChange={handleHasDetailsChange}
+          noActivityDetailsOnly={noActivityDetailsOnly}
+          onNoActivityDetailsOnlyChange={permissionLoaded && canSearchWithoutDetails ? handleNoDetailsChange : undefined}
           onMyActivitiesOnlyChange={setMyActivitiesOnly}
           sortValue={sortValue}
           onSortValueChange={setSortValue}
@@ -255,6 +312,7 @@ export default function SearchPageClient() {
         <SearchResultsPanel
           myActivitiesOnly={appliedMyActivitiesOnly}
           hasActivityDetailsOnly={appliedHasActivityDetailsOnly}
+          noActivityDetailsOnly={canSearchWithoutDetails && appliedNoActivityDetailsOnly}
           filters={appliedFilters}
           sortValue={sortValue}
           hasSearched={hasSearched}
