@@ -21,8 +21,8 @@ type SearchFiltersProps = {
   filters: SearchFilterValues;
   onFiltersChange: (filters: SearchFilterValues) => void;
   myActivitiesOnly: boolean;
-  hasActivityDetailsOnly: boolean;
-  onHasActivityDetailsOnlyChange: (value: boolean) => void;
+  hasActivityDetailsOnly?: boolean;
+  onHasActivityDetailsOnlyChange?: (value: boolean) => void;
   onMyActivitiesOnlyChange: (myActivitiesOnly: boolean) => void;
   sortValue: SearchSortValue;
   onSortValueChange: (sortValue: SearchSortValue) => void;
@@ -105,10 +105,11 @@ export default function SearchFilters({
             />
             My Activities Only
           </label>
+          {onHasActivityDetailsOnlyChange && (
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
             <input
               type="checkbox"
-              checked={hasActivityDetailsOnly}
+              checked={hasActivityDetailsOnly ?? false}
               onChange={(event) =>
                 onHasActivityDetailsOnlyChange(event.target.checked)
               }
@@ -116,6 +117,7 @@ export default function SearchFilters({
             />
             Has Activity Details
           </label>
+          )}
         </div>
       </div>
 
