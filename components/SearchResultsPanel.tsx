@@ -886,8 +886,9 @@ export default function SearchResultsPanel({
                     </div>
 
                     {activity.fileName && (
-                      <div className="mt-1 break-words text-xs text-slate-500">
-                        Imported from: AB3 Activity Planner
+                      <div className="mt-1 text-xs text-slate-500">
+                        <span className="block">Imported from:</span>
+                        <span className="block break-words">AB3 Activity Planner</span>
                       </div>
                     )}
 
