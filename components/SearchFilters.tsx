@@ -21,6 +21,8 @@ type SearchFiltersProps = {
   filters: SearchFilterValues;
   onFiltersChange: (filters: SearchFilterValues) => void;
   myActivitiesOnly: boolean;
+  hasActivityDetailsOnly: boolean;
+  onHasActivityDetailsOnlyChange: (value: boolean) => void;
   onMyActivitiesOnlyChange: (myActivitiesOnly: boolean) => void;
   sortValue: SearchSortValue;
   onSortValueChange: (sortValue: SearchSortValue) => void;
@@ -33,6 +35,8 @@ export default function SearchFilters({
   filters,
   onFiltersChange,
   myActivitiesOnly,
+  hasActivityDetailsOnly,
+  onHasActivityDetailsOnlyChange,
   onMyActivitiesOnlyChange,
   sortValue,
   onSortValueChange,
@@ -82,16 +86,14 @@ export default function SearchFilters({
       onSubmit={handleSubmit}
       className="rounded-xl bg-white p-6 shadow-sm"
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold">Filters</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Enter search criteria, then click Search to view matching
-            activities.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-xl font-bold">Filters</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Enter search criteria, then click Search to view matching
+          activities.
+        </p>
 
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-start gap-3">
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
             <input
               type="checkbox"
@@ -103,7 +105,17 @@ export default function SearchFilters({
             />
             My Activities Only
           </label>
-
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={hasActivityDetailsOnly}
+              onChange={(event) =>
+                onHasActivityDetailsOnlyChange(event.target.checked)
+              }
+              className="h-4 w-4"
+            />
+            Has Activity Details
+          </label>
         </div>
       </div>
 

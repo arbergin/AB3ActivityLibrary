@@ -32,6 +32,7 @@ import type {
 
 type SearchResultsPanelProps = {
   myActivitiesOnly: boolean;
+  hasActivityDetailsOnly: boolean;
   filters: SearchFilterValues;
   sortValue: SearchSortValue;
   hasSearched: boolean;
@@ -201,6 +202,7 @@ function PreviewFallback() {
 
 export default function SearchResultsPanel({
   myActivitiesOnly,
+  hasActivityDetailsOnly,
   filters,
   sortValue,
   hasSearched,
@@ -375,6 +377,9 @@ export default function SearchResultsPanel({
         filters.numberOfPlayers
       );
 
+      const hasDetailsMatch =
+        !hasActivityDetailsOnly || Boolean(activity.activityDetails?.trim());
+
       const detailsMatch = safeLower(activity.activityDetails).includes(
         filters.activityDetails.toLowerCase().trim()
       );
@@ -386,10 +391,11 @@ export default function SearchResultsPanel({
         categoryMatches &&
         positionsMatch &&
         numberOfPlayersMatches &&
+        hasDetailsMatch &&
         detailsMatch
       );
     });
-  }, [hasSearched, searchableActivities, filters]);
+  }, [hasSearched, searchableActivities, filters, hasActivityDetailsOnly]);
 
   const visibleActivities = useMemo(() => {
     return [...filteredActivities].sort((activityA, activityB) => {

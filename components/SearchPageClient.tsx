@@ -40,6 +40,8 @@ type PersistedSearchPageState = {
   filters: SearchFilterValues;
   appliedFilters: SearchFilterValues;
   myActivitiesOnly: boolean;
+  hasActivityDetailsOnly: boolean;
+  appliedHasActivityDetailsOnly: boolean;
   appliedMyActivitiesOnly: boolean;
   sortValue: SearchSortValue;
   hasSearched: boolean;
@@ -86,6 +88,8 @@ function hasSearchCriteria(filters: SearchFilterValues) {
 
 export default function SearchPageClient() {
   const [myActivitiesOnly, setMyActivitiesOnly] = useState(false);
+  const [hasActivityDetailsOnly, setHasActivityDetailsOnly] = useState(false);
+  const [appliedHasActivityDetailsOnly, setAppliedHasActivityDetailsOnly] = useState(false);
   const [filters, setFilters] = useState<SearchFilterValues>(emptyFilters);
   const [appliedFilters, setAppliedFilters] =
     useState<SearchFilterValues>(emptyFilters);
@@ -103,6 +107,8 @@ export default function SearchPageClient() {
     setFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     setMyActivitiesOnly(false);
+    setHasActivityDetailsOnly(false);
+    setAppliedHasActivityDetailsOnly(false);
     setAppliedMyActivitiesOnly(false);
     setSortValue("activityNameAsc");
     setHasSearched(false);
@@ -112,7 +118,7 @@ export default function SearchPageClient() {
 
   function handleSearch() {
 
-    if (!hasSearchCriteria(filters)) {
+    if (!hasSearchCriteria(filters) && !myActivitiesOnly && !hasActivityDetailsOnly) {
       setHasSearched(false);
       setSearchMessage("Enter at least one search criteria before searching.");
       setAppliedFilters(emptyFilters);
@@ -122,6 +128,7 @@ export default function SearchPageClient() {
 
     setAppliedFilters(filters);
     setAppliedMyActivitiesOnly(myActivitiesOnly);
+    setAppliedHasActivityDetailsOnly(hasActivityDetailsOnly);
     setHasSearched(true);
     setSearchMessage("");
     setRefreshKey((current) => current + 1);
@@ -146,6 +153,14 @@ export default function SearchPageClient() {
 
         if (isSearchFilterValues(savedState.appliedFilters)) {
           setAppliedFilters(savedState.appliedFilters);
+        }
+
+        if (typeof savedState.hasActivityDetailsOnly === "boolean") {
+          setHasActivityDetailsOnly(savedState.hasActivityDetailsOnly);
+        }
+
+        if (typeof savedState.appliedHasActivityDetailsOnly === "boolean") {
+          setAppliedHasActivityDetailsOnly(savedState.appliedHasActivityDetailsOnly);
         }
 
         if (typeof savedState.myActivitiesOnly === "boolean") {
@@ -191,6 +206,8 @@ export default function SearchPageClient() {
       filters,
       appliedFilters,
       myActivitiesOnly,
+      hasActivityDetailsOnly,
+      appliedHasActivityDetailsOnly,
       appliedMyActivitiesOnly,
       sortValue,
       hasSearched,
@@ -206,6 +223,8 @@ export default function SearchPageClient() {
     filters,
     appliedFilters,
     myActivitiesOnly,
+    hasActivityDetailsOnly,
+    appliedHasActivityDetailsOnly,
     appliedMyActivitiesOnly,
     sortValue,
     hasSearched,
@@ -221,6 +240,8 @@ export default function SearchPageClient() {
           filters={filters}
           onFiltersChange={setFilters}
           myActivitiesOnly={myActivitiesOnly}
+          hasActivityDetailsOnly={hasActivityDetailsOnly}
+          onHasActivityDetailsOnlyChange={setHasActivityDetailsOnly}
           onMyActivitiesOnlyChange={setMyActivitiesOnly}
           sortValue={sortValue}
           onSortValueChange={setSortValue}
@@ -233,6 +254,7 @@ export default function SearchPageClient() {
       <div className="min-w-0">
         <SearchResultsPanel
           myActivitiesOnly={appliedMyActivitiesOnly}
+          hasActivityDetailsOnly={appliedHasActivityDetailsOnly}
           filters={appliedFilters}
           sortValue={sortValue}
           hasSearched={hasSearched}
