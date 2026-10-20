@@ -74,110 +74,108 @@ function markdownToHtml(value: string) {
   return output.join("");
 }
 
-function serializeInlineNode(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent ?? "";
-  }
+// Browser rich-text commands can wrap entire paragraphs and lists in spans,
+// especially immediately after pasting plain text. Preserve those wrappers
+// rather than discarding their contents or merging separate paragraphs.
+type InlineStyle = { bold: boolean; italic: boolean; underline: boolean };
+const NO_STYLE: InlineStyle = { bold: false, italic: false, underline: false };
 
-  if (!(node instanceof HTMLElement)) {
-    return "";
-  }
-
-  const content = Array.from(node.childNodes)
-    .map((child) => serializeInlineNode(child))
-    .join("");
-
-  const tagName = node.tagName.toLowerCase();
-
-  if (tagName === "strong" || tagName === "b") {
-    return content ? `**${content}**` : "";
-  }
-
-  if (tagName === "em" || tagName === "i") {
-    return content ? `*${content}*` : "";
-  }
-
-  if (tagName === "u") {
-    return content ? `++${content}++` : "";
-  }
-
-  if (tagName === "br") {
-    return "\n";
-  }
-
-  return content;
+function styleForElement(element: HTMLElement, inherited: InlineStyle): InlineStyle {
+  const tag = element.tagName.toLowerCase();
+  const css = element.style;
+  return {
+    bold: inherited.bold || tag === "strong" || tag === "b" ||
+      css.fontWeight === "bold" || Number(css.fontWeight) >= 600,
+    italic: inherited.italic || tag === "em" || tag === "i" || css.fontStyle === "italic",
+    underline: inherited.underline || tag === "u" ||
+      css.textDecorationLine.includes("underline") || css.textDecoration.includes("underline"),
+  };
 }
 
-function serializeBlockNodes(nodes: Node[]): string[] {
-  const lines: string[] = [];
+function wrapText(text: string, style: InlineStyle): string {
+  if (!text) return "";
+  let output = text;
+  if (style.underline) output = `++${output}++`;
+  if (style.italic) output = `*${output}*`;
+  if (style.bold) output = `**${output}**`;
+  return output;
+}
 
-  nodes.forEach((node) => {
+function serializeInlineNode(node: Node, inherited: InlineStyle = NO_STYLE): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return wrapText(node.textContent ?? "", inherited);
+  }
+  if (!(node instanceof HTMLElement)) return "";
+  if (node.tagName.toLowerCase() === "br") return "\n";
+
+  const style = styleForElement(node, inherited);
+  return Array.from(node.childNodes)
+    .map((child) => serializeInlineNode(child, style))
+    .join("");
+}
+
+function serializeBlockNodes(nodes: Node[], inherited: InlineStyle = NO_STYLE): string[] {
+  const lines: string[] = [];
+  let inlineParts: string[] = [];
+
+  function flushInline() {
+    const text = inlineParts.join("").replace(/\n+$/g, "");
+    if (text.trim()) lines.push(text);
+    inlineParts = [];
+  }
+
+  for (const node of nodes) {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent ?? "";
+      if (text.trim()) inlineParts.push(wrapText(text, inherited));
+      continue;
+    }
+    if (!(node instanceof HTMLElement)) continue;
 
-      if (text.trim()) {
-        lines.push(text);
+    const tag = node.tagName.toLowerCase();
+    const style = styleForElement(node, inherited);
+
+    if (tag === "ul" || tag === "ol") {
+      flushInline();
+      for (const item of Array.from(node.children)) {
+        if (!(item instanceof HTMLElement)) continue;
+        const itemText = serializeInlineNode(item, style).replace(/\n/g, " ").trim();
+        if (itemText) lines.push(`- ${itemText}`);
       }
-
-      return;
+      continue;
     }
-
-    if (!(node instanceof HTMLElement)) {
-      return;
+    if (tag === "li") {
+      flushInline();
+      const itemText = serializeInlineNode(node, inherited).replace(/\n/g, " ").trim();
+      if (itemText) lines.push(`- ${itemText}`);
+      continue;
     }
-
-    const tagName = node.tagName.toLowerCase();
-
-    if (tagName === "ul" || tagName === "ol") {
-      Array.from(node.children).forEach((child) => {
-        const itemText = serializeInlineNode(child).trim();
-
-        if (itemText) {
-          lines.push(`- ${itemText}`);
-        }
-      });
-
-      return;
-    }
-
-    if (tagName === "li") {
-      const itemText = serializeInlineNode(node).trim();
-
-      if (itemText) {
-        lines.push(`- ${itemText}`);
-      }
-
-      return;
-    }
-
-    if (tagName === "div" || tagName === "p") {
-      const blockChildren = Array.from(node.childNodes);
-      const containsList = blockChildren.some(
-        (child) =>
-          child instanceof HTMLElement &&
-          (child.tagName.toLowerCase() === "ul" ||
-            child.tagName.toLowerCase() === "ol")
+    if (tag === "div" || tag === "p") {
+      flushInline();
+      const children = Array.from(node.childNodes);
+      const hasBlockChildren = children.some((child) =>
+        child instanceof HTMLElement && ["div", "p", "ul", "ol", "li"].includes(child.tagName.toLowerCase())
       );
-
-      if (containsList) {
-        lines.push(...serializeBlockNodes(blockChildren));
-        return;
-      }
-
-      const value = serializeInlineNode(node).replace(/\n+$/g, "");
-
-      if (value === "\n" || !value.trim()) {
-        lines.push("");
+      if (hasBlockChildren) {
+        lines.push(...serializeBlockNodes(children, style));
       } else {
-        lines.push(value);
+        const content = serializeInlineNode(node, inherited).replace(/\n+$/g, "");
+        lines.push(content.trim() ? content : "");
       }
-
-      return;
+      continue;
     }
 
-    lines.push(...serializeBlockNodes(Array.from(node.childNodes)));
-  });
-
+    // Spans/strong/em/underline may contain block elements after execCommand.
+    const children = Array.from(node.childNodes);
+    const hasBlockDescendant = Boolean(node.querySelector("div, p, ul, ol, li"));
+    if (hasBlockDescendant) {
+      flushInline();
+      lines.push(...serializeBlockNodes(children, style));
+    } else {
+      inlineParts.push(serializeInlineNode(node, inherited));
+    }
+  }
+  flushInline();
   return lines;
 }
 
