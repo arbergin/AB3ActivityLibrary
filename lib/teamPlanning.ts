@@ -4,6 +4,7 @@ export type PlanningTeam = {
   id: string;
   userId: string;
   name: string;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -53,6 +54,7 @@ type PlanningTeamRow = {
   id: string;
   user_id: string;
   name: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -103,6 +105,7 @@ function rowToPlanningTeam(row: PlanningTeamRow): PlanningTeam {
     id: row.id,
     userId: row.user_id,
     name: row.name,
+    isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -181,8 +184,9 @@ export async function getPlanningTeams(): Promise<PlanningTeam[]> {
 
   const { data, error } = await supabase
     .from("planning_teams")
-    .select("id, user_id, name, created_at, updated_at")
+    .select("id, user_id, name, is_active, created_at, updated_at")
     .eq("user_id", userId)
+    .eq("is_active", true)
     .order("name", { ascending: true });
 
   if (error) throw error;
@@ -195,8 +199,9 @@ export async function getPlanningTeamById(
 ): Promise<PlanningTeam | null> {
   const { data, error } = await supabase
     .from("planning_teams")
-    .select("id, user_id, name, created_at, updated_at")
+    .select("id, user_id, name, is_active, created_at, updated_at")
     .eq("id", teamId)
+    .eq("is_active", true)
     .maybeSingle();
 
   if (error) throw error;
@@ -213,8 +218,8 @@ export async function createPlanningTeam(name: string): Promise<PlanningTeam> {
 
   const { data, error } = await supabase
     .from("planning_teams")
-    .insert({ user_id: userId, name: cleanName })
-    .select("id, user_id, name, created_at, updated_at")
+    .insert({ user_id: userId, name: cleanName, is_active: true })
+    .select("id, user_id, name, is_active, created_at, updated_at")
     .single();
 
   if (error) throw error;
@@ -232,20 +237,27 @@ export async function renamePlanningTeam(
     .from("planning_teams")
     .update({ name: cleanName })
     .eq("id", teamId)
-    .select("id, user_id, name, created_at, updated_at")
+    .select("id, user_id, name, is_active, created_at, updated_at")
     .single();
 
   if (error) throw error;
   return rowToPlanningTeam(data as PlanningTeamRow);
 }
 
+/** Archive a team without deleting any related planning or player records. */
 export async function deletePlanningTeam(teamId: string): Promise<void> {
-  const { error } = await supabase
+  const userId = await getCurrentUserId();
+  const { data, error } = await supabase
     .from("planning_teams")
-    .delete()
-    .eq("id", teamId);
+    .update({ is_active: false })
+    .eq("id", teamId)
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .select("id")
+    .single();
 
   if (error) throw error;
+  if (!data) throw new Error("Team could not be archived.");
 }
 
 async function getNextSortOrder(
