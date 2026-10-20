@@ -8,6 +8,9 @@ import {
   createPlanningTeam,
   deletePlanningTeam,
   getPlanningTeams,
+  getInactivePlanningTeams,
+  restorePlanningTeam,
+  permanentlyDeletePlanningTeam,
   renamePlanningTeam,
   type PlanningTeam,
 } from "@/lib/teamPlanning";
@@ -23,6 +26,11 @@ export default function TeamPlanningPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [teamPendingDeletion, setTeamPendingDeletion] = useState<PlanningTeam | null>(null);
+  const [isInactiveTeamsOpen, setIsInactiveTeamsOpen] = useState(false);
+  const [inactiveTeams, setInactiveTeams] = useState<PlanningTeam[]>([]);
+  const [isLoadingInactive, setIsLoadingInactive] = useState(false);
+  const [inactiveError, setInactiveError] = useState("");
+  const [pendingPermanentDelete, setPendingPermanentDelete] = useState<PlanningTeam | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const selectedTeam = teams.find((team) => team.id === selectedTeamId) ?? null;
 
@@ -153,6 +161,56 @@ export default function TeamPlanningPage() {
     }
   }
 
+  async function openInactiveTeams() {
+    setIsActionsMenuOpen(false);
+    setIsInactiveTeamsOpen(true);
+    setInactiveError("");
+    setIsLoadingInactive(true);
+    try {
+      setInactiveTeams(await getInactivePlanningTeams());
+    } catch (error) {
+      console.error("Unable to load inactive teams.", error);
+      setInactiveError("Inactive teams could not be loaded. Please try again.");
+    } finally {
+      setIsLoadingInactive(false);
+    }
+  }
+
+  async function handleRestoreTeam(team: PlanningTeam) {
+    if (isSaving) return;
+    setIsSaving(true);
+    setInactiveError("");
+    try {
+      const restored = await restorePlanningTeam(team.id);
+      setInactiveTeams((current) => current.filter((item) => item.id !== team.id));
+      setTeams((current) => [...current, restored].sort((a, b) => a.name.localeCompare(b.name)));
+      setMessage(`Team "${restored.name}" restored.`);
+    } catch (error) {
+      console.error("Unable to restore team.", error);
+      setInactiveError(error instanceof Error ? error.message : "The team could not be restored.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handlePermanentlyDeleteTeam(team: PlanningTeam) {
+    if (isSaving) return;
+    setIsSaving(true);
+    setInactiveError("");
+    try {
+      await permanentlyDeletePlanningTeam(team.id);
+      setInactiveTeams((current) => current.filter((item) => item.id !== team.id));
+      setPendingPermanentDelete(null);
+      setMessage(`Inactive team "${team.name}" permanently deleted.`);
+    } catch (error) {
+      console.error("Unable to permanently delete inactive team.", error);
+      setPendingPermanentDelete(null);
+      setInactiveError(error instanceof Error ? error.message : "Permanent deletion failed. Check database foreign-key constraints.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <ProtectedPage>
       <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -254,6 +312,15 @@ export default function TeamPlanningPage() {
                         className="block w-full rounded-md px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Delete
+                      </button>
+                      <div className="my-1 border-t border-slate-200" />
+                      <button
+                        role="menuitem"
+                        type="button"
+                        onClick={() => void openInactiveTeams()}
+                        className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100"
+                      >
+                        Inactive Teams
                       </button>
                     </div>
                   )}
@@ -359,6 +426,72 @@ export default function TeamPlanningPage() {
             </div>
           </section>
         </section>
+
+        {isInactiveTeamsOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !isSaving && !pendingPermanentDelete) {
+                setIsInactiveTeamsOpen(false);
+              }
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="inactive-teams-title"
+              className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl"
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && !isSaving && !pendingPermanentDelete) {
+                  setIsInactiveTeamsOpen(false);
+                }
+              }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="inactive-teams-title" className="text-xl font-bold text-slate-900">Inactive Teams</h2>
+                  <p className="mt-1 text-sm text-slate-600">Restore a team to your Teams page or permanently delete an inactive team.</p>
+                </div>
+                <button type="button" aria-label="Close inactive teams" disabled={isSaving} onClick={() => setIsInactiveTeamsOpen(false)} className="rounded-md px-2 py-1 text-xl text-slate-600 hover:bg-slate-100 disabled:opacity-50">×</button>
+              </div>
+              {inactiveError && <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{inactiveError}</div>}
+              <div className="mt-5 max-h-[55vh] overflow-y-auto rounded-lg border border-slate-200">
+                {isLoadingInactive ? (
+                  <p className="p-4 text-sm text-slate-600">Loading inactive teams...</p>
+                ) : inactiveTeams.length === 0 ? (
+                  <p className="p-4 text-sm text-slate-600">No inactive teams.</p>
+                ) : inactiveTeams.map((team) => (
+                  <div key={team.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3 last:border-b-0">
+                    <span className="min-w-0 flex-1 font-semibold text-slate-900">{team.name}</span>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={isSaving} onClick={() => void handleRestoreTeam(team)} className="rounded-lg border border-[#0d2140] bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] hover:bg-slate-50 disabled:opacity-50">Restore</button>
+                      <button type="button" disabled={isSaving} onClick={() => setPendingPermanentDelete(team)} className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Permanently Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 flex justify-end">
+                <button type="button" disabled={isSaving} onClick={() => setIsInactiveTeamsOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pendingPermanentDelete && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 px-4" role="presentation">
+            <div role="alertdialog" aria-modal="true" aria-labelledby="permanent-delete-title" aria-describedby="permanent-delete-description" className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl" onKeyDown={(event) => { if (event.key === "Escape" && !isSaving) setPendingPermanentDelete(null); }}>
+              <h2 id="permanent-delete-title" className="text-xl font-bold text-red-800">Permanently delete this team?</h2>
+              <p id="permanent-delete-description" className="mt-3 text-sm text-slate-700">
+                Are you sure you want to permanently delete <strong>{pendingPermanentDelete.name}</strong>? This action cannot be undone. Associated planning records may also be deleted, depending on database relationships. Library activities are not intentionally deleted by this action.
+              </p>
+              <div className="mt-6 flex justify-end gap-3">
+                <button type="button" autoFocus disabled={isSaving} onClick={() => setPendingPermanentDelete(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">Cancel</button>
+                <button type="button" disabled={isSaving} onClick={() => void handlePermanentlyDeleteTeam(pendingPermanentDelete)} className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50">{isSaving ? "Deleting..." : "Yes, Permanently Delete"}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {teamPendingDeletion && (
           <div

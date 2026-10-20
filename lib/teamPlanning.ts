@@ -194,6 +194,83 @@ export async function getPlanningTeams(): Promise<PlanningTeam[]> {
   return ((data ?? []) as PlanningTeamRow[]).map(rowToPlanningTeam);
 }
 
+/** Retrieve archived teams belonging to the current user. */
+export async function getInactivePlanningTeams(): Promise<PlanningTeam[]> {
+  const userId = await getCurrentUserId();
+  const { data, error } = await supabase
+    .from("planning_teams")
+    .select("id, user_id, name, is_active, created_at, updated_at")
+    .eq("user_id", userId)
+    .eq("is_active", false)
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return ((data ?? []) as PlanningTeamRow[]).map(rowToPlanningTeam);
+}
+
+/** Restore an archived team without changing any of its related records. */
+export async function restorePlanningTeam(teamId: string): Promise<PlanningTeam> {
+  const userId = await getCurrentUserId();
+  const { data, error } = await supabase
+    .from("planning_teams")
+    .update({ is_active: true })
+    .eq("id", teamId)
+    .eq("user_id", userId)
+    .eq("is_active", false)
+    .select("id, user_id, name, is_active, created_at, updated_at")
+    .single();
+
+  if (error) throw error;
+  return rowToPlanningTeam(data as PlanningTeamRow);
+}
+
+/** Permanently delete only an archived team owned by the logged-in user.
+ * Double-check the record before deletion, then repeat BOTH conditions in the
+ * DELETE itself to protect against a restore/ownership change between calls.
+ * Related planning records follow DB foreign-key rules; Library activities
+ * are not deleted by this operation.
+ */
+export async function permanentlyDeletePlanningTeam(teamId: string): Promise<void> {
+  if (!teamId.trim()) {
+    throw new Error("A team must be selected before permanent deletion.");
+  }
+
+  const userId = await getCurrentUserId();
+  const { data: team, error: lookupError } = await supabase
+    .from("planning_teams")
+    .select("id, user_id, is_active")
+    .eq("id", teamId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (lookupError) throw lookupError;
+  if (!team) {
+    throw new Error("Team not found or you do not have permission to delete it.");
+  }
+  if (team.user_id !== userId) {
+    throw new Error("You can only permanently delete your own teams.");
+  }
+  if (team.is_active !== false) {
+    throw new Error("This team is active. Move it to Inactive Teams before permanently deleting it.");
+  }
+
+  // Keep ownership AND inactive status in the DELETE itself: the preflight
+  // check alone is not sufficient if the row changes between requests.
+  const { data: deletedTeam, error: deleteError } = await supabase
+    .from("planning_teams")
+    .delete()
+    .eq("id", teamId)
+    .eq("user_id", userId)
+    .eq("is_active", false)
+    .select("id")
+    .maybeSingle();
+
+  if (deleteError) throw deleteError;
+  if (!deletedTeam) {
+    throw new Error("Team was not deleted. It may have been restored or your permissions may have changed.");
+  }
+}
+
 export async function getPlanningTeamById(
   teamId: string
 ): Promise<PlanningTeam | null> {
