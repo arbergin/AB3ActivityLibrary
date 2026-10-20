@@ -339,9 +339,14 @@ export default function TeamPlanningPage() {
                 teams.map((team) => (
                   <div
                     key={team.id}
+                    onClick={() => {
+                      if (editingTeamId === team.id) return;
+                      setSelectedTeamId((current) => current === team.id ? null : team.id);
+                      setIsActionsMenuOpen(false);
+                    }}
                     className={`border-t border-slate-200 px-4 py-4 sm:grid sm:grid-cols-[minmax(0,1fr)_max-content] sm:items-center sm:gap-4 ${
-                      selectedTeamId === team.id ? "bg-blue-50" : "bg-white"
-                    }`}
+                      selectedTeamId === team.id ? "bg-blue-50" : "bg-white hover:bg-slate-50"
+                    } ${editingTeamId === team.id ? "" : "cursor-pointer"}`}
                   >
                     <div className="min-w-0">
                       {editingTeamId === team.id ? (
@@ -388,13 +393,14 @@ export default function TeamPlanningPage() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedTeamId(team.id);
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedTeamId((current) => current === team.id ? null : team.id);
                             setIsActionsMenuOpen(false);
                           }}
                           aria-pressed={selectedTeamId === team.id}
                           className="flex max-w-full items-center gap-2 rounded-md text-left text-base font-semibold text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                          title="Select this team for Rename or Delete"
+                          title={selectedTeamId === team.id ? "Deselect this team" : "Select this team for Rename or Delete"}
                         >
                           <span className="truncate">{team.name}</span>
                           {selectedTeamId === team.id && (
@@ -408,12 +414,14 @@ export default function TeamPlanningPage() {
                       <div className="mt-3 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
                         <Link
                           href={`/team-planning/${team.id}`}
+                          onClick={(event) => event.stopPropagation()}
                           className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
                         >
                           Planning
                         </Link>
                         <Link
                           href={`/team-planning/${team.id}/players`}
+                          onClick={(event) => event.stopPropagation()}
                           className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
                         >
                           Players
