@@ -4854,44 +4854,48 @@ export default function ActivityCreator({
         const selectionHeight = Math.abs(end.y - zoomAreaRect.startY);
         const rect = pitchRef.current?.getBoundingClientRect();
         if (rect && selectionWidth >= 12 && selectionHeight >= 12) {
-          // Convert the selection into pitch coordinates BEFORE leaving Fit view.
-          // Fit mode has a narrower element, so its pixel coordinates cannot be
-          // reused after the editor returns to its regular, wider layout.
+          // Keep the fitted canvas as the viewing surface. Its full 3:4
+          // height can extend below the browser window, so use the portion
+          // actually visible to the user as the zoom target.
           const midpointX = (zoomAreaRect.startX + end.x) / 2;
           const midpointY = (zoomAreaRect.startY + end.y) / 2;
-          const center = getPitchPointFromClient(rect.left + midpointX, rect.top + midpointY);
-
-          // A wide, shallow selection should meaningfully enlarge the selected
-          // part of the pitch. Cover the chosen area instead of restricting the
-          // zoom to the almost-full-width dimension (which yielded ~1.1x).
-          const zoomFactor = Math.max(
-            rect.width / selectionWidth,
-            rect.height / selectionHeight,
+          const center = getPitchPointFromClient(
+            rect.left + midpointX,
+            rect.top + midpointY,
           );
-          const nextZoom = clamp(zoom * zoomFactor, 1, 8);
 
-          setIsFitView(false);
+          // The user's viewport, not the full pitch element, determines the
+          // vertical size of the destination. Preserve *all* of the selected
+          // rectangle instead of cropping its sides to force extra zoom.
+          const visibleHeight = Math.max(
+            100,
+            Math.min(rect.height, window.innerHeight - Math.max(0, rect.top) - 16),
+          );
+          const targetWidth = rect.width;
+          const margin = 0.96;
+          const requestedZoom = Math.min(
+            (targetWidth * margin) / selectionWidth,
+            (visibleHeight * margin) / selectionHeight,
+          );
+          const nextZoom = clamp(Math.max(1, requestedZoom), 1, 8);
+
+          // Retain Fit's correctly sized canvas as a stable viewport. Switching
+          // to the wider normal layout is what previously magnified the pitch
+          // unexpectedly and moved the chosen region out of view.
+          setIsFitView(true);
           setZoom(nextZoom);
           setPanState(null);
-          setMessage("Zoomed to selected area. Use Fit to see the whole pitch.");
 
-          // Wait until Fit's width constraint is removed, then center on the
-          // same pitch point using the resized editor's dimensions.
-          window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(() => {
-              const expandedRect = pitchRef.current?.getBoundingClientRect();
-              if (!expandedRect) return;
-              const pitchX = (center.x / 100) * expandedRect.width;
-              const pitchY = (center.y / 100) * expandedRect.height;
-              const radians = (pitchRotationDegrees * Math.PI) / 180;
-              const rotatedX = pitchX * Math.cos(radians) - pitchY * Math.sin(radians);
-              const rotatedY = pitchX * Math.sin(radians) + pitchY * Math.cos(radians);
-              setPan(clampPanToZoom({
-                x: expandedRect.width / 2 - rotatedX * nextZoom,
-                y: expandedRect.height / 2 - rotatedY * nextZoom,
-              }, nextZoom));
-            });
-          });
+          const pitchX = (center.x / 100) * rect.width;
+          const pitchY = (center.y / 100) * rect.height;
+          const radians = (pitchRotationDegrees * Math.PI) / 180;
+          const rotatedX = pitchX * Math.cos(radians) - pitchY * Math.sin(radians);
+          const rotatedY = pitchX * Math.sin(radians) + pitchY * Math.cos(radians);
+          setPan(clampPanToZoom({
+            x: targetWidth / 2 - rotatedX * nextZoom,
+            y: visibleHeight / 2 - rotatedY * nextZoom,
+          }, nextZoom));
+          setMessage("Selected area fitted to the visible workspace. Use Fit to see the entire pitch.");
         } else {
           setMessage("Drag a larger area to zoom in.");
         }
