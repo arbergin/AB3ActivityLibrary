@@ -420,6 +420,13 @@ export default function TeamPlanningPage() {
                           Planning
                         </Link>
                         <Link
+                          href={`/team-planning/${team.id}/games`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
+                        >
+                          Game
+                        </Link>
+                        <Link
                           href={`/team-planning/${team.id}/players`}
                           onClick={(event) => event.stopPropagation()}
                           className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
