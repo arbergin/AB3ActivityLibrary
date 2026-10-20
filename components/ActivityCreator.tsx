@@ -4431,6 +4431,7 @@ export default function ActivityCreator({
 
   function getLineHit(
     point: { x: number; y: number },
+    shapesOnly = false,
   ): { line: PitchLine; mode: "whole" | "endpoint"; endpointIndex?: number } | null {
     const pitchRect = pitchRef.current?.getBoundingClientRect();
     if (!pitchRect) return null;
@@ -4447,7 +4448,7 @@ export default function ActivityCreator({
     // Endpoints win over the line body, matching the iOS interaction.
     for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
       const line = lines[lineIndex];
-      if (line.points.length < 2) continue;
+      if (line.points.length < 2 || (shapesOnly && line.lineStyle !== "rectangle" && line.lineStyle !== "circle")) continue;
 
       const endpointIndexes = [0, line.points.length - 1];
       for (const endpointIndex of endpointIndexes) {
@@ -4460,7 +4461,7 @@ export default function ActivityCreator({
 
     for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
       const line = lines[lineIndex];
-      if (line.points.length < 2) continue;
+      if (line.points.length < 2 || (shapesOnly && line.lineStyle !== "rectangle" && line.lineStyle !== "circle")) continue;
 
       if (line.lineStyle === "rectangle" || line.lineStyle === "circle") {
         const a=toPixels(line.points[0]), b=toPixels(line.points[line.points.length-1]);
@@ -4600,10 +4601,13 @@ export default function ActivityCreator({
   function handlePitchPointerDown(event: PointerEvent<HTMLDivElement>) {
     let point = getPitchPoint(event);
 
-    // Shift-click on a shape toggles it without dragging or modifying other selections.
+    // Shift-click adds/removes a rectangle or circle without clearing players.
+    // Prefer the shape hit even when other drawn lines overlap it.
     if (event.shiftKey) {
-      const hit = getLineHit(point);
-      if (hit && (hit.line.lineStyle === "rectangle" || hit.line.lineStyle === "circle")) {
+      const hit = getLineHit(point, true);
+      if (hit) {
+        event.preventDefault();
+        event.stopPropagation();
         setSelectedShapeIds((current) => current.includes(hit.line.id)
           ? current.filter((id) => id !== hit.line.id) : [...current, hit.line.id]);
         setSelectedLineId(null);
@@ -4611,6 +4615,8 @@ export default function ActivityCreator({
         setShowShapeFillPicker(false);
         return;
       }
+      // Do not clear an existing selection on a Shift-click in empty space.
+      return;
     }
     if (selectedObjectId || selectedObjectIds.length > 0 || selectedShapeIds.length > 0) {
       setSelectedObjectId(null);
@@ -5368,20 +5374,22 @@ export default function ActivityCreator({
       const size = object.size ?? getDefaultObjectSize(object.type);
       return { ...object, size: clamp(size + delta, range.min, range.max) };
     }));
-    // Resize the shape about its own center. Use pitch-coordinate dimensions,
-    // with an approximate equivalent of the 2px object increment.
+    // Make the change visible and consistent across large and small shapes:
+    // each +/- click adjusts shape width and height by 10%, anchored at center.
+    // Preserve the original endpoint orientation and pitch boundaries.
     setLines((current) => current.map((line) => {
-      if (!shapeIds.has(line.id) || line.points.length < 2) return line;
+      if (!shapeIds.has(line.id) || line.points.length < 2 ||
+          (line.lineStyle !== "rectangle" && line.lineStyle !== "circle")) return line;
       const [a, b] = line.points;
       const cx = (a.x + b.x) / 2;
       const cy = (a.y + b.y) / 2;
       const width = Math.abs(b.x - a.x);
       const height = Math.abs(b.y - a.y);
-      const pitchRect = pitchRef.current?.getBoundingClientRect();
-      const dx = delta / Math.max(pitchRect?.width ?? 600, 1) * 100;
-      const dy = delta / Math.max(pitchRect?.height ?? 800, 1) * 100;
-      const halfWidth = clamp(width / 2 + dx, 0.5, Math.min(cx, 100 - cx));
-      const halfHeight = clamp(height / 2 + dy, 0.5, Math.min(cy, 100 - cy));
+      const factor = delta > 0 ? 1.1 : 1 / 1.1;
+      const maxHalfWidth = Math.max(0, Math.min(cx, 100 - cx));
+      const maxHalfHeight = Math.max(0, Math.min(cy, 100 - cy));
+      const halfWidth = Math.min(maxHalfWidth, Math.max(0.5, width * factor / 2));
+      const halfHeight = Math.min(maxHalfHeight, Math.max(0.5, height * factor / 2));
       const signX = b.x >= a.x ? 1 : -1;
       const signY = b.y >= a.y ? 1 : -1;
       return { ...line, points: [
