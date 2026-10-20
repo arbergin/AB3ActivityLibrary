@@ -203,10 +203,11 @@ export default function TeamPlanningPage() {
               </div>
             )}
 
-            <div className="mt-6 rounded-lg border border-slate-200">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-t-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 sm:grid-cols-[minmax(0,1fr)_220px]">
+            {/* Keep overflow visible so the header Actions menu is never clipped. */}
+            <div className="mt-6 overflow-visible rounded-lg border border-slate-200">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-t-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 sm:grid-cols-[minmax(0,1fr)_max-content]">
                 <div>Team</div>
-                <div ref={actionsMenuRef} className="relative flex items-center gap-2">
+                <div ref={actionsMenuRef} className="relative flex items-center justify-end gap-2">
                   <span>Actions</span>
                   <button
                     type="button"
@@ -223,7 +224,7 @@ export default function TeamPlanningPage() {
                     <div
                       role="menu"
                       aria-label="Selected team actions"
-                      className="absolute left-0 top-full z-30 mt-2 w-56 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
+                      className="absolute right-0 top-full z-30 mt-2 w-56 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
                     >
                       <div className="px-3 py-2 text-xs font-normal text-slate-500">
                         {selectedTeam ? `Selected: ${selectedTeam.name}` : "Select a team first"}
@@ -271,7 +272,7 @@ export default function TeamPlanningPage() {
                 teams.map((team) => (
                   <div
                     key={team.id}
-                    className={`border-t border-slate-200 px-4 py-4 sm:grid sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center sm:gap-4 ${
+                    className={`border-t border-slate-200 px-4 py-4 sm:grid sm:grid-cols-[minmax(0,1fr)_max-content] sm:items-center sm:gap-4 ${
                       selectedTeamId === team.id ? "bg-blue-50" : "bg-white"
                     }`}
                   >
@@ -337,7 +338,7 @@ export default function TeamPlanningPage() {
                     </div>
 
                     {editingTeamId !== team.id && (
-                      <div className="mt-3 flex flex-wrap gap-2 sm:mt-0 sm:justify-start">
+                      <div className="mt-3 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
                         <Link
                           href={`/team-planning/${team.id}`}
                           className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#17345f]"
