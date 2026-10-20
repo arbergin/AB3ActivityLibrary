@@ -1908,6 +1908,9 @@ export default function ActivityCreator({
 
   const [isZoomLocked, setIsZoomLocked] = useState(true);
   const [isFitView, setIsFitView] = useState(false);
+  // When Zoom Area is used, expand the underlying canvas to the size that
+  // makes the selected region fill the actual visible workspace.
+  const [zoomAreaCanvasWidth, setZoomAreaCanvasWidth] = useState<number | null>(null);
   const [isZoomAreaMode, setIsZoomAreaMode] = useState(false);
   const [zoomAreaRect, setZoomAreaRect] = useState<{
     startX: number; startY: number; endX: number; endY: number;
@@ -4158,6 +4161,7 @@ export default function ActivityCreator({
   }
 
   function fitPitchToScreen() {
+    setZoomAreaCanvasWidth(null);
     setIsFitView(true);
     setIsZoomAreaMode(false);
     setZoomAreaRect(null);
@@ -4202,6 +4206,8 @@ export default function ActivityCreator({
   }
 
   function resetView() {
+    setZoomAreaCanvasWidth(null);
+    setIsFitView(false);
     setIsZoomAreaMode(false);
     setZoomAreaRect(null);
     setZoom(1);
@@ -4854,47 +4860,58 @@ export default function ActivityCreator({
         const selectionHeight = Math.abs(end.y - zoomAreaRect.startY);
         const rect = pitchRef.current?.getBoundingClientRect();
         if (rect && selectionWidth >= 12 && selectionHeight >= 12) {
-          // Keep the fitted canvas as the viewing surface. Its full 3:4
-          // height can extend below the browser window, so use the portion
-          // actually visible to the user as the zoom target.
-          const midpointX = (zoomAreaRect.startX + end.x) / 2;
-          const midpointY = (zoomAreaRect.startY + end.y) / 2;
-          const center = getPitchPointFromClient(
-            rect.left + midpointX,
-            rect.top + midpointY,
+          // Translate the drag endpoints into actual pitch-space positions.
+          // Using the current canvas pixels directly stops working when Fit
+          // switches between a narrow 3:4 canvas and the wider edit layout.
+          const startPitch = getPitchPointFromClient(
+            rect.left + zoomAreaRect.startX,
+            rect.top + zoomAreaRect.startY,
           );
+          const endPitch = getPitchPointFromClient(
+            rect.left + end.x, rect.top + end.y,
+          );
+          const minX = Math.min(startPitch.x, endPitch.x) / 100;
+          const maxX = Math.max(startPitch.x, endPitch.x) / 100;
+          const minY = Math.min(startPitch.y, endPitch.y) / 100;
+          const maxY = Math.max(startPitch.y, endPitch.y) / 100;
+          const selectedFractionWidth = Math.max(0.001, maxX - minX);
+          const selectedFractionHeight = Math.max(0.001, maxY - minY);
 
-          // The user's viewport, not the full pitch element, determines the
-          // vertical size of the destination. Preserve *all* of the selected
-          // rectangle instead of cropping its sides to force extra zoom.
-          const visibleHeight = Math.max(
-            100,
-            Math.min(rect.height, window.innerHeight - Math.max(0, rect.top) - 16),
-          );
-          const targetWidth = rect.width;
+          // The *browser-visible* region is the destination, not the entire
+          // 3:4 pitch (which continues well below the fold). Expand the
+          // actual canvas width so even a wide selection can grow rather
+          // than staying at the tiny Fit size.
+          const visibleHeight = Math.max(180, window.innerHeight - Math.max(0, rect.top) - 20);
+          const sectionWidth = pitchSectionRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+          const toolbarAllowance = isToolbarOnLeft ? 280 : 112;
+          const availableWidth = Math.max(250, sectionWidth - toolbarAllowance);
           const margin = 0.96;
-          const requestedZoom = Math.min(
-            (targetWidth * margin) / selectionWidth,
-            (visibleHeight * margin) / selectionHeight,
-          );
-          const nextZoom = clamp(Math.max(1, requestedZoom), 1, 8);
+          const canvasWidthForWidth = (availableWidth * margin) / selectedFractionWidth;
+          const canvasWidthForHeight = (visibleHeight * margin) / (selectedFractionHeight * (4 / 3));
+          const nextCanvasWidth = Math.max(180, Math.min(
+            canvasWidthForWidth, canvasWidthForHeight, availableWidth, 1600,
+          ));
+          const nextCanvasHeight = nextCanvasWidth * (4 / 3);
 
-          // Retain Fit's correctly sized canvas as a stable viewport. Switching
-          // to the wider normal layout is what previously magnified the pitch
-          // unexpectedly and moved the chosen region out of view.
-          setIsFitView(true);
-          setZoom(nextZoom);
+          // A selection changes *canvas size*, not the zoom transform.
+          // That makes wide, shallow regions grow into the editing area while
+          // keeping everything proportional and all selected edges in view.
+          // Position the selection near the top of the visible viewport,
+          // with a small margin, instead of centering against hidden canvas.
+          const selectedWidthPx = selectedFractionWidth * nextCanvasWidth;
+          const selectedHeightPx = selectedFractionHeight * nextCanvasHeight;
+          const targetLeft = Math.max(0, (nextCanvasWidth - selectedWidthPx) / 2);
+          const targetTop = Math.max(0, (visibleHeight - selectedHeightPx) / 2);
+          const nextPan = {
+            x: targetLeft - minX * nextCanvasWidth,
+            y: targetTop - minY * nextCanvasHeight,
+          };
+
+          setZoomAreaCanvasWidth(nextCanvasWidth);
+          setIsFitView(false);
+          setZoom(1);
+          setPan(nextPan);
           setPanState(null);
-
-          const pitchX = (center.x / 100) * rect.width;
-          const pitchY = (center.y / 100) * rect.height;
-          const radians = (pitchRotationDegrees * Math.PI) / 180;
-          const rotatedX = pitchX * Math.cos(radians) - pitchY * Math.sin(radians);
-          const rotatedY = pitchX * Math.sin(radians) + pitchY * Math.cos(radians);
-          setPan(clampPanToZoom({
-            x: targetWidth / 2 - rotatedX * nextZoom,
-            y: visibleHeight / 2 - rotatedY * nextZoom,
-          }, nextZoom));
           setMessage("Selected area fitted to the visible workspace. Use Fit to see the entire pitch.");
         } else {
           setMessage("Drag a larger area to zoom in.");
@@ -7439,7 +7456,7 @@ export default function ActivityCreator({
                 <button
                   type="button"
                   onClick={fitPitchToScreen}
-                  className={`h-9 rounded-lg border px-3 text-xs font-bold shadow-sm md:h-10 ${isFitView && zoom === 1 && pan.x === 0 && pan.y === 0 ? "border-sky-500 bg-sky-100 text-sky-800" : "border-slate-300 bg-white text-slate-700"}`}
+                  className={`h-9 rounded-lg border px-3 text-xs font-bold shadow-sm md:h-10 ${isFitView && zoomAreaCanvasWidth === null && zoom === 1 && pan.x === 0 && pan.y === 0 ? "border-sky-500 bg-sky-100 text-sky-800" : "border-slate-300 bg-white text-slate-700"}`}
                   title="Fit the entire pitch within the screen height"
                 >
                   Fit
@@ -7546,12 +7563,12 @@ export default function ActivityCreator({
               } ${
                 isZoomAreaMode ? "cursor-crosshair" : (!isZoomLocked && !panState ? "cursor-grab" : "")
               } ${panState || lineDragState ? "cursor-grabbing" : ""}`}
-              style={isFitView ? {
+              style={isFitView || zoomAreaCanvasWidth !== null ? {
                 // Constrain both dimensions, not the pitch's internal zoom.
                 // This shows the full 3:4 canvas inside a typical browser viewport.
-                width: "min(100%, calc((100vh - 230px) * 0.75))",
+                width: zoomAreaCanvasWidth !== null ? `min(100%, ${zoomAreaCanvasWidth}px)` : "min(100%, calc((100vh - 230px) * 0.75))",
                 height: "auto",
-                maxHeight: "calc(100vh - 230px)",
+                maxHeight: zoomAreaCanvasWidth !== null ? "none" : "calc(100vh - 230px)",
                 aspectRatio: "3 / 4",
                 flexShrink: 0,
                 transform: "none",
