@@ -5318,6 +5318,73 @@ export default function ActivityCreator({
     );
   }
 
+  // Bulk controls operate on the active frame's selected pitch objects.
+  function deleteSelectedObjects() {
+    if (selectedObjectIds.length === 0) return;
+    const ids = new Set(selectedObjectIds);
+    const count = objects.filter((object) => ids.has(object.id)).length;
+    if (!count) return;
+
+    saveHistorySnapshot();
+    setObjects((current) => current.filter((object) => !ids.has(object.id)));
+    setSelectedObjectIds([]);
+    setSelectedObjectId(null);
+    setDraggingObjectId(null);
+    setMessage(`${count} objects deleted.`);
+  }
+
+  function resizeSelectedObjects(delta: number) {
+    if (selectedObjectIds.length < 2) return;
+    const ids = new Set(selectedObjectIds);
+    saveHistorySnapshot();
+    setObjects((current) => current.map((object) => {
+      if (!ids.has(object.id)) return object;
+      const range = getSizeRange(object.type);
+      const size = object.size ?? getDefaultObjectSize(object.type);
+      return { ...object, size: clamp(size + delta, range.min, range.max) };
+    }));
+  }
+
+  function renderMultiSelectionControls() {
+    if (isPlayingAnimation || selectedObjectIds.length < 2) return null;
+    const ids = new Set(selectedObjectIds);
+    const selected = objects.filter((object) => ids.has(object.id));
+    if (selected.length < 2) return null;
+
+    const centerX = selected.reduce((sum, object) => sum + object.x, 0) / selected.length;
+    const topY = Math.min(...selected.map((object) => object.y));
+    const inverseZoom = 1 / Math.max(zoom, 0.01);
+
+    return (
+      <div
+        data-preview-exclude="true"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+        className="absolute z-50 flex items-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-xl"
+        style={{
+          left: `${clamp(centerX, 25, 75)}%`,
+          top: `${clamp(topY, 12, 90)}%`,
+          transform: `translate(-50%, -125%) scale(${inverseZoom})`,
+          transformOrigin: "center bottom",
+        }}
+      >
+        <span>{selected.length} selected</span>
+        <button type="button" onClick={() => resizeSelectedObjects(-2)}
+          title="Make all selected objects smaller"
+          className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-100">−</button>
+        <span>Size</span>
+        <button type="button" onClick={() => resizeSelectedObjects(2)}
+          title="Make all selected objects larger"
+          className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-100">+</button>
+        <button type="button" onClick={deleteSelectedObjects}
+          aria-label="Delete all selected objects" title="Delete all selected objects"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700">
+          <SmallTrashIcon />
+        </button>
+      </div>
+    );
+  }
+
   function startDraggingObject(
     event: PointerEvent<HTMLButtonElement>,
     objectId: string,
@@ -7378,6 +7445,7 @@ export default function ActivityCreator({
                 })()}
 
                 {displayedObjects.map((object) => renderObject(object))}
+                {!isPlayingAnimation && renderMultiSelectionControls()}
                 {!isPlayingAnimation && renderSelectedObjectDuplicateControl()}
                 {!isPlayingAnimation && renderSelectedObjectPitchControls()}
               </div>
