@@ -4,6 +4,7 @@ export type TeamPlayer = {
   id: string;
   teamId: string;
   name: string;
+  isActive: boolean;
   jerseyNumber: number | null;
   primaryPosition: string;
   secondaryPosition: string;
@@ -24,7 +25,7 @@ export type PlayerNote = {
 };
 
 type PlayerRow = {
-  id: string; team_id: string; name: string; jersey_number: number | null;
+  id: string; team_id: string; name: string; is_active: boolean; jersey_number: number | null;
   primary_position: string | null; secondary_position: string | null;
   strengths: string; opportunities: string; created_at: string; updated_at: string;
 };
@@ -32,10 +33,10 @@ type NoteRow = {
   id: string; player_id: string; note_date: string; title: string;
   content: string; created_at: string; updated_at: string;
 };
-const PLAYER_FIELDS = "id, team_id, name, jersey_number, primary_position, secondary_position, strengths, opportunities, created_at, updated_at";
+const PLAYER_FIELDS = "id, team_id, name, is_active, jersey_number, primary_position, secondary_position, strengths, opportunities, created_at, updated_at";
 const NOTE_FIELDS = "id, player_id, note_date, title, content, created_at, updated_at";
 const toPlayer = (p: PlayerRow): TeamPlayer => ({
-  id: p.id, teamId: p.team_id, name: p.name, jerseyNumber: p.jersey_number,
+  id: p.id, teamId: p.team_id, name: p.name, isActive: p.is_active, jerseyNumber: p.jersey_number,
   primaryPosition: p.primary_position ?? "", secondaryPosition: p.secondary_position ?? "",
   strengths: p.strengths ?? "", opportunities: p.opportunities ?? "",
   createdAt: p.created_at, updatedAt: p.updated_at,
@@ -47,13 +48,20 @@ const toNote = (n: NoteRow): PlayerNote => ({
 
 export async function listTeamPlayers(teamId: string): Promise<TeamPlayer[]> {
   const { data, error } = await supabase.from("team_players").select(PLAYER_FIELDS)
-    .eq("team_id", teamId).order("name", { ascending: true });
+    .eq("team_id", teamId).eq("is_active", true).order("name", { ascending: true });
   if (error) throw error;
   return ((data ?? []) as unknown as PlayerRow[]).map(toPlayer);
 }
+export async function listInactiveTeamPlayers(teamId: string): Promise<TeamPlayer[]> {
+  const { data, error } = await supabase.from("team_players").select(PLAYER_FIELDS)
+    .eq("team_id", teamId).eq("is_active", false).order("name", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as unknown as PlayerRow[]).map(toPlayer);
+}
+
 export async function getTeamPlayer(teamId: string, playerId: string): Promise<TeamPlayer | null> {
   const { data, error } = await supabase.from("team_players").select(PLAYER_FIELDS)
-    .eq("team_id", teamId).eq("id", playerId).maybeSingle();
+    .eq("team_id", teamId).eq("id", playerId).eq("is_active", true).maybeSingle();
   if (error) throw error;
   return data ? toPlayer(data as unknown as PlayerRow) : null;
 }
@@ -75,10 +83,65 @@ export async function saveTeamPlayer(teamId: string, playerId: string, changes: 
   if (error) throw error;
   return toPlayer(data as unknown as PlayerRow);
 }
+// The roster's Delete action archives the player and preserves their notes/profile.
 export async function removeTeamPlayer(teamId: string, playerId: string): Promise<void> {
-  const { error } = await supabase.from("team_players").delete().eq("team_id", teamId).eq("id", playerId);
+  const { data, error } = await supabase.from("team_players")
+    .update({ is_active: false })
+    .eq("team_id", teamId).eq("id", playerId).eq("is_active", true)
+    .select("id").maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Player was not found or is already inactive.");
 }
+
+export async function restoreTeamPlayer(teamId: string, playerId: string): Promise<TeamPlayer> {
+  const { data, error } = await supabase.from("team_players")
+    .update({ is_active: true })
+    .eq("team_id", teamId).eq("id", playerId).eq("is_active", false)
+    .select(PLAYER_FIELDS).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Inactive player was not found or could not be restored.");
+  return toPlayer(data as unknown as PlayerRow);
+}
+
+export async function renameTeamPlayer(teamId: string, playerId: string, name: string): Promise<TeamPlayer> {
+  const cleanName = name.trim();
+  if (!cleanName) throw new Error("Player name is required.");
+  const { data, error } = await supabase.from("team_players")
+    .update({ name: cleanName })
+    .eq("team_id", teamId).eq("id", playerId).eq("is_active", true)
+    .select(PLAYER_FIELDS).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Active player was not found or could not be renamed.");
+  return toPlayer(data as unknown as PlayerRow);
+}
+
+// Also confirm ownership client-side; Supabase RLS must enforce it independently.
+async function verifyOwnedTeam(teamId: string): Promise<void> {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!auth.user) throw new Error("Sign in to manage players.");
+  const { data, error } = await supabase.from("planning_teams")
+    .select("id").eq("id", teamId).eq("user_id", auth.user.id).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("You do not have access to this team.");
+}
+
+export async function permanentlyDeleteTeamPlayer(teamId: string, playerId: string): Promise<void> {
+  await verifyOwnedTeam(teamId);
+  const { data: player, error: playerError } = await supabase.from("team_players")
+    .select("id").eq("team_id", teamId).eq("id", playerId)
+    .eq("is_active", false).maybeSingle();
+  if (playerError) throw playerError;
+  if (!player) throw new Error("Only inactive players can be permanently deleted.");
+  // Keep the status check on the DELETE itself to prevent stale UI from deleting
+  // someone who was restored after this validation.
+  const { data, error } = await supabase.from("team_players")
+    .delete().eq("team_id", teamId).eq("id", playerId).eq("is_active", false)
+    .select("id").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("The inactive player could not be deleted. Refresh and try again.");
+}
+
 export async function listPlayerNotes(playerId: string): Promise<PlayerNote[]> {
   const { data, error } = await supabase.from("player_notes").select(NOTE_FIELDS)
     .eq("player_id", playerId).order("note_date", { ascending: false }).order("created_at", { ascending: false });
