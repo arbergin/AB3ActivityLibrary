@@ -4,6 +4,10 @@ import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PlannerActivityPicker from "@/components/PlannerActivityPicker";
+import PlayerMentionTextarea from "@/components/PlayerMentionTextarea";
+import PlayerMentionText from "@/components/PlayerMentionText";
+import { createMentionNoteCopies, type MentionPlayer } from "@/lib/playerMentions";
+import { listTeamPlayers } from "@/lib/teamPlayers";
 import {
   DndContext,
   DragOverlay,
@@ -39,6 +43,7 @@ import {
   reorderPlanningPractices,
   updatePlanningNote,
   updatePlanningPracticeKeyFocus,
+  updatePlanningPracticeDate,
   updatePlanningWeekObjectives,
   type PlanningNote,
   type PlanningPractice,
@@ -139,6 +144,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     []
   );
   const [notes, setNotes] = useState<PlanningNote[]>([]);
+  const [mentionPlayers, setMentionPlayers] = useState<MentionPlayer[]>([]);
   const [libraryActivities, setLibraryActivities] = useState<Activity[]>([]);
   const [selectedRow, setSelectedRow] = useState<SelectedRow>(null);
   const [editingRow, setEditingRow] = useState<SelectedRow>(null);
@@ -248,6 +254,8 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
         getPlanningNotes(practiceIds),
       ]);
 
+      const teamPlayers = await listTeamPlayers(teamId);
+      setMentionPlayers(teamPlayers.map(p => ({ id: p.id, name: p.name })));
       setTeam(loadedTeam);
       setWeeks(loadedWeeks);
       setPractices(loadedPractices);
@@ -553,7 +561,13 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     setMessage("");
 
     try {
+      const currentNote = notes.find(n => n.id === noteId);
+      const practice = currentNote && practices.find(p => p.id === currentNote.practiceId);
+      if (noteValue.includes('(player:') && !practice?.practiceDate) {
+        throw new Error("Set the practice date before saving a note that mentions players.");
+      }
       const updated = await updatePlanningNote(noteId, noteValue);
+      await createMentionNoteCopies("practice", noteId, noteValue);
 
       setNotes((current) =>
         current.map((note) => (note.id === updated.id ? updated : note))
@@ -562,7 +576,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
       setNoteValue("");
     } catch (error) {
       console.error("Unable to save planning note.", error);
-      setMessage("The note could not be saved.");
+      setMessage(error instanceof Error ? error.message : "The note could not be saved.");
     } finally {
       setIsSaving(false);
     }
@@ -1569,6 +1583,21 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                       <div className="truncate text-sm font-semibold text-slate-900">
                                         {practice.name}
                                       </div>
+                                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-500" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
+                                        Practice Date
+                                        <input type="date" aria-label={`Practice date for ${practice.name}`} value={practice.practiceDate ?? ""}
+                                          disabled={isSaving} onChange={async (event) => {
+                                            const nextDate = event.target.value;
+                                            setIsSaving(true);
+                                            try {
+                                              const updated = await updatePlanningPracticeDate(practice.id, nextDate || null);
+                                              setPractices(current => current.map(p => p.id === practice.id ? updated : p));
+                                              setMessage("");
+                                            } catch (error) { setMessage(error instanceof Error ? error.message : "Date could not be saved."); }
+                                            finally { setIsSaving(false); }
+                                          }}
+                                          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800" />
+                                      </label>
                                     </div>
 
                                     {editingKeyFocusPracticeId === practice.id ? (
@@ -1943,16 +1972,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                       >
                                         {editingNoteId === note.id ? (
                                           <div className="grid gap-2">
-                                            <textarea
-                                              autoFocus
-                                              value={noteValue}
-                                              onChange={(event) =>
-                                                setNoteValue(event.target.value)
-                                              }
-                                              placeholder="Enter note"
-                                              rows={3}
-                                              className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800"
-                                            />
+                                            <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
 
                                             <div className="flex justify-end gap-2">
                                               <button
@@ -1984,7 +2004,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                                 Note
                                               </div>
                                               <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
-                                                {note.noteText || "Empty note"}
+                                                <PlayerMentionText teamId={teamId} text={note.noteText || "Empty note"} />
                                               </div>
                                             </div>
 
@@ -2054,16 +2074,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                     >
                                       {editingNoteId === note.id ? (
                                         <div className="grid gap-2">
-                                          <textarea
-                                            autoFocus
-                                            value={noteValue}
-                                            onChange={(event) =>
-                                              setNoteValue(event.target.value)
-                                            }
-                                            placeholder="Enter note"
-                                            rows={3}
-                                            className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800"
-                                          />
+                                          <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
 
                                           <div className="flex justify-end gap-2">
                                             <button
@@ -2094,7 +2105,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                               Note
                                             </div>
                                             <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
-                                              {note.noteText || "Empty note"}
+                                              <PlayerMentionText teamId={teamId} text={note.noteText || "Empty note"} />
                                             </div>
                                           </div>
 
@@ -2180,16 +2191,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                         Practice Note
                                       </div>
 
-                                      <textarea
-                                        autoFocus
-                                        value={noteValue}
-                                        onChange={(event) =>
-                                          setNoteValue(event.target.value)
-                                        }
-                                        placeholder="Enter note"
-                                        rows={3}
-                                        className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800"
-                                      />
+                                      <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
 
                                       <div className="flex justify-end gap-2">
                                         <button
@@ -2221,7 +2223,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                         </div>
 
                                         <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
-                                          {note.noteText || "Empty note"}
+                                          <PlayerMentionText teamId={teamId} text={note.noteText || "Empty note"} />
                                         </div>
                                       </div>
 
@@ -2280,16 +2282,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                         >
                           {editingNoteId === note.id ? (
                             <div className="grid gap-2">
-                              <textarea
-                                autoFocus
-                                value={noteValue}
-                                onChange={(event) =>
-                                  setNoteValue(event.target.value)
-                                }
-                                placeholder="Enter note"
-                                rows={3}
-                                className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800"
-                              />
+                              <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
                               <div className="flex justify-end gap-2">
                                 <button
                                   type="button"
@@ -2318,7 +2311,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                   Week Note
                                 </div>
                                 <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
-                                  {note.noteText || "Empty note"}
+                                  <PlayerMentionText teamId={teamId} text={note.noteText || "Empty note"} />
                                 </div>
                               </div>
                               <div className="flex shrink-0 gap-2">

@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import PlayerMentionTextarea from "@/components/PlayerMentionTextarea";
+import PlayerMentionText from "@/components/PlayerMentionText";
+import { createMentionNoteCopies, type MentionPlayer } from "@/lib/playerMentions";
+import { listTeamPlayers } from "@/lib/teamPlayers";
 import { getPlanningTeamById, type PlanningTeam } from "@/lib/teamPlanning";
 import {
   archiveTeamGame, createTeamGame, gameResult, listTeamGames,
@@ -27,6 +31,7 @@ const dialog = "max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-whit
 export default function TeamGames({ teamId }: { teamId: string }) {
   const [team, setTeam] = useState<PlanningTeam | null>(null);
   const [games, setGames] = useState<TeamGame[]>([]);
+  const [mentionPlayers, setMentionPlayers] = useState<MentionPlayer[]>([]);
   const [inactive, setInactive] = useState<TeamGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [inactiveLoading, setInactiveLoading] = useState(false);
@@ -49,6 +54,7 @@ export default function TeamGames({ teamId }: { teamId: string }) {
     try {
       const found = await getPlanningTeamById(teamId);
       setTeam(found);
+      setMentionPlayers(found ? (await listTeamPlayers(teamId)).map(p => ({ id: p.id, name: p.name })) : []);
       setGames(found ? await listTeamGames(teamId) : []);
       setSelectedId(null);
       setError("");
@@ -100,6 +106,7 @@ export default function TeamGames({ teamId }: { teamId: string }) {
       const updated = editing === "new"
         ? await createTeamGame(teamId, changes())
         : await updateTeamGame(teamId, editing.id, changes());
+      await createMentionNoteCopies("game", updated.id, updated.notes);
       setGames(current => sortGames([...current.filter(g => g.id !== updated.id), updated]));
       setEditing(null);
       setSelectedId(updated.id);
@@ -230,9 +237,13 @@ export default function TeamGames({ teamId }: { teamId: string }) {
             </label>
           </div>
           <p className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Result: {computedResult === "—" ? "Enter both scores to calculate" : computedResult}</p>
-          <label className="block text-sm font-semibold">Game Notes
-            <textarea rows={9} className={`${fieldClass} mt-1 resize-y`} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Observations, highlights, areas to improve, and coaching points..." />
-          </label>
+          <div className="block text-sm font-semibold"><span>Game Notes</span>
+            <PlayerMentionTextarea rows={9} players={mentionPlayers} className={`${fieldClass} mt-1 resize-y`} value={form.notes} onChange={notes => setForm(f => ({ ...f, notes }))} placeholder="Observations, highlights, areas to improve; type @ to mention players..." />
+          </div>
+          {form.notes.includes("(player:") && <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Linked note preview</p>
+            <PlayerMentionText teamId={teamId} text={form.notes} />
+          </div>}
           {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" className={secondary} disabled={saving} onClick={() => { setEditing(null); setError(""); }}>Cancel</button>

@@ -24,6 +24,7 @@ export type PlanningPractice = {
   weekId: string;
   name: string;
   keyFocus: string;
+  practiceDate: string | null;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -74,6 +75,7 @@ type PlanningPracticeRow = {
   week_id: string;
   name: string;
   key_focus: string | null;
+  practice_date: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -129,6 +131,7 @@ function rowToPlanningPractice(row: PlanningPracticeRow): PlanningPractice {
     weekId: row.week_id,
     name: row.name,
     keyFocus: row.key_focus ?? "",
+    practiceDate: row.practice_date,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -445,7 +448,7 @@ export async function getPlanningPractices(
 
   const { data, error } = await supabase
     .from("planning_practices")
-    .select("id, week_id, name, key_focus, sort_order, created_at, updated_at")
+    .select("id, week_id, name, key_focus, practice_date, sort_order, created_at, updated_at")
     .in("week_id", weekIds)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
@@ -472,7 +475,7 @@ export async function createPlanningPractice(
       name: name.trim() || "New Practice",
       sort_order: sortOrder,
     })
-    .select("id, week_id, name, key_focus, sort_order, created_at, updated_at")
+    .select("id, week_id, name, key_focus, practice_date, sort_order, created_at, updated_at")
     .single();
 
   if (error) throw error;
@@ -490,7 +493,7 @@ export async function renamePlanningPractice(
     .from("planning_practices")
     .update({ name: cleanName })
     .eq("id", practiceId)
-    .select("id, week_id, name, key_focus, sort_order, created_at, updated_at")
+    .select("id, week_id, name, key_focus, practice_date, sort_order, created_at, updated_at")
     .single();
 
   if (error) throw error;
@@ -505,11 +508,19 @@ export async function updatePlanningPracticeKeyFocus(
     .from("planning_practices")
     .update({ key_focus: keyFocus.trim() || null })
     .eq("id", practiceId)
-    .select("id, week_id, name, key_focus, sort_order, created_at, updated_at")
+    .select("id, week_id, name, key_focus, practice_date, sort_order, created_at, updated_at")
     .single();
 
   if (error) throw error;
 
+  return rowToPlanningPractice(data as PlanningPracticeRow);
+}
+
+export async function updatePlanningPracticeDate(practiceId: string, practiceDate: string | null): Promise<PlanningPractice> {
+  const { data, error } = await supabase.from("planning_practices")
+    .update({ practice_date: practiceDate || null }).eq("id", practiceId)
+    .select("id, week_id, name, key_focus, practice_date, sort_order, created_at, updated_at").single();
+  if (error) throw error;
   return rowToPlanningPractice(data as PlanningPracticeRow);
 }
 

@@ -20,6 +20,8 @@ export type PlayerNote = {
   noteDate: string;
   title: string;
   content: string;
+  sourceType: "practice" | "game" | null;
+  sourceId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -31,10 +33,10 @@ type PlayerRow = {
 };
 type NoteRow = {
   id: string; player_id: string; note_date: string; title: string;
-  content: string; created_at: string; updated_at: string;
+  content: string; source_type: "practice" | "game" | null; source_id: string | null; created_at: string; updated_at: string;
 };
 const PLAYER_FIELDS = "id, team_id, name, is_active, jersey_number, primary_position, secondary_position, strengths, opportunities, created_at, updated_at";
-const NOTE_FIELDS = "id, player_id, note_date, title, content, created_at, updated_at";
+const NOTE_FIELDS = "id, player_id, note_date, title, content, source_type, source_id, created_at, updated_at";
 const toPlayer = (p: PlayerRow): TeamPlayer => ({
   id: p.id, teamId: p.team_id, name: p.name, isActive: p.is_active, jerseyNumber: p.jersey_number,
   primaryPosition: p.primary_position ?? "", secondaryPosition: p.secondary_position ?? "",
@@ -43,7 +45,7 @@ const toPlayer = (p: PlayerRow): TeamPlayer => ({
 });
 const toNote = (n: NoteRow): PlayerNote => ({
   id: n.id, playerId: n.player_id, noteDate: n.note_date,
-  title: n.title, content: n.content, createdAt: n.created_at, updatedAt: n.updated_at,
+  title: n.title, content: n.content, sourceType: n.source_type, sourceId: n.source_id, createdAt: n.created_at, updatedAt: n.updated_at,
 });
 
 export async function listTeamPlayers(teamId: string): Promise<TeamPlayer[]> {

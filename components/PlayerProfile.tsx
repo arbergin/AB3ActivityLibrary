@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PlayerMentionText from "@/components/PlayerMentionText";
 import { useCallback, useEffect, useState } from "react";
 import { getPlanningTeamById } from "@/lib/teamPlanning";
 import { createPlayerNote, getTeamPlayer, listPlayerNotes, removePlayerNote, savePlayerNote, saveTeamPlayer, type NoteChanges, type PlayerNote, type TeamPlayer } from "@/lib/teamPlayers";
@@ -112,10 +113,10 @@ export default function PlayerProfile({ teamId, playerId }: { teamId: string; pl
         </form>}
         {notes.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">No notes yet. Click Add Note to begin.</p>}
         {notes.map(note => <article key={note.id} className="rounded-lg border border-slate-200 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-semibold">{note.title}</h3><p className="mt-1 text-xs text-slate-500">{note.noteDate}</p></div>
+          <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-semibold">{note.title}</h3><p className="mt-1 text-xs text-slate-500">{note.noteDate}{note.sourceType ? ` · Copied from ${note.sourceType}` : ""}</p></div>
             <div className="flex gap-2"><button type="button" onClick={() => startEdit(note)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold">Edit</button>
               <button type="button" disabled={saving} onClick={() => void deleteNote(note)} className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-50">Delete</button></div></div>
-          <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{note.content || "No details entered."}</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700"><PlayerMentionText teamId={teamId} text={note.content || "No details entered."} /></p>
         </article>)}
       </section>
     </>}
