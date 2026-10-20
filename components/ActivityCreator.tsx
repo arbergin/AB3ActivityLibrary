@@ -1851,6 +1851,7 @@ export default function ActivityCreator({
     useState<PopOutDragState | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [selectedObjectIds, setSelectedObjectIds] = useState<string[]>([]);
+  const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]);
   const [isSavePanelOpen, setIsSavePanelOpen] = useState(false);
   const [isMetadataFormDirty, setIsMetadataFormDirty] = useState(false);
   const [showMetadataCloseWarning, setShowMetadataCloseWarning] =
@@ -2403,6 +2404,7 @@ export default function ActivityCreator({
       if (isSelectAll) {
         event.preventDefault();
         setSelectedObjectIds(objects.map((object) => object.id));
+        setSelectedShapeIds(lines.filter((line) => line.lineStyle === "rectangle" || line.lineStyle === "circle").map((line) => line.id));
         setSelectedObjectId(null);
         setMessage(
           objects.length === 1
@@ -2414,23 +2416,27 @@ export default function ActivityCreator({
 
       if (
         (event.key === "Delete" || event.key === "Backspace") &&
-        selectedObjectIds.length > 0
+        (selectedObjectIds.length > 0 || selectedShapeIds.length > 0)
       ) {
         event.preventDefault();
         saveHistorySnapshot();
 
         const selectedIds = new Set(selectedObjectIds);
+        const shapeIds = new Set(selectedShapeIds);
 
+        setLines((currentLines) => currentLines.filter((line) => !shapeIds.has(line.id)));
         setObjects((currentObjects) =>
           currentObjects.filter((object) => !selectedIds.has(object.id)),
         );
         setSelectedObjectIds([]);
+        setSelectedShapeIds([]);
+        setSelectedLineId(null);
         setSelectedObjectId(null);
         setDraggingObjectId(null);
         setMessage(
-          selectedIds.size === 1
+          selectedIds.size + shapeIds.size === 1
             ? "Item deleted."
-            : `${selectedIds.size} items deleted.`,
+            : `${selectedIds.size + shapeIds.size} items deleted.`,
         );
       }
     }
@@ -2440,7 +2446,7 @@ export default function ActivityCreator({
     return () => {
       window.removeEventListener("keydown", handleObjectSelectionKeyboard);
     };
-  }, [isSavePanelOpen, objects, selectedObjectIds]);
+  }, [isSavePanelOpen, objects, lines, selectedObjectIds, selectedShapeIds]);
 
   function isObjectSelected(objectId: string) {
     return selectedObjectIds.includes(objectId);
@@ -2457,6 +2463,7 @@ export default function ActivityCreator({
       return;
     }
 
+    setSelectedShapeIds([]);
     setSelectedObjectIds([objectId]);
     setSelectedObjectId(objectId);
   }
@@ -4593,9 +4600,22 @@ export default function ActivityCreator({
   function handlePitchPointerDown(event: PointerEvent<HTMLDivElement>) {
     let point = getPitchPoint(event);
 
-    if (selectedObjectId || selectedObjectIds.length > 0) {
+    // Shift-click on a shape toggles it without dragging or modifying other selections.
+    if (event.shiftKey) {
+      const hit = getLineHit(point);
+      if (hit && (hit.line.lineStyle === "rectangle" || hit.line.lineStyle === "circle")) {
+        setSelectedShapeIds((current) => current.includes(hit.line.id)
+          ? current.filter((id) => id !== hit.line.id) : [...current, hit.line.id]);
+        setSelectedLineId(null);
+        setSelectedObjectId(null);
+        setShowShapeFillPicker(false);
+        return;
+      }
+    }
+    if (selectedObjectId || selectedObjectIds.length > 0 || selectedShapeIds.length > 0) {
       setSelectedObjectId(null);
       setSelectedObjectIds([]);
+      setSelectedShapeIds([]);
     }
 
     // When zoom/pan is unlocked, dragging the empty pitch must always begin a
@@ -4617,6 +4637,7 @@ export default function ActivityCreator({
       if (lineHit) {
         saveHistorySnapshot();
         setSelectedLineId(lineHit.line.id);
+        setSelectedShapeIds(lineHit.line.lineStyle === "rectangle" || lineHit.line.lineStyle === "circle" ? [lineHit.line.id] : []);
         setActiveLinePoints([]);
         setStraightGuideAngle(null);
         setLineDragState({
@@ -5318,46 +5339,74 @@ export default function ActivityCreator({
     );
   }
 
-  // Bulk controls operate on the active frame's selected pitch objects.
+  // Mixed selection supports pitch objects and rectangle/circle shapes.
   function deleteSelectedObjects() {
-    if (selectedObjectIds.length === 0) return;
-    const ids = new Set(selectedObjectIds);
-    const count = objects.filter((object) => ids.has(object.id)).length;
+    const objectIds = new Set(selectedObjectIds);
+    const shapeIds = new Set(selectedShapeIds);
+    const count = objects.filter((object) => objectIds.has(object.id)).length +
+      lines.filter((line) => shapeIds.has(line.id)).length;
     if (!count) return;
-
     saveHistorySnapshot();
-    setObjects((current) => current.filter((object) => !ids.has(object.id)));
+    setObjects((current) => current.filter((object) => !objectIds.has(object.id)));
+    setLines((current) => current.filter((line) => !shapeIds.has(line.id)));
     setSelectedObjectIds([]);
+    setSelectedShapeIds([]);
     setSelectedObjectId(null);
+    setSelectedLineId(null);
     setDraggingObjectId(null);
-    setMessage(`${count} objects deleted.`);
+    setMessage(`${count} items deleted.`);
   }
 
   function resizeSelectedObjects(delta: number) {
-    if (selectedObjectIds.length < 2) return;
-    const ids = new Set(selectedObjectIds);
+    if (selectedObjectIds.length + selectedShapeIds.length < 2) return;
+    const objectIds = new Set(selectedObjectIds);
+    const shapeIds = new Set(selectedShapeIds);
     saveHistorySnapshot();
     setObjects((current) => current.map((object) => {
-      if (!ids.has(object.id)) return object;
+      if (!objectIds.has(object.id)) return object;
       const range = getSizeRange(object.type);
       const size = object.size ?? getDefaultObjectSize(object.type);
       return { ...object, size: clamp(size + delta, range.min, range.max) };
     }));
+    // Resize the shape about its own center. Use pitch-coordinate dimensions,
+    // with an approximate equivalent of the 2px object increment.
+    setLines((current) => current.map((line) => {
+      if (!shapeIds.has(line.id) || line.points.length < 2) return line;
+      const [a, b] = line.points;
+      const cx = (a.x + b.x) / 2;
+      const cy = (a.y + b.y) / 2;
+      const width = Math.abs(b.x - a.x);
+      const height = Math.abs(b.y - a.y);
+      const pitchRect = pitchRef.current?.getBoundingClientRect();
+      const dx = delta / Math.max(pitchRect?.width ?? 600, 1) * 100;
+      const dy = delta / Math.max(pitchRect?.height ?? 800, 1) * 100;
+      const halfWidth = clamp(width / 2 + dx, 0.5, Math.min(cx, 100 - cx));
+      const halfHeight = clamp(height / 2 + dy, 0.5, Math.min(cy, 100 - cy));
+      const signX = b.x >= a.x ? 1 : -1;
+      const signY = b.y >= a.y ? 1 : -1;
+      return { ...line, points: [
+        { x: cx - signX * halfWidth, y: cy - signY * halfHeight },
+        { x: cx + signX * halfWidth, y: cy + signY * halfHeight },
+      ] };
+    }));
   }
 
   function renderMultiSelectionControls() {
-    if (isPlayingAnimation || selectedObjectIds.length < 2) return null;
-    const ids = new Set(selectedObjectIds);
-    const selected = objects.filter((object) => ids.has(object.id));
-    if (selected.length < 2) return null;
-
-    const centerX = selected.reduce((sum, object) => sum + object.x, 0) / selected.length;
-    const topY = Math.min(...selected.map((object) => object.y));
+    const objectIds = new Set(selectedObjectIds);
+    const shapeIds = new Set(selectedShapeIds);
+    const selected = objects.filter((object) => objectIds.has(object.id))
+      .map((object) => ({ x: object.x, y: object.y }));
+    const selectedShapes = lines.filter((line) => shapeIds.has(line.id) && line.points.length >= 2);
+    selectedShapes.forEach((shape) => selected.push({
+      x: (shape.points[0].x + shape.points[1].x) / 2,
+      y: Math.min(shape.points[0].y, shape.points[1].y),
+    }));
+    if (isPlayingAnimation || selected.length < 2) return null;
+    const centerX = selected.reduce((sum, item) => sum + item.x, 0) / selected.length;
+    const topY = Math.min(...selected.map((item) => item.y));
     const inverseZoom = 1 / Math.max(zoom, 0.01);
-
     return (
-      <div
-        data-preview-exclude="true"
+      <div data-preview-exclude="true"
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
         className="absolute z-50 flex items-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-xl"
@@ -5370,14 +5419,14 @@ export default function ActivityCreator({
       >
         <span>{selected.length} selected</span>
         <button type="button" onClick={() => resizeSelectedObjects(-2)}
-          title="Make all selected objects smaller"
+          title="Make all selected items smaller"
           className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-100">−</button>
         <span>Size</span>
         <button type="button" onClick={() => resizeSelectedObjects(2)}
-          title="Make all selected objects larger"
+          title="Make all selected items larger"
           className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-100">+</button>
         <button type="button" onClick={deleteSelectedObjects}
-          aria-label="Delete all selected objects" title="Delete all selected objects"
+          aria-label="Delete all selected items" title="Delete all selected items"
           className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700">
           <SmallTrashIcon />
         </button>
@@ -5398,6 +5447,7 @@ export default function ActivityCreator({
     }
 
     setSelectedLineId(null);
+    setSelectedShapeIds([]);
 
     // A normal click highlights the object for moving/deleting, but does not
     // open its properties. Properties open only by double-click or right-click.
@@ -7366,6 +7416,14 @@ export default function ActivityCreator({
                   preserveAspectRatio="none"
                 >
                   {displayedLines.map((line) => renderLine(line))}
+                  {!isPlayingAnimation && lines.filter((line) => selectedShapeIds.includes(line.id) && line.points.length >= 2).map((shape) => {
+                    const a = shape.points[0], b = shape.points[1];
+                    const x = Math.min(a.x,b.x), y = Math.min(a.y,b.y);
+                    const width = Math.abs(b.x-a.x), height = Math.abs(b.y-a.y);
+                    return shape.lineStyle === "circle"
+                      ? <ellipse key={`multi-${shape.id}`} cx={x+width/2} cy={y+height/2} rx={width/2} ry={height/2} fill="none" stroke="#facc15" strokeWidth="0.9" strokeDasharray="1.5 0.75" pointerEvents="none" />
+                      : <rect key={`multi-${shape.id}`} x={x} y={y} width={width} height={height} fill="none" stroke="#facc15" strokeWidth="0.9" strokeDasharray="1.5 0.75" pointerEvents="none" />;
+                  })}
 
                   {!isPlayingAnimation && selectedLineId && (() => {
                     const selectedLine = lines.find((line) => line.id === selectedLineId);
@@ -7423,7 +7481,7 @@ export default function ActivityCreator({
                 </svg>
                 {!isPlayingAnimation && selectedLineId && (() => {
                   const shape = lines.find(line => line.id === selectedLineId);
-                  if (!shape || (shape.lineStyle !== "rectangle" && shape.lineStyle !== "circle") || shape.points.length < 2) return null;
+                  if (selectedObjectIds.length + selectedShapeIds.length >= 2 || !shape || (shape.lineStyle !== "rectangle" && shape.lineStyle !== "circle") || shape.points.length < 2) return null;
                   const x = Math.min(shape.points[0].x,shape.points[1].x);
                   const y = Math.min(shape.points[0].y,shape.points[1].y);
                   return <div data-preview-exclude="true" className="absolute z-50 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
