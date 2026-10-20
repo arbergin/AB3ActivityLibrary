@@ -46,6 +46,7 @@ export type PlanningNote = {
   afterActivityRowId: string | null;
   noteScope: "week" | "practice" | "activity";
   noteText: string;
+  noteDate: string | null;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -97,6 +98,7 @@ type PlanningNoteRow = {
   after_activity_row_id: string | null;
   note_scope: "week" | "practice" | "activity";
   note_text: string;
+  note_date: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -159,6 +161,7 @@ function rowToPlanningNote(row: PlanningNoteRow): PlanningNote {
     afterActivityRowId: row.after_activity_row_id,
     noteScope: row.note_scope,
     noteText: row.note_text,
+    noteDate: row.note_date,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -621,7 +624,7 @@ export async function getPlanningNotes(
   const { data, error } = await supabase
     .from("planning_notes")
     .select(
-      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, sort_order, created_at, updated_at"
+      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, note_date, sort_order, created_at, updated_at"
     )
     .in("practice_id", practiceIds)
     .order("sort_order", { ascending: true })
@@ -660,7 +663,7 @@ export async function createPlanningNote(
       sort_order: sortOrder,
     })
     .select(
-      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, sort_order, created_at, updated_at"
+      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, note_date, sort_order, created_at, updated_at"
     )
     .single();
 
@@ -671,14 +674,16 @@ export async function createPlanningNote(
 
 export async function updatePlanningNote(
   noteId: string,
-  noteText: string
+  noteText: string,
+  noteDate?: string | null
 ): Promise<PlanningNote> {
+  const updates = noteDate === undefined ? { note_text: noteText } : { note_text: noteText, note_date: noteDate };
   const { data, error } = await supabase
     .from("planning_notes")
-    .update({ note_text: noteText })
+    .update(updates)
     .eq("id", noteId)
     .select(
-      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, sort_order, created_at, updated_at"
+      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, note_date, sort_order, created_at, updated_at"
     )
     .single();
 
@@ -829,7 +834,7 @@ export async function movePlanningNote(
     })
     .eq("id", update.noteId)
     .select(
-      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, sort_order, created_at, updated_at"
+      "id, practice_id, week_id, after_activity_row_id, note_scope, note_text, note_date, sort_order, created_at, updated_at"
     )
     .single();
 

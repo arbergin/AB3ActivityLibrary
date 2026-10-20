@@ -155,6 +155,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
   const [keyFocusValue, setKeyFocusValue] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteValue, setNoteValue] = useState("");
+  const [weekNoteDate, setWeekNoteDate] = useState("");
   const [searchingRowId, setSearchingRowId] = useState<string | null>(null);
   const [searchingPracticeId, setSearchingPracticeId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -546,6 +547,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
       setNotes((current) => [...current, note]);
       setEditingNoteId(note.id);
       setNoteValue("");
+      setWeekNoteDate("");
     } catch (error) {
       console.error("Unable to add planning note.", error);
       setMessage("The note could not be added.");
@@ -556,24 +558,32 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
 
   async function saveNote(noteId: string) {
     if (isSaving) return;
+    const currentNote = notes.find((n) => n.id === noteId);
+    if (!currentNote) return;
+    const practice = practices.find((p) => p.id === currentNote.practiceId);
+    // Week notes have their own date; practice/activity notes use the parent practice date.
+    if (currentNote.noteScope === "week") {
+      if (!weekNoteDate) {
+        window.alert("Please enter a date for this week note before saving.");
+        return;
+      }
+    } else if (!practice?.practiceDate) {
+      window.alert("Please enter the Practice Date before saving this note.");
+      return;
+    }
 
     setIsSaving(true);
     setMessage("");
-
     try {
-      const currentNote = notes.find(n => n.id === noteId);
-      const practice = currentNote && practices.find(p => p.id === currentNote.practiceId);
-      if (noteValue.includes('(player:') && !practice?.practiceDate) {
-        throw new Error("Set the practice date before saving a note that mentions players.");
-      }
-      const updated = await updatePlanningNote(noteId, noteValue);
-      await createMentionNoteCopies("practice", noteId, noteValue);
-
-      setNotes((current) =>
-        current.map((note) => (note.id === updated.id ? updated : note))
+      const updated = await updatePlanningNote(
+        noteId, noteValue,
+        currentNote.noteScope === "week" ? weekNoteDate : undefined
       );
+      await createMentionNoteCopies("practice", noteId, noteValue);
+      setNotes((current) => current.map((note) => note.id === updated.id ? updated : note));
       setEditingNoteId(null);
       setNoteValue("");
+      setWeekNoteDate("");
     } catch (error) {
       console.error("Unable to save planning note.", error);
       setMessage(error instanceof Error ? error.message : "The note could not be saved.");
@@ -2282,6 +2292,12 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                         >
                           {editingNoteId === note.id ? (
                             <div className="grid gap-2">
+                              <label className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-700">
+                                Note Date
+                                <input type="date" aria-label="Week note date" value={weekNoteDate}
+                                  onChange={(event) => setWeekNoteDate(event.target.value)}
+                                  className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm" />
+                              </label>
                               <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
                               <div className="flex justify-end gap-2">
                                 <button
@@ -2308,7 +2324,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <div className="text-xs font-bold uppercase tracking-wide text-amber-700">
-                                  Week Note
+                                  Week Note{note.noteDate ? ` · ${note.noteDate}` : ""}
                                 </div>
                                 <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
                                   <PlayerMentionText teamId={teamId} text={note.noteText || "Empty note"} />
@@ -2320,6 +2336,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
                                   onClick={() => {
                                     setEditingNoteId(note.id);
                                     setNoteValue(note.noteText);
+                                    setWeekNoteDate(note.noteDate ?? "");
                                   }}
                                   className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                                 >
