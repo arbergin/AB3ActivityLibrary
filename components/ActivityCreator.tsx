@@ -1907,8 +1907,13 @@ export default function ActivityCreator({
   );
 
   const [isZoomLocked, setIsZoomLocked] = useState(true);
+  const [isFitView, setIsFitView] = useState(false);
+  const [isZoomAreaMode, setIsZoomAreaMode] = useState(false);
+  const [zoomAreaRect, setZoomAreaRect] = useState<{
+    startX: number; startY: number; endX: number; endY: number;
+  } | null>(null);
   const [zoom, setZoom] = useState(
-    clamp(normalizedInitialCreatorState.pitchView.zoom, 1, 3),
+    clamp(normalizedInitialCreatorState.pitchView.zoom, 1, 8),
   );
   const [pan, setPan] = useState({
     x: normalizedInitialCreatorState.pitchView.panX,
@@ -4125,10 +4130,9 @@ export default function ActivityCreator({
       minX: forZoom <= 1 ? 0 : rect.width * (1 - forZoom),
       maxX: 0,
 
-      // Allow upward panning even at 1.00x. Because the transformed pitch uses
-      // a top-left origin, moving it up by half of its scaled height places
-      // the center line exactly at the top edge of the visible pitch window.
-      minY: -(rect.height * forZoom) / 2,
+      // Retain upward panning at 1x, but allow the whole pitch to be reached
+      // at higher zoom levels (including areas near the bottom touchline).
+      minY: Math.min(-(rect.height * forZoom) / 2, rect.height * (1 - forZoom)),
       maxY: 0,
     };
   }
@@ -4147,13 +4151,59 @@ export default function ActivityCreator({
       return;
     }
 
-    const clampedZoom = clamp(nextZoom, 1, 3);
+    const clampedZoom = clamp(nextZoom, 1, 8);
 
     setZoom(clampedZoom);
     setPan((currentPan) => clampPanToZoom(currentPan, clampedZoom));
   }
 
+  function fitPitchToScreen() {
+    setIsFitView(true);
+    setIsZoomAreaMode(false);
+    setZoomAreaRect(null);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setPanState(null);
+    setMessage("Full pitch fitted to the available screen height.");
+  }
+
+  function toggleZoomArea() {
+    setIsZoomAreaMode((previous) => !previous);
+    setZoomAreaRect(null);
+    setPanState(null);
+    setActiveLinePoints([]);
+    setSelectedObjectId(null);
+    setSelectedObjectIds([]);
+    setSelectedShapeIds([]);
+    setSelectedLineId(null);
+    setMessage("Drag a rectangle on the pitch to zoom into that area. Press Esc to cancel.");
+  }
+
+  useEffect(() => {
+    if (!isZoomAreaMode) return;
+    function cancelZoomArea(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsZoomAreaMode(false);
+        setZoomAreaRect(null);
+        setMessage("Zoom Area canceled.");
+      }
+    }
+    window.addEventListener("keydown", cancelZoomArea);
+    return () => window.removeEventListener("keydown", cancelZoomArea);
+  }, [isZoomAreaMode]);
+
+  function zoomAreaPoint(clientX: number, clientY: number) {
+    const rect = pitchRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: clamp(clientX - rect.left, 0, rect.width),
+      y: clamp(clientY - rect.top, 0, rect.height),
+    };
+  }
+
   function resetView() {
+    setIsZoomAreaMode(false);
+    setZoomAreaRect(null);
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setPanState(null);
@@ -4169,7 +4219,7 @@ export default function ActivityCreator({
     const zoomDirection = event.deltaY < 0 ? 0.1 : -0.1;
 
     setZoom((currentZoom) => {
-      const nextZoom = clamp(currentZoom + zoomDirection, 1, 3);
+      const nextZoom = clamp(currentZoom + zoomDirection, 1, 8);
 
       setPan((currentPan) => clampPanToZoom(currentPan, nextZoom));
 
@@ -4599,6 +4649,14 @@ export default function ActivityCreator({
   }
 
   function handlePitchPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (isZoomAreaMode) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const point = zoomAreaPoint(event.clientX, event.clientY);
+      setZoomAreaRect({ startX: point.x, startY: point.y, endX: point.x, endY: point.y });
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
     let point = getPitchPoint(event);
 
     // Shift-click adds/removes a rectangle or circle without clearing players.
@@ -4680,6 +4738,13 @@ export default function ActivityCreator({
   }
 
   function handlePitchPointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (isZoomAreaMode) {
+      if (zoomAreaRect) {
+        const point = zoomAreaPoint(event.clientX, event.clientY);
+        setZoomAreaRect((current) => current ? { ...current, endX: point.x, endY: point.y } : null);
+      }
+      return;
+    }
     const point = getPitchPoint(event);
 
     if (draggingObjectId) {
@@ -4782,6 +4847,39 @@ export default function ActivityCreator({
   }
 
   function handlePitchPointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (isZoomAreaMode) {
+      if (zoomAreaRect) {
+        const end = zoomAreaPoint(event.clientX, event.clientY);
+        const selectionWidth = Math.abs(end.x - zoomAreaRect.startX);
+        const selectionHeight = Math.abs(end.y - zoomAreaRect.startY);
+        const rect = pitchRef.current?.getBoundingClientRect();
+        if (rect && selectionWidth >= 12 && selectionHeight >= 12) {
+          // Selection is expressed in visible viewport pixels; reverse the
+          // current pitch transform to find its unscaled, pitch-relative center.
+          const midpointX = (zoomAreaRect.startX + end.x) / 2;
+          const midpointY = (zoomAreaRect.startY + end.y) / 2;
+          const center = getPitchPointFromClient(rect.left + midpointX, rect.top + midpointY);
+          const nextZoom = clamp(zoom * Math.min(rect.width / selectionWidth, rect.height / selectionHeight), 1, 8);
+          const pitchX = (center.x / 100) * rect.width;
+          const pitchY = (center.y / 100) * rect.height;
+          const radians = (pitchRotationDegrees * Math.PI) / 180;
+          const rotatedX = pitchX * Math.cos(radians) - pitchY * Math.sin(radians);
+          const rotatedY = pitchX * Math.sin(radians) + pitchY * Math.cos(radians);
+          setZoom(nextZoom);
+          setPan(clampPanToZoom({
+            x: rect.width / 2 - rotatedX * nextZoom,
+            y: rect.height / 2 - rotatedY * nextZoom,
+          }, nextZoom));
+          setMessage("Zoomed to selected area.");
+        } else {
+          setMessage("Drag a larger area to zoom in.");
+        }
+      }
+      setZoomAreaRect(null);
+      setIsZoomAreaMode(false);
+      try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ }
+      return;
+    }
     if (lineDragState) {
       if (isSnapToLines && !lines.some(line => line.id === lineDragState.lineId && (line.lineStyle === "rectangle" || line.lineStyle === "circle"))) {
         setLines((currentLines) =>
@@ -7312,6 +7410,24 @@ export default function ActivityCreator({
                 >
                   Reset
                 </button>
+
+                <button
+                  type="button"
+                  onClick={fitPitchToScreen}
+                  className={`h-9 rounded-lg border px-3 text-xs font-bold shadow-sm md:h-10 ${isFitView && zoom === 1 && pan.x === 0 && pan.y === 0 ? "border-sky-500 bg-sky-100 text-sky-800" : "border-slate-300 bg-white text-slate-700"}`}
+                  title="Fit the entire pitch within the screen height"
+                >
+                  Fit
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleZoomArea}
+                  className={`h-9 rounded-lg border px-3 text-xs font-bold shadow-sm md:h-10 ${isZoomAreaMode ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-slate-700"}`}
+                  title="Drag a rectangle to zoom into an area of the pitch"
+                  aria-pressed={isZoomAreaMode}
+                >
+                  Zoom Area
+                </button>
               </div>
 
               {isToolbarOnLeft && (
@@ -7403,12 +7519,38 @@ export default function ActivityCreator({
                   ? "h-auto w-full"
                   : "h-full max-h-full w-auto md:h-auto md:w-full"
               } ${
-                !isZoomLocked && !panState ? "cursor-grab" : ""
+                isZoomAreaMode ? "cursor-crosshair" : (!isZoomLocked && !panState ? "cursor-grab" : "")
               } ${panState || lineDragState ? "cursor-grabbing" : ""}`}
-              style={{
+              style={isFitView ? {
+                // Constrain both dimensions, not the pitch's internal zoom.
+                // This shows the full 3:4 canvas inside a typical browser viewport.
+                width: "min(100%, calc((100vh - 230px) * 0.75))",
+                height: "auto",
+                maxHeight: "calc(100vh - 230px)",
+                aspectRatio: "3 / 4",
+                flexShrink: 0,
                 transform: "none",
-              }}
+              } : { transform: "none" }}
             >
+              {isZoomAreaMode && (
+                <div
+                  data-preview-exclude="true"
+                  className="absolute inset-0 z-[75] cursor-crosshair"
+                  title="Click and drag to select a zoom area"
+                />
+              )}
+              {isZoomAreaMode && zoomAreaRect && (
+                <div
+                  data-preview-exclude="true"
+                  className="pointer-events-none absolute z-[80] border-2 border-sky-600 bg-sky-400/20"
+                  style={{
+                    left: Math.min(zoomAreaRect.startX, zoomAreaRect.endX),
+                    top: Math.min(zoomAreaRect.startY, zoomAreaRect.endY),
+                    width: Math.abs(zoomAreaRect.endX - zoomAreaRect.startX),
+                    height: Math.abs(zoomAreaRect.endY - zoomAreaRect.startY),
+                  }}
+                />
+              )}
               <div
                 className="absolute inset-0"
                 style={{
