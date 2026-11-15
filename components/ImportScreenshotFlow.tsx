@@ -2,22 +2,31 @@
 
 import { useEffect, useRef, useState } from "react";
 import ImportJsonFlow from "@/components/ImportJsonFlow";
-import { convertScreenshot, type ScreenshotConversion } from "@/lib/screenshotToActivity";
+import { convertScreenshot, type ScreenshotConversion, type ScreenshotProgress } from "@/lib/screenshotToActivity";
 
 export default function ImportScreenshotFlow() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [original, setOriginal] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ScreenshotConversion | null>(null);
   const [working, setWorking] = useState(false);
-  const [progress, setProgress] = useState("");
+  const [progress, setProgress] = useState<ScreenshotProgress | null>(null);
+  const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState("");
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => () => { if (original) URL.revokeObjectURL(original); }, [original]);
+  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => {
+    if (!working) return;
+    const start = Date.now();
+    const ticker = window.setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 500);
+    return () => window.clearInterval(ticker);
+  }, [working]);
 
   function chooseFile(next?: File) {
-    setError(""); setResult(null); setFile(null);
+    setError(""); setResult(null); setFile(null); setProgress(null);
     if (!next) return;
     if (!/^image\/(png|jpeg|webp)$/i.test(next.type)) { setError("Choose a PNG, JPG, or WebP screenshot."); return; }
     if (next.size > 12 * 1024 * 1024) { setError("Maximum image size is 12 MB."); return; }
@@ -27,14 +36,27 @@ export default function ImportScreenshotFlow() {
 
   async function generate() {
     if (!file || working) return;
-    setWorking(true); setError(""); setResult(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setWorking(true); setError(""); setResult(null); setSeconds(0);
+    setProgress({stage:"preparing",percent:0,message:"Starting screenshot analysis…"});
     try {
-      const conversion = await convertScreenshot(file, setProgress);
-      setResult(conversion);
-      setGeneration(x => x + 1);
+      const conversion = await convertScreenshot(file, setProgress, controller.signal);
+      if (!controller.signal.aborted) { setResult(conversion); setGeneration(x => x + 1); }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Screenshot recognition failed. Please try again or check whether your browser blocks external scripts.");
-    } finally { setWorking(false); setProgress(""); }
+      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Screenshot recognition failed. Please try another image.");
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      setWorking(false);
+    }
+  }
+
+  function cancel() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setWorking(false);
+    setProgress(null);
+    setError("Analysis canceled. You can choose another screenshot or try again.");
   }
 
   function downloadJson() {
@@ -50,7 +72,7 @@ export default function ImportScreenshotFlow() {
   }
 
   return <div className="space-y-5">
-    <p className="text-sm text-slate-600">Free, browser-based detection using OpenCV.js and Tesseract.js. Your screenshot is processed on your device; the libraries load from public CDNs on first use. Clean, top-down diagrams work best. Always review the generated activity before saving.</p>
+    <p className="text-sm text-slate-600">Free, browser-based detection. OpenCV runs in a separate worker so a stalled analysis can be canceled; Canvas detection is used if OpenCV is unavailable. This initial stable version pauses jersey-number OCR while we verify detection on real screenshots. Always review the generated activity before saving.</p>
     <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-7 text-center hover:bg-slate-100">
       <span className="block font-semibold text-slate-700">Choose a soccer activity screenshot</span>
       <span className="mt-1 block text-sm text-slate-500">PNG, JPG or WebP • Maximum 12 MB</span>
@@ -58,13 +80,26 @@ export default function ImportScreenshotFlow() {
     </label>
     {file && <div className="flex flex-wrap items-center justify-between gap-3">
       <span className="text-sm font-semibold text-slate-700">{file.name}</span>
-      <button type="button" disabled={working} onClick={() => void generate()} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">{working ? "Analyzing screenshot..." : result ? "Analyze Again" : "Generate Editable Activity"}</button>
+      <div className="flex items-center gap-2">
+        {working && <button type="button" onClick={cancel} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Cancel</button>}
+        <button type="button" disabled={working} onClick={() => void generate()} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">{working ? "Analyzing screenshot..." : result ? "Analyze Again" : "Generate Editable Activity"}</button>
+      </div>
     </div>}
-    {working && <p role="status" className="text-sm text-slate-600">{progress || "Processing image..."} If number recognition takes too long, the converter will continue without the numbers.</p>}
+    {/* Progress is placed ABOVE the original image and represents completed stages,
+        not a fictional estimate of how long Wasm download/compilation will take. */}
+    {working && <div className="rounded-lg border border-blue-200 bg-blue-50 p-4" role="status" aria-live="polite">
+      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+        <span className="font-semibold text-slate-800">{progress?.message || "Analyzing screenshot…"}</span>
+        <span className="shrink-0 font-semibold text-slate-700">{progress?.percent ?? 0}%</span>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-blue-100" role="progressbar" aria-label="Screenshot analysis stage progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress?.percent ?? 0}>
+        <div className="h-full rounded-full bg-blue-700 transition-all duration-300" style={{width:`${progress?.percent ?? 0}%`}}/>
+      </div>
+      <p className="mt-2 text-xs text-slate-600">{seconds}s elapsed • Progress indicates processing stages, not exact time remaining. OpenCV is limited to 11s; the fallback has a 7s limit. You can cancel at any time.</p>
+    </div>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {original && <div className="rounded-xl border border-slate-200 bg-white p-3">
       <h3 className="mb-2 font-semibold text-slate-800">Original screenshot</h3>
-      {/* A local preview is intentionally displayed independently from saved activity data. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={original} alt="Original uploaded soccer diagram" className="mx-auto max-h-96 max-w-full object-contain" />
     </div>}
