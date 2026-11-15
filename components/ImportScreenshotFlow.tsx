@@ -33,7 +33,7 @@ export default function ImportScreenshotFlow() {
       setResult(conversion);
       setGeneration(x => x + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Screenshot recognition failed.");
+      setError(err instanceof Error ? err.message : "Screenshot recognition failed. Please try again or check whether your browser blocks external scripts.");
     } finally { setWorking(false); setProgress(""); }
   }
 
@@ -60,7 +60,7 @@ export default function ImportScreenshotFlow() {
       <span className="text-sm font-semibold text-slate-700">{file.name}</span>
       <button type="button" disabled={working} onClick={() => void generate()} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">{working ? "Analyzing screenshot..." : result ? "Analyze Again" : "Generate Editable Activity"}</button>
     </div>}
-    {working && <p role="status" className="text-sm text-slate-600">{progress || "Processing image..."} This may take a while for large diagrams.</p>}
+    {working && <p role="status" className="text-sm text-slate-600">{progress || "Processing image..."} If number recognition takes too long, the converter will continue without the numbers.</p>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {original && <div className="rounded-xl border border-slate-200 bg-white p-3">
       <h3 className="mb-2 font-semibold text-slate-800">Original screenshot</h3>

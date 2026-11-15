@@ -42,24 +42,59 @@ declare global {
 
 const OPENCV_URL = "https://docs.opencv.org/4.x/opencv.js";
 const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-const MAX_SIDE = 1100;
+const MAX_SIDE = 900;
+const SCRIPT_TIMEOUT_MS = 12000;
+const CV_INIT_TIMEOUT_MS = 15000;
+const OCR_START_TIMEOUT_MS = 14000;
+const OCR_TOTAL_BUDGET_MS = 18000;
+const OCR_SINGLE_TIMEOUT_MS = 3500;
+const MAX_OCR_CANDIDATES = 16;
+
+/** Bound external script and worker waits so screenshot conversion always settles. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(`${label} timed out after ${Math.ceil(ms / 1000)} seconds.`)), ms);
+    promise.then(value => { window.clearTimeout(timeout); resolve(value); }, error => { window.clearTimeout(timeout); reject(error); });
+  });
+}
 
 function loadScript(id: string, src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const prior = document.getElementById(id) as HTMLScriptElement | null;
-    if (prior?.dataset.loaded === "true") { resolve(); return; }
-    if (prior) {
-      prior.addEventListener("load", () => resolve(), { once: true });
-      prior.addEventListener("error", () => reject(new Error(`Could not download ${id}. Check your internet connection or CSP.`)), { once: true });
-      return;
+  const prior = document.getElementById(id) as HTMLScriptElement | null;
+  if (prior?.dataset.loaded === "true") return Promise.resolve();
+
+  return new Promise<void>((resolve, reject) => {
+    const script = prior ?? document.createElement("script");
+    let settled = false;
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      script.removeEventListener("load", loaded);
+      script.removeEventListener("error", failed);
+    };
+    const fail = (reason: string) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      // A timed-out external script should not block subsequent retries.
+      script.remove();
+      reject(new Error(reason));
+    };
+    const loaded = () => {
+      if (settled) return;
+      settled = true;
+      script.dataset.loaded = "true";
+      cleanup();
+      resolve();
+    };
+    const failed = () => fail(`Could not download ${id}. Check network access and Content Security Policy.`);
+    const timeout = window.setTimeout(() => fail(`Loading ${id} timed out. Check browser network access or content blockers.`), SCRIPT_TIMEOUT_MS);
+    script.addEventListener("load", loaded, { once: true });
+    script.addEventListener("error", failed, { once: true });
+    if (!prior) {
+      script.id = id;
+      script.src = src;
+      script.async = true;
+      document.head.appendChild(script);
     }
-    const script = document.createElement("script");
-    script.id = id;
-    script.src = src;
-    script.async = true;
-    script.onload = () => { script.dataset.loaded = "true"; resolve(); };
-    script.onerror = () => reject(new Error(`Could not download ${id}. Check your internet connection or CSP.`));
-    document.head.appendChild(script);
   });
 }
 
@@ -67,16 +102,17 @@ async function getCv(): Promise<CvApi> {
   await loadScript("ab3-opencv", OPENCV_URL);
   const cv = window.cv;
   if (!cv) throw new Error("OpenCV did not initialize.");
-  // Some OpenCV.js builds expose a promise-like factory.
   if (typeof (cv as unknown as { then?: unknown }).then === "function") {
-    return await (cv as unknown as Promise<CvApi>);
+    return withTimeout(Promise.resolve(cv as unknown as Promise<CvApi>), CV_INIT_TIMEOUT_MS, "OpenCV initialization");
   }
   if (typeof cv.imread === "function") return cv;
-  await new Promise<void>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error("OpenCV initialization timed out.")), 20000);
-    cv.onRuntimeInitialized = () => { window.clearTimeout(timer); resolve(); };
-  });
-  return cv;
+  return withTimeout(new Promise<CvApi>(resolve => {
+    const previous = cv.onRuntimeInitialized;
+    cv.onRuntimeInitialized = () => {
+      previous?.();
+      resolve(cv);
+    };
+  }), CV_INIT_TIMEOUT_MS, "OpenCV initialization");
 }
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
@@ -157,24 +193,41 @@ function detect(cv: CvApi, canvas: HTMLCanvasElement): { candidates: Candidate[]
 
 async function readNumbers(canvas: HTMLCanvasElement, candidates: Candidate[], onProgress?: (message: string)=>void) {
   if (!candidates.length) return;
+  onProgress?.("Loading jersey-number recognition...");
   await loadScript("ab3-tesseract", TESSERACT_URL);
   if (!window.Tesseract) throw new Error("Tesseract did not initialize.");
-  const worker = await window.Tesseract.createWorker("eng");
+  const worker = await withTimeout(window.Tesseract.createWorker("eng"), OCR_START_TIMEOUT_MS, "OCR worker startup");
+  const count = Math.min(candidates.length, MAX_OCR_CANDIDATES);
+  const deadline = Date.now() + OCR_TOTAL_BUDGET_MS;
   try {
-    for(let i=0;i<Math.min(candidates.length,30);i++) {
+    for(let i=0;i<count;i++) {
+      const remaining = deadline - Date.now();
+      if (remaining < 500) {
+        onProgress?.("OCR time limit reached. Finishing with detected player positions...");
+        break;
+      }
       const c=candidates[i];
-      onProgress?.(`Reading player numbers (${i+1}/${Math.min(candidates.length,30)})...`);
+      onProgress?.(`Reading player numbers (${i+1}/${count})...`);
       const crop=document.createElement("canvas");crop.width=120;crop.height=120;
       const ctx=crop.getContext("2d")!;
       ctx.fillStyle="#ffffff";ctx.fillRect(0,0,120,120);
       const radius=c.r*0.85;
       ctx.imageSmoothingEnabled=true;
       ctx.drawImage(canvas,c.x-radius,c.y-radius,radius*2,radius*2,0,0,120,120);
-      const result=await worker.recognize(crop);
-      const value=result.data.text.replace(/\D/g, "").slice(0,2);
-      if(value && (result.data.confidence ?? 0)>=35)c.label=value;
+      try {
+        const result=await withTimeout(worker.recognize(crop), Math.min(remaining, OCR_SINGLE_TIMEOUT_MS), "Jersey number recognition");
+        const value=result.data.text.replace(/\D/g, "").slice(0,2);
+        if(value && (result.data.confidence ?? 0)>=35)c.label=value;
+      } catch {
+        // Keep every identified player even when OCR is slow or unreliable.
+        // An OCR worker can remain busy after a timeout, so don't queue more jobs.
+        break;
+      }
     }
-  } finally { await worker.terminate(); }
+  } finally {
+    // Worker shutdown can also hang if recognition has timed out.
+    try { await withTimeout(worker.terminate(), 2000, "OCR shutdown"); } catch { /* Continue using detected geometry. */ }
+  }
 }
 
 function toPoints(s: Segment, w: number, h: number) {
@@ -197,6 +250,7 @@ export async function convertScreenshot(file: File, onProgress?: (message: strin
   const ctx=canvas.getContext("2d",{willReadFrequently:true});
   if(!ctx)throw new Error("Canvas is unavailable in this browser.");
   ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  onProgress?.("Loading OpenCV (first use may require a download)...");
   const cv=await getCv();
   onProgress?.("Detecting player markers and diagram lines...");
   const found=detect(cv,canvas);
@@ -204,6 +258,7 @@ export async function convertScreenshot(file: File, onProgress?: (message: strin
   try { await readNumbers(canvas,found.candidates,onProgress); }
   catch(err) { warnings.push(`Numbers could not be read (${err instanceof Error?err.message:"OCR unavailable"}). Player markers remain editable.`); }
 
+  onProgress?.("Building editable activity preview...");
   // The two most frequent non-green marker colors become AB3's two teams.
   const clusters: {rgb:[number,number,number];count:number}[]=[];
   for(const c of found.candidates){
