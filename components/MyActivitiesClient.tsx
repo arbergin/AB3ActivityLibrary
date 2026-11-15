@@ -761,7 +761,7 @@ export default function MyActivitiesClient() {
               </div>
             </div>
 
-            <aside className="min-w-0 rounded-2xl border border-slate-300 bg-white p-5 shadow-md">
+            <aside className="min-w-0 rounded-2xl border border-slate-300 bg-white p-5 shadow-md xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:self-start xl:overflow-y-auto">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="text-base font-bold text-slate-900">

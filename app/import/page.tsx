@@ -30,7 +30,7 @@ export default function ImportPage() {
 
             <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-md sm:p-6">
               <div className="mb-6">
-                <h2 className="text-2xl font-bold">Import from Screenshot (Free)</h2>
+                <h2 className="text-2xl font-bold">Import from Screenshot</h2>
                 <p className="mt-2 text-slate-600">
                   Convert a soccer activity image into an editable AB3 activity using browser-based image recognition.
                 </p>

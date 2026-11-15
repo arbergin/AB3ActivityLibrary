@@ -842,7 +842,7 @@ export default function SearchResultsPanel({
   );
 
   return (
-    <div className="grid min-w-0 gap-6 overflow-hidden lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -980,7 +980,7 @@ export default function SearchResultsPanel({
         </div>
       </section>
 
-      <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6">
+      <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-bold text-slate-900">Activity Detail</h2>
 
