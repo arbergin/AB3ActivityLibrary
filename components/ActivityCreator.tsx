@@ -1917,6 +1917,7 @@ export default function ActivityCreator({
   // makes the selected region fill the actual visible workspace.
   const [zoomAreaCanvasWidth, setZoomAreaCanvasWidth] = useState<number | null>(null);
   const [isZoomAreaMode, setIsZoomAreaMode] = useState(false);
+  const [isPanMode, setIsPanMode] = useState(false);
   const [zoomAreaRect, setZoomAreaRect] = useState<{
     startX: number; startY: number; endX: number; endY: number;
   } | null>(null);
@@ -4166,12 +4167,28 @@ export default function ActivityCreator({
   }
 
   function changeZoom(nextZoom: number) {
-    if (isZoomLocked) {
+    if (isZoomLocked && !isPanMode) return;
+    const clampedZoom = clamp(nextZoom, 1, 8);
+    // Fit physically reduces the pitch element to show the entire field.
+    // Leave that compact layout before zooming, otherwise the camera remains
+    // trapped inside the thin fitted pitch even at higher zoom levels.
+    if (isFitView || zoomAreaCanvasWidth !== null) {
+      setIsFitView(false);
+      setZoomAreaCanvasWidth(null);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const pitch = pitchRef.current;
+          if (!pitch) return;
+          const bounds = pitch.getBoundingClientRect();
+          setZoom(clampedZoom);
+          setPan(clampPanToZoom({
+            x: bounds.width * (1 - clampedZoom) / 2,
+            y: bounds.height * (1 - clampedZoom) / 2,
+          }, clampedZoom));
+        });
+      });
       return;
     }
-
-    const clampedZoom = clamp(nextZoom, 1, 8);
-
     setZoom(clampedZoom);
     setPan((currentPan) => clampPanToZoom(currentPan, clampedZoom));
   }
@@ -4180,14 +4197,26 @@ export default function ActivityCreator({
     setZoomAreaCanvasWidth(null);
     setIsFitView(true);
     setIsZoomAreaMode(false);
+    setIsPanMode(false);
     setZoomAreaRect(null);
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setPanState(null);
-    setMessage("Full pitch fitted to the available screen height.");
+    setMessage("Full pitch fitted. Zoom + or Zoom Area expands the pitch back into the workspace.");
+  }
+
+  function togglePanMode() {
+    setIsPanMode((previous) => !previous);
+    setIsZoomAreaMode(false);
+    setZoomAreaRect(null);
+    setPanState(null);
+    setMessage(isPanMode
+      ? "Pan mode off. You can edit players and lines again."
+      : "Pan mode on. Drag anywhere on the pitch to move the view without moving objects.");
   }
 
   function toggleZoomArea() {
+    setIsPanMode(false);
     setIsZoomAreaMode((previous) => !previous);
     setZoomAreaRect(null);
     setPanState(null);
@@ -4222,6 +4251,7 @@ export default function ActivityCreator({
   }
 
   function resetView() {
+    setIsPanMode(false);
     setZoomAreaCanvasWidth(null);
     setIsFitView(false);
     setIsZoomAreaMode(false);
@@ -4232,21 +4262,9 @@ export default function ActivityCreator({
   }
 
   function handleWheel(event: WheelEvent<HTMLDivElement>) {
-    if (isZoomLocked) {
-      return;
-    }
-
+    if (isZoomLocked && !isPanMode) return;
     event.preventDefault();
-
-    const zoomDirection = event.deltaY < 0 ? 0.1 : -0.1;
-
-    setZoom((currentZoom) => {
-      const nextZoom = clamp(currentZoom + zoomDirection, 1, 8);
-
-      setPan((currentPan) => clampPanToZoom(currentPan, nextZoom));
-
-      return nextZoom;
-    });
+    changeZoom(zoom + (event.deltaY < 0 ? 0.1 : -0.1));
   }
 
   function getObjectFillColor(type: ObjectToolType) {
@@ -4671,6 +4689,16 @@ export default function ActivityCreator({
   }
 
   function handlePitchPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (isPanMode && !isZoomAreaMode) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      setPanState({
+        startClientX: event.clientX, startClientY: event.clientY,
+        startPanX: pan.x, startPanY: pan.y,
+      });
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
     if (isZoomAreaMode) {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -4893,42 +4921,34 @@ export default function ActivityCreator({
           const selectedFractionWidth = Math.max(0.001, maxX - minX);
           const selectedFractionHeight = Math.max(0.001, maxY - minY);
 
-          // The *browser-visible* region is the destination, not the entire
-          // 3:4 pitch (which continues well below the fold). Expand the
-          // actual canvas width so even a wide selection can grow rather
-          // than staying at the tiny Fit size.
-          const visibleHeight = Math.max(180, window.innerHeight - Math.max(0, rect.top) - 20);
-          const sectionWidth = pitchSectionRef.current?.getBoundingClientRect().width ?? window.innerWidth;
-          const toolbarAllowance = isToolbarOnLeft ? 280 : 112;
-          const availableWidth = Math.max(250, sectionWidth - toolbarAllowance);
-          const margin = 0.96;
-          const canvasWidthForWidth = (availableWidth * margin) / selectedFractionWidth;
-          const canvasWidthForHeight = (visibleHeight * margin) / (selectedFractionHeight * (4 / 3));
-          const nextCanvasWidth = Math.max(180, Math.min(
-            canvasWidthForWidth, canvasWidthForHeight, availableWidth, 1600,
-          ));
-          const nextCanvasHeight = nextCanvasWidth * (4 / 3);
-
-          // A selection changes *canvas size*, not the zoom transform.
-          // That makes wide, shallow regions grow into the editing area while
-          // keeping everything proportional and all selected edges in view.
-          // Position the selection near the top of the visible viewport,
-          // with a small margin, instead of centering against hidden canvas.
-          const selectedWidthPx = selectedFractionWidth * nextCanvasWidth;
-          const selectedHeightPx = selectedFractionHeight * nextCanvasHeight;
-          const targetLeft = Math.max(0, (nextCanvasWidth - selectedWidthPx) / 2);
-          const targetTop = Math.max(0, (visibleHeight - selectedHeightPx) / 2);
-          const nextPan = {
-            x: targetLeft - minX * nextCanvasWidth,
-            y: targetTop - minY * nextCanvasHeight,
-          };
-
-          setZoomAreaCanvasWidth(nextCanvasWidth);
+          // Make the full-size editor canvas the camera viewport, rather
+          // than enlarging/shrinking the DOM pitch in response to the crop.
+          // This leaves the complete background available when panning.
           setIsFitView(false);
-          setZoom(1);
-          setPan(nextPan);
+          setZoomAreaCanvasWidth(null);
+          setIsPanMode(false);
           setPanState(null);
-          setMessage("Selected area fitted to the visible workspace. Use Fit to see the entire pitch.");
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+              const newRect = pitchRef.current?.getBoundingClientRect();
+              if (!newRect) return;
+              const visibleHeight = Math.max(180, Math.min(newRect.height,
+                window.innerHeight - Math.max(0, newRect.top) - 20));
+              const nextZoom = clamp(Math.min(
+                0.94 / selectedFractionWidth,
+                (0.94 * visibleHeight) / (selectedFractionHeight * newRect.height),
+              ), 1, 8);
+              const middleX = (minX + maxX) / 2 * newRect.width;
+              const middleY = (minY + maxY) / 2 * newRect.height;
+              const nextPan = {
+                x: newRect.width / 2 - middleX * nextZoom,
+                y: visibleHeight / 2 - middleY * nextZoom,
+              };
+              setZoom(nextZoom);
+              setPan(clampPanToZoom(nextPan, nextZoom));
+            });
+          });
+          setMessage("Selected area zoomed to fill the editing viewport. Use Pan to reposition or Fit to see the full pitch.");
         } else {
           setMessage("Drag a larger area to zoom in.");
         }
@@ -7483,6 +7503,15 @@ export default function ActivityCreator({
                 >
                   Zoom Area
                 </button>
+                <button
+                  type="button"
+                  onClick={togglePanMode}
+                  className={`h-9 rounded-lg border px-3 text-xs font-bold shadow-sm md:h-10 ${isPanMode ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-slate-700"}`}
+                  title="Drag the pitch without moving players or lines"
+                  aria-pressed={isPanMode}
+                >
+                  Pan
+                </button>
               </div>
 
               {isToolbarOnLeft && (
@@ -7574,7 +7603,7 @@ export default function ActivityCreator({
                   ? "h-auto w-full"
                   : "h-full max-h-full w-auto md:h-auto md:w-full"
               } ${
-                isZoomAreaMode ? "cursor-crosshair" : (!isZoomLocked && !panState ? "cursor-grab" : "")
+                isZoomAreaMode ? "cursor-crosshair" : (isPanMode || (!isZoomLocked && !panState) ? "cursor-grab" : "")
               } ${panState || lineDragState ? "cursor-grabbing" : ""}`}
               style={isFitView || zoomAreaCanvasWidth !== null ? {
                 // Constrain both dimensions, not the pitch's internal zoom.
@@ -7587,6 +7616,13 @@ export default function ActivityCreator({
                 transform: "none",
               } : { transform: "none" }}
             >
+              {isPanMode && !isZoomAreaMode && (
+                <div
+                  data-preview-exclude="true"
+                  className="absolute inset-0 z-[75] cursor-grab active:cursor-grabbing"
+                  title="Drag to pan the activity without moving objects"
+                />
+              )}
               {isZoomAreaMode && (
                 <div
                   data-preview-exclude="true"
