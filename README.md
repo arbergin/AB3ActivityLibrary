@@ -55,3 +55,9 @@ not sent to the AB3 server, but external scripts and the Tesseract language mode
 are downloaded from public networks. A deployment with restrictive Content
 Security Policy must allow these CDN/script/worker requests, or self-host those
 assets. Third-party CDN availability is a runtime dependency.
+
+### Screenshot geometric reconstruction (November 2026)
+
+The free Import from Screenshot workflow runs a Canvas-based geometry detector in an isolated worker. It preserves the existing player/OCR flow and now attempts to reconstruct dark rectangles as editable shape objects, dashed dark/light horizontal and vertical boundaries, and thin diagonal strokes. Arrowheads are marked only when both side branches are detected; ambiguous strokes are retained as ordinary editable lines. The animation-export preview now renders rectangle and circle line styles from opposite-corner coordinates instead of drawing a diagonal.
+
+The detector does **not** interpret tactical meaning. Field markings, goals, faint curved strokes, labels, incomplete arrowheads, and small objects can still require manual correction. Conversion progress is stage-based, not an estimate of time remaining.

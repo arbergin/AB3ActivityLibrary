@@ -6,7 +6,7 @@ import type { ActivityCreatorColorObject, ActivityCreatorLine, ActivityCreatorOb
  * Independent OCR has a hard timeout; a failed OCR never blocks activity creation.
  */
 type Candidate = { x:number; y:number; r:number; rgb:[number,number,number]; label:string };
-type Segment = { x1:number; y1:number; x2:number; y2:number; tone?: "dark" | "light" };
+type Segment = { x1:number; y1:number; x2:number; y2:number; tone?: "dark" | "light"; dashed?: boolean; arrow?: boolean; width?: number; lineStyle?: "rectangle" };
 type Detection = { candidates:Candidate[]; segments:Segment[]; balls?:{x:number;y:number;r:number}[] };
 export type ScreenshotStage = "preparing" | "opencv" | "detecting" | "detected" | "fallback" | "ocr" | "building" | "complete";
 export type ScreenshotProgress = {stage:ScreenshotStage; percent:number; message:string};
@@ -146,12 +146,12 @@ export async function convertScreenshot(
     let white=0;
     for(let i=0;i<=count;i++){const t=i/count;if(lineWhite(s.x1+(s.x2-s.x1)*t,s.y1+(s.y2-s.y1)*t))white++;}
     const isDark=s.tone==="dark";
-    const dashed=!isDark && white/(count+1)<.72;
-    return {id:crypto.randomUUID(),points:toPoints(s,canvas.width,canvas.height),color:isDark?"#0b0b0b":isGreenPitch?"#ffffff":"#555555",lineWidth:isDark?8:4,dashed,arrow:false,lineStyle:"standard"};
+    const dashed=s.dashed ?? (!isDark && white/(count+1)<.72);
+    return {id:crypto.randomUUID(),points:toPoints(s,canvas.width,canvas.height),color:isDark?"#0b0b0b":isGreenPitch?"#ffffff":"#555555",lineWidth:s.width??(isDark?8:4),dashed,arrow:s.arrow??false,lineStyle:s.lineStyle??"standard"};
   });
   for(const ball of found.balls||[]){objects.push({id:crypto.randomUUID(),type:"ball",x:clamp(ball.x/canvas.width,0,1),y:clamp(ball.y/canvas.height,0,1),rotation:0,size:24});}
   if(!objects.length)warnings.push("No player markers were detected. Try a cleaner, higher-contrast screenshot or add players manually in Activity Creator.");
-  warnings.push("Review field boundaries, arrows, goals and player numbers. White pitch lines and thick black horizontal/vertical boundaries are approximated; diagonal arrows and tactical meaning still require manual review.");
+  warnings.push("Review field boundaries, arrows, goals and player numbers. Rectangles, dashed boundaries and diagonal strokes are reconstructed geometrically. Check arrowheads, accidental field lines, balls and goals manually.");
   const frameId=crypto.randomUUID();
   const creatorState:ActivityCreatorStateV3={schemaVersion:3,sourcePlatform:"web",clientActivityId:crypto.randomUUID(),
     pitch:{background:isGreenPitch?"greenBlank":"whiteBlank",zoom:1,offsetX:0,offsetY:0,rotationDegrees:0,pitchAssetVersion:2,coordinateSystem:"canonicalPitchV1"},

@@ -614,6 +614,22 @@ function drawLine(context: CanvasRenderingContext2D, line: ActivityCreatorLine) 
     context.setLineDash([lineWidth * 2.5, lineWidth * 2]);
   }
 
+  // Shape lines use opposite-corner points; do not draw a diagonal between them.
+  if ((line.lineStyle === "rectangle" || line.lineStyle === "circle") && points.length >= 2) {
+    const p1 = points[0], p2 = points[points.length - 1];
+    const left = Math.min(p1.x, p2.x) / 100 * WIDTH;
+    const top = Math.min(p1.y, p2.y) / 100 * HEIGHT;
+    const shapeW = Math.abs(p1.x - p2.x) / 100 * WIDTH;
+    const shapeH = Math.abs(p1.y - p2.y) / 100 * HEIGHT;
+    context.beginPath();
+    if (line.lineStyle === "rectangle") context.rect(left, top, shapeW, shapeH);
+    else context.ellipse(left + shapeW / 2, top + shapeH / 2, Math.max(0.1, shapeW / 2), Math.max(0.1, shapeH / 2), 0, 0, Math.PI * 2);
+    if (line.fillColor) { context.fillStyle = colorToCss(line.fillColor, "transparent"); context.fill(); }
+    context.stroke();
+    context.restore();
+    return;
+  }
+
   context.beginPath();
   rendered.forEach((point, index) => {
     const x = (point.x / 100) * WIDTH;

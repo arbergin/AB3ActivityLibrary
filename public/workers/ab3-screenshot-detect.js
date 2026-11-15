@@ -104,6 +104,197 @@ function darkBoundaries(pixels, w, h, candidates) {
   }
   return [...consolidate(horizontal,'h'),...consolidate(vertical,'v')].slice(0,24);
 }
+
+// Reconstruct dashed horizontal and vertical strokes by collecting separated
+// dark/bright runs on the SAME scan line. This recovers intentional dashed zone
+// dividers which a solid connected-component detector misses.
+function dashedBoundaries(pixels,w,h,candidates,tone) {
+  const dark=tone==='dark';
+  const hit=(x,y)=>{
+    const k=(y*w+x)*4, r=pixels[k],g=pixels[k+1],b=pixels[k+2];
+    if(candidates.some(c=>Math.abs(c.x-x)<c.r+3&&Math.abs(c.y-y)<c.r+3))return false;
+    if(dark)return Math.max(r,g,b)<105;
+    return Math.min(r,g,b)>180&&Math.max(r,g,b)-Math.min(r,g,b)<52;
+  };
+  const findings=[];
+  for(const axis of ['h','v']) {
+    const count=axis==='h'?h:w, length=axis==='h'?w:h;
+    const minLength=Math.max(65,length*.22);
+    for(let pos=3;pos<count-3;pos+=3) {
+      const runs=[];let start=-1;
+      for(let i=2;i<length-1;i++) {
+        const yes=hit(axis==='h'?i:pos,axis==='h'?pos:i);
+        if(yes&&start<0)start=i;
+        if(!yes&&start>=0){if(i-start>=2)runs.push([start,i-1]);start=-1;}
+      }
+      if(start>=0)runs.push([start,length-2]);
+      let group=[];
+      const add=()=>{
+        if(group.length<4)return;
+        const a=group[0][0], b=group[group.length-1][1], extent=b-a;
+        if(extent<minLength)return;
+        const occupied=group.reduce((sum,r)=>sum+r[1]-r[0]+1,0);
+        const ratio=occupied/(extent+1);
+        if(ratio<.22||ratio>.96)return;
+        const gaps=group.slice(1).map((r,i)=>r[0]-group[i][1]-1);
+        if(gaps.filter(v=>v>=2&&v<24).length<3)return;
+        const widths=group.map(r=>r[1]-r[0]+1).sort((a,b)=>a-b);
+        const median=widths[Math.floor(widths.length/2)];
+        if(median>Math.max(28,length*.055))return;
+        findings.push(axis==='h'?{x1:a,y1:pos,x2:b,y2:pos,tone,dashed:true,width:dark?4:3}:
+          {x1:pos,y1:a,x2:pos,y2:b,tone,dashed:true,width:dark?4:3});
+      };
+      for(const run of runs){
+        const gap=group.length?run[0]-group[group.length-1][1]:0;
+        if(group.length&&gap>Math.max(24,length*.045)){add();group=[];}
+        group.push(run);
+      }
+      add();
+    }
+  }
+  const final=[];
+  for(const s of findings.sort((a,b)=>Math.hypot(b.x2-b.x1,b.y2-b.y1)-Math.hypot(a.x2-a.x1,a.y2-a.y1))){
+    const horizontal=s.y1===s.y2;
+    if(final.some(v=>v.tone===s.tone&&(v.y1===v.y2)===horizontal &&
+      Math.abs((horizontal?v.y1:s.x1)-(horizontal?s.y1:v.x1))<9 &&
+      Math.min(horizontal?v.x2:v.y2,horizontal?s.x2:s.y2)-Math.max(horizontal?v.x1:v.y1,horizontal?s.x1:s.y1)>
+      Math.min(Math.abs(v.x2-v.x1)+Math.abs(v.y2-v.y1),Math.abs(s.x2-s.x1)+Math.abs(s.y2-s.y1))*.65))continue;
+    final.push(s);
+    if(final.length>=24)break;
+  }
+  return final;
+}
+
+// Look for thin diagonal dark strokes on a green or pale background. Each
+// diagonal is retained as a line object; short branches at its endpoints are
+// evaluated as potential arrowheads. No tactical interpretation is attempted.
+function diagonalStrokes(pixels,w,h,candidates,major) {
+  const dark=(x,y)=>{
+    x=Math.round(x);y=Math.round(y);
+    if(x<2||x>=w-2||y<2||y>=h-2)return false;
+    const k=(y*w+x)*4;
+    if(Math.max(pixels[k],pixels[k+1],pixels[k+2])>110)return false;
+    if(candidates.some(c=>Math.abs(x-c.x)<c.r+4&&Math.abs(y-c.y)<c.r+4))return false;
+    // Existing thick boundaries are deliberately handled separately.
+    if(major.some(v=>{
+      const x1=v.x1,y1=v.y1,x2=v.x2,y2=v.y2;
+      if(Math.abs(x2-x1)<4)return Math.abs(x-x1)<8&&y>=Math.min(y1,y2)-6&&y<=Math.max(y1,y2)+6;
+      if(Math.abs(y2-y1)<4)return Math.abs(y-y1)<8&&x>=Math.min(x1,x2)-6&&x<=Math.max(x1,x2)+6;
+      return false;
+    }))return false;
+    return true;
+  };
+  const segments=[];
+  const angles=[25,35,45,55,65,115,125,135,145,155];
+  for(let y=6;y<h-6;y+=5)for(let x=6;x<w-6;x+=5) {
+    if(!dark(x,y))continue;
+    for(const deg of angles) {
+      const a=deg*Math.PI/180,dx=Math.cos(a),dy=Math.sin(a);
+      let hits=0;
+      for(let k=-14;k<=14;k+=2)if(dark(x+dx*k,y+dy*k))hits++;
+      if(hits<10)continue;
+      let start=0,end=0;
+      for(const sign of [-1,1]){
+        let last=0,miss=0;
+        for(let step=2;step<=Math.min(w,h)*.42;step+=2){
+          let found=false;
+          for(const side of [-1,0,1])if(dark(x+sign*dx*step-side*dy,y+sign*dy*step+side*dx)){found=true;break;}
+          if(found){miss=0;last=step;}else if(++miss>=5)break;
+        }
+        if(sign===-1)start=-last;else end=last;
+      }
+      if(end-start<Math.max(25,Math.min(w,h)*.055))continue;
+      const x1=x+dx*start,y1=y+dy*start,x2=x+dx*end,y2=y+dy*end;
+      if(segments.some(s=>{
+        const a=Math.hypot(s.x1-x1,s.y1-y1)+Math.hypot(s.x2-x2,s.y2-y2);
+        const b=Math.hypot(s.x1-x2,s.y1-y2)+Math.hypot(s.x2-x1,s.y2-y1);
+        return Math.min(a,b)<Math.max(28,(end-start)*.27);
+      }))continue;
+      // Ignore obviously thick strokes and long pitch markings at the borders.
+      // A pair of short dark branches near one endpoint suggests an arrowhead.
+      function headScore(tipX,tipY,backX,backY){
+        const phi=Math.atan2(backY,backX),branch=[-0.58,0.58];let score=0;
+        for(const delta of branch){
+          let found=0;
+          for(let d=4;d<=11;d+=2){
+            const xx=tipX+Math.cos(phi+delta)*d,yy=tipY+Math.sin(phi+delta)*d;
+            if(dark(xx,yy))found++;
+          }
+          if(found>=2)score++;
+        }
+        return score;
+      }
+      const atEnd=headScore(x2,y2,-dx,-dy),atStart=headScore(x1,y1,dx,dy);
+      const arrow=Math.max(atEnd,atStart)===2&&atEnd!==atStart;
+      const candidate=arrow&&atStart>atEnd?
+        {x1:x2,y1:y2,x2:x1,y2:y1,tone:'dark',width:3,dashed:false,arrow:true}:
+        {x1,y1,x2,y2,tone:'dark',width:3,dashed:false,arrow};
+      segments.push(candidate);
+      if(segments.length>=24)return segments;
+      break;
+    }
+  }
+  return segments;
+}
+
+// Combine FOUR matching dark edges into an editable AB3 rectangle, removing
+// their separate fragments. Unmatched strokes stay editable as individual lines.
+function groupRectangles(segments,w,h) {
+  // Join short gaps in thick rectangle edges, often caused by a player or ball
+  // overlapping one of the borders in the original screenshot.
+  const joined=segments.map(s=>({...s}));
+  for(let i=0;i<joined.length;i++) {
+    const a=joined[i];
+    if(a.tone!=='dark'||a.dashed||a.lineStyle)continue;
+    for(let j=i+1;j<joined.length;j++) {
+      const b=joined[j];
+      if(b.tone!=='dark'||b.dashed||b.lineStyle)continue;
+      const ah=Math.abs(a.y1-a.y2)<4,bh=Math.abs(b.y1-b.y2)<4;
+      const av=Math.abs(a.x1-a.x2)<4,bv=Math.abs(b.x1-b.x2)<4;
+      if(ah&&bh&&Math.abs(a.y1-b.y1)<8){
+        const x1=Math.min(a.x1,a.x2),x2=Math.max(a.x1,a.x2);
+        const z1=Math.min(b.x1,b.x2),z2=Math.max(b.x1,b.x2);
+        if(Math.max(0,Math.max(x1,z1)-Math.min(x2,z2))<=17){
+          a.x1=Math.min(x1,z1);a.x2=Math.max(x2,z2);a.y1=a.y2=(a.y1+b.y1)/2;
+          joined.splice(j--,1);continue;
+        }
+      }
+      if(av&&bv&&Math.abs(a.x1-b.x1)<8){
+        const y1=Math.min(a.y1,a.y2),y2=Math.max(a.y1,a.y2);
+        const z1=Math.min(b.y1,b.y2),z2=Math.max(b.y1,b.y2);
+        if(Math.max(0,Math.max(y1,z1)-Math.min(y2,z2))<=17){
+          a.y1=Math.min(y1,z1);a.y2=Math.max(y2,z2);a.x1=a.x2=(a.x1+b.x1)/2;
+          joined.splice(j--,1);continue;
+        }
+      }
+    }
+  }
+  segments=joined;
+  const dark=segments.filter(s=>s.tone==='dark'&&!s.dashed);
+  const horizontal=dark.filter(s=>Math.abs(s.y2-s.y1)<4&&Math.abs(s.x2-s.x1)>w*.14);
+  const vertical=dark.filter(s=>Math.abs(s.x2-s.x1)<4&&Math.abs(s.y2-s.y1)>h*.09);
+  const used=new Set(), shapes=[];
+  const tol=Math.max(10,Math.min(w,h)*.022);
+  for(const a of horizontal) {
+    if(used.has(a))continue;
+    const x1=Math.min(a.x1,a.x2),x2=Math.max(a.x1,a.x2),y1=(a.y1+a.y2)/2;
+    for(const b of horizontal) {
+      if(a===b||used.has(b))continue;
+      const y2=(b.y1+b.y2)/2;
+      if(y2-y1<Math.min(w,h)*.11||Math.abs(Math.min(b.x1,b.x2)-x1)>tol||Math.abs(Math.max(b.x1,b.x2)-x2)>tol)continue;
+      const l=vertical.find(v=>!used.has(v)&&Math.abs((v.x1+v.x2)/2-x1)<tol&&
+        Math.abs(Math.min(v.y1,v.y2)-y1)<tol&&Math.abs(Math.max(v.y1,v.y2)-y2)<tol);
+      const r=vertical.find(v=>!used.has(v)&&v!==l&&Math.abs((v.x1+v.x2)/2-x2)<tol&&
+        Math.abs(Math.min(v.y1,v.y2)-y1)<tol&&Math.abs(Math.max(v.y1,v.y2)-y2)<tol);
+      if(!l||!r)continue;
+      used.add(a);used.add(b);used.add(l);used.add(r);
+      shapes.push({x1,y1,x2,y2,tone:'dark',width:Math.max(4,...[a,b,l,r].map(v=>v.width||4)),lineStyle:'rectangle',dashed:false});
+      break;
+    }
+  }
+  return [...segments.filter(s=>!used.has(s)),...shapes];
+}
+
 function fallbackDetect(pixels,w,h) {
   const n=w*h, classes=new Uint8Array(n), visited=new Uint8Array(n), queue=new Int32Array(n);
   for(let p=0;p<n;p++){ const k=p*4; classes[p]=markerClass(pixels[k],pixels[k+1],pixels[k+2]); }
@@ -134,7 +325,14 @@ function fallbackDetect(pixels,w,h) {
     candidates.push({x:cx,y:cy,r:radius,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)],label:''});
     if(candidates.length>=60)break;
   }
-  return { candidates, segments:[...fallbackLines(pixels,w,h,candidates), ...darkBoundaries(pixels,w,h,candidates)] };
+  const white=fallbackLines(pixels,w,h,candidates).map(s=>({...s,tone:'light',width:3}));
+  const black=darkBoundaries(pixels,w,h,candidates).map(s=>({...s,width:8}));
+  const primary=[...white,...black];
+  const dashed=[...dashedBoundaries(pixels,w,h,candidates,'dark'),...dashedBoundaries(pixels,w,h,candidates,'light')]
+    .filter(s=>!primary.some(v=>v.tone===s.tone&&Math.hypot(v.x2-v.x1,v.y2-v.y1)>.75*Math.hypot(s.x2-s.x1,s.y2-s.y1)&&
+      Math.abs(v.x1-s.x1)<14&&Math.abs(v.y1-s.y1)<14));
+  const diagonal=diagonalStrokes(pixels,w,h,candidates,black);
+  return { candidates, segments:groupRectangles([...primary,...dashed,...diagonal],w,h) };
 }
 // Small, approximately circular bright objects with dark patches, close to a
 // player, are soccer-ball candidates. Conservative to avoid field-line noise.
@@ -176,7 +374,7 @@ self.onmessage=({data})=>{
   if(data?.type!=='analyze')return;
   const {width:w,height:h,pixels:buffer}=data;
   try{
-    emit('detecting',35,'Scanning player circles and field markings…');
+    emit('detecting',35,'Detecting players, rectangles, dashed lines and diagonal strokes…');
     const pixels=new Uint8ClampedArray(buffer);
     const result=fallbackDetect(pixels,w,h);
     emit('detecting',58,'Checking for small soccer balls…');
