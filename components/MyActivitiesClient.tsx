@@ -137,7 +137,7 @@ export default function MyActivitiesClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("updated_desc");
-  const [pageSize, setPageSize] = useState<PageSize>(10);
+  const [pageSize, setPageSize] = useState<PageSize>(30);
   const [currentPage, setCurrentPage] = useState(1);
   const [creatorDisplayName, setCreatorDisplayName] = useState("—");
   const [metadataDraft, setMetadataDraft] = useState<InlineMetadataDraft | null>(null);
