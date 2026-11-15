@@ -12,7 +12,7 @@ import type { Activity, ActivityVisibility } from "@/types/activity";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
-export default function ImportJsonFlow() {
+export default function ImportJsonFlow({ initialJson, initialName }: { initialJson?: unknown; initialName?: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [parsed, setParsed] = useState<ParsedActivityJson | null>(null);
@@ -96,6 +96,34 @@ export default function ImportJsonFlow() {
     if (inputRef.current) inputRef.current.value = "";
   }
 
+  useEffect(() => {
+    if (initialJson === undefined) return;
+    try {
+      const result = parseActivityJson(initialJson, initialName || "Screenshot Activity");
+      setParsed(result);
+      setFileName(initialName || "Generated from screenshot");
+      setName(result.name);
+      setDetails(result.activityDetails);
+      setFieldLocation(result.fieldLocation);
+      setGamePhase(result.gamePhase);
+      setCategory(result.category);
+      setPositionsInvolved(result.positionsInvolved);
+      setNumberOfPlayers(String(result.numberOfPlayers || ""));
+      setError("");
+      setFrameIndex(0);
+      void getCurrentUserProfile().then((profile) => {
+        const club = Boolean(profile?.club_id);
+        setHasClub(club);
+        setVisibility(club ? "club" : "private");
+      }).catch(() => {
+        setHasClub(false);
+        setVisibility("private");
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to interpret generated activity.");
+    }
+  }, [initialJson, initialName]);
+
   async function selectFile(file?: File) {
     clear();
     if (!file) return;
@@ -167,12 +195,12 @@ export default function ImportJsonFlow() {
 
   return (
     <div className="grid gap-5">
-      <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-7 text-center hover:bg-slate-100">
+      {initialJson === undefined && <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-7 text-center hover:bg-slate-100">
         <span className="block font-semibold text-slate-700">Choose a JSON activity file</span>
         <span className="mt-1 block text-sm text-slate-500">.json format • maximum 5 MB • schema v2 or v3</span>
         <input ref={inputRef} type="file" accept=".json,application/json" className="sr-only"
           onChange={(event) => void selectFile(event.target.files?.[0])} disabled={saving || loading} />
-      </label>
+      </label>}
       {loading && <p className="text-sm text-slate-600">Reading activity JSON...</p>}
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {parsed && (
@@ -182,7 +210,7 @@ export default function ImportJsonFlow() {
               <p className="font-semibold text-slate-800">{fileName}</p>
               <p className="text-sm text-slate-600">{parsed.frameCount} {parsed.frameCount === 1 ? "frame" : "frames"} • {parsed.playerCount} player markers in first frame • editable in Activity Creator</p>
             </div>
-            <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold" onClick={clear}>Remove file</button>
+            {initialJson === undefined && <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold" onClick={clear}>Remove file</button>}
           </div>
           <section aria-label="Activity diagram preview" className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -264,7 +292,7 @@ export default function ImportJsonFlow() {
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </div>
           <div className="flex justify-end gap-3">
-            <button type="button" className="rounded-lg border border-slate-300 px-4 py-2 font-semibold" onClick={clear} disabled={saving}>Cancel</button>
+            {initialJson === undefined && <button type="button" className="rounded-lg border border-slate-300 px-4 py-2 font-semibold" onClick={clear} disabled={saving}>Cancel</button>}
             <button type="submit" disabled={saving} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">
               {saving ? "Importing..." : "Import JSON Activity"}
             </button>

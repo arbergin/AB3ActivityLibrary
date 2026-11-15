@@ -34,3 +34,24 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Screenshot-to-editable-activity import (browser-based, free API usage)
+
+The `/import` page includes **Import from Screenshot (Free)**. Upload a PNG/JPEG/WebP
+image (up to 12 MB), then select **Generate Editable Activity**. The browser loads
+OpenCV.js from `docs.opencv.org` and Tesseract.js from `cdn.jsdelivr.net`, detects
+candidate round player markers and line segments, runs number OCR, and creates a
+single-frame AB3 creatorState (schema v3). The existing JSON preview and Supabase
+activity-save flow then allow the coach to review/import the generated activity.
+The generated JSON may also be downloaded without saving.
+
+**Limitations:** This is a heuristic computer-vision starting point, not a trained
+soccer-specific AI model. It does not reliably identify arrows, pitch geometry,
+balls, cones, goals, or tactical intent; those must be corrected/added in the
+Activity Creator. Perspective photos, textured backgrounds, overlapping icons,
+and tiny jersey numbers can produce false or missing detections. Each screenshot
+is converted to one frame. The screenshot itself stays in browser memory and is
+not sent to the AB3 server, but external scripts and the Tesseract language model
+are downloaded from public networks. A deployment with restrictive Content
+Security Policy must allow these CDN/script/worker requests, or self-host those
+assets. Third-party CDN availability is a runtime dependency.

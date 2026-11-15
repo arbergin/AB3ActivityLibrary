@@ -2,6 +2,7 @@ import AppHeader from "@/components/AppHeader";
 import BulkImportFlow from "@/components/BulkImportFlow";
 import ImportFlow from "@/components/ImportFlow";
 import ImportJsonFlow from "@/components/ImportJsonFlow";
+import ImportScreenshotFlow from "@/components/ImportScreenshotFlow";
 import ProtectedPage from "@/components/ProtectedPage";
 
 export default function ImportPage() {
@@ -48,6 +49,16 @@ export default function ImportPage() {
                 </p>
               </div>
               <ImportJsonFlow />
+            </section>
+
+            <section className="mt-8 rounded-2xl border border-slate-300 bg-white p-5 shadow-md sm:p-6">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold">Import from Screenshot (Free)</h2>
+                <p className="mt-2 text-slate-600">
+                  Convert a soccer activity image into an editable AB3 activity using browser-based image recognition.
+                </p>
+              </div>
+              <ImportScreenshotFlow />
             </section>
 
             <section className="mt-8 rounded-2xl border border-slate-300 bg-white p-5 shadow-md sm:p-6">
