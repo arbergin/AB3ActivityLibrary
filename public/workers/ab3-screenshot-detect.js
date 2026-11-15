@@ -1,6 +1,6 @@
 /* AB3 screenshot detector — runs entirely off the UI thread. No dependencies for fallback. */
 /* global importScripts, OffscreenCanvas, ImageData, self */
-const OPENCV_URL = 'https://docs.opencv.org/4.x/opencv.js';
+// Dependency-free Canvas pixel analysis. OpenCV removed to avoid Wasm startup stalls.
 function emit(stage, percent, detail) { self.postMessage({ type: 'progress', stage, percent, detail }); }
 function markerClass(r,g,b) {
   if (g > r * 1.16 && g > b * 1.10 && g > 65) return 0;
@@ -79,70 +79,52 @@ function fallbackDetect(pixels,w,h) {
   }
   return { candidates, segments:fallbackLines(pixels,w,h,candidates) };
 }
-function cvReady(cv){return cv && typeof cv.imread==='function' && typeof cv.Mat==='function';}
-async function getCv() {
-  // Loading and Wasm compilation happen in this worker, never on the page thread.
-  importScripts(OPENCV_URL);
-  let api=self.cv;
-  if(api && typeof api.then==='function')api=await api;
-  if(cvReady(api))return api;
-  return await new Promise((resolve,reject)=>{
-    const timeout=setTimeout(()=>reject(new Error('OpenCV initialization timed out')),8500);
-    if(!api){clearTimeout(timeout);reject(new Error('OpenCV was not loaded'));return;}
-    const previous=api.onRuntimeInitialized;
-    api.onRuntimeInitialized=()=>{if(typeof previous==='function')previous();clearTimeout(timeout);resolve(api);};
-  });
-}
-function cvDetect(cv,pixels,w,h) {
-  const canvas=new OffscreenCanvas(w,h),ctx=canvas.getContext('2d');
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels),w,h),0,0);
-  const mats=[],mat=()=>{const m=new cv.Mat();mats.push(m);return m;};
-  const src=cv.imread(canvas);mats.push(src);
-  const gray=mat(),blurred=mat(),circles=mat(),edges=mat(),lines=mat();
-  try{
-    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray,blurred,new cv.Size(5,5),1.5);
-    cv.HoughCircles(blurred,circles,cv.HOUGH_GRADIENT,1.2,14,110,22,5,Math.min(50,Math.floor(Math.min(w,h)/9)));
-    const values=new Float32Array(circles.data.buffer,circles.data.byteOffset,Math.floor(circles.data.byteLength/4));
-    const candidates=[];
-    for(let i=0;i+2<values.length;i+=3){
-      const [x,y,r]=[values[i],values[i+1],values[i+2]];
-      if(!Number.isFinite(r)||r<5||candidates.some(c=>Math.hypot(c.x-x,c.y-y)<Math.max(c.r,r)*.9))continue;
-      const center=(Math.max(0,Math.min(h-1,Math.round(y)))*w+Math.max(0,Math.min(w-1,Math.round(x))))*4;
-      const rgb=[pixels[center],pixels[center+1],pixels[center+2]];
-      if(markerClass(...rgb)===0)continue;
-      candidates.push({x,y,r,rgb,label:''});if(candidates.length>=60)break;
+// Small, approximately circular bright objects with dark patches, close to a
+// player, are soccer-ball candidates. Conservative to avoid field-line noise.
+function findBalls(pixels,w,h,candidates) {
+  const balls=[]; const mask=new Uint8Array(w*h), seen=new Uint8Array(w*h);
+  for(let y=2;y<h-2;y++)for(let x=2;x<w-2;x++){
+    const i=(y*w+x)*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+    if(r>167&&g>167&&b>167&&Math.max(r,g,b)-Math.min(r,g,b)<48)mask[y*w+x]=1;
+  }
+  for(let y=3;y<h-3;y++)for(let x=3;x<w-3;x++){
+    const root=y*w+x;if(!mask[root]||seen[root])continue;
+    const queue=[root];seen[root]=1;let head=0,minX=x,maxX=x,minY=y,maxY=y,sumX=0,sumY=0;
+    while(head<queue.length&&queue.length<220){
+      const v=queue[head++],cx=v%w,cy=(v/w)|0;sumX+=cx;sumY+=cy;
+      minX=Math.min(minX,cx);maxX=Math.max(maxX,cx);minY=Math.min(minY,cy);maxY=Math.max(maxY,cy);
+      for(const n of [v-1,v+1,v-w,v+w]){
+        if(n>=0&&n<w*h&&Math.abs(n%w-cx)+Math.abs((n/w|0)-cy)===1&&mask[n]&&!seen[n]){seen[n]=1;queue.push(n);}
+      }
     }
-    cv.Canny(blurred,edges,65,155);
-    for(const c of candidates)cv.circle(edges,new cv.Point(Math.round(c.x),Math.round(c.y)),Math.ceil(c.r+5),new cv.Scalar(0),-1);
-    cv.HoughLinesP(edges,lines,1,Math.PI/180,38,30,8);
-    const segments=[];
-    for(let i=0;i<lines.rows;i++){
-      const p=lines.data32S.subarray(i*4,i*4+4),[x1,y1,x2,y2]=Array.from(p),len=Math.hypot(x2-x1,y2-y1);
-      if(len<33||len>Math.max(w,h)*.76)continue;
-      if(segments.some(s=>Math.hypot(s.x1-x1,s.y1-y1)<15&&Math.hypot(s.x2-x2,s.y2-y2)<15))continue;
-      segments.push({x1,y1,x2,y2});if(segments.length>=70)break;
-    }
-    return { candidates, segments };
-  } finally {for(const mat of mats)mat.delete();}
+    const bw=maxX-minX+1,bh=maxY-minY+1,area=queue.length;
+    if(area<5||area>120||bw<2||bh<2||bw>16||bh>16||bw/bh<.6||bw/bh>1.55)continue;
+    const cx=sumX/area,cy=sumY/area,r=Math.max(bw,bh)/2;
+    if(candidates.some(c=>Math.hypot(cx-c.x,cy-c.y)<c.r+r+1))continue;
+    const nearest=Math.min(...candidates.map(c=>Math.hypot(cx-c.x,cy-c.y)/(c.r||1)),Infinity);
+    if(nearest<1.6||nearest>6)continue;
+    // Require multiple dark non-green pixels in a narrow ring around the white center.
+    let dark=0;
+    for(let yy=Math.max(0,Math.floor(cy-r-2));yy<Math.min(h,Math.ceil(cy+r+3));yy++)
+      for(let xx=Math.max(0,Math.floor(cx-r-2));xx<Math.min(w,Math.ceil(cx+r+3));xx++){
+        if(Math.hypot(xx-cx,yy-cy)>r+2)continue;
+        const k=(yy*w+xx)*4,rr=pixels[k],gg=pixels[k+1],bb=pixels[k+2];
+        if(rr<120&&gg<120&&bb<120)dark++;
+      }
+    if(dark>=2&&!balls.some(b=>Math.hypot(b.x-cx,b.y-cy)<12))balls.push({x:cx,y:cy,r});
+  }
+  return balls.slice(0,8);
 }
-self.onmessage=async({data})=>{
+self.onmessage=({data})=>{
   if(data?.type!=='analyze')return;
-  const {width:w,height:h,pixels:buffer,fallbackOnly}=data;
+  const {width:w,height:h,pixels:buffer}=data;
   try{
+    emit('detecting',35,'Scanning player circles and field markings…');
     const pixels=new Uint8ClampedArray(buffer);
-    let result=null,engine='canvas',warning='';
-    if(!fallbackOnly){
-      emit('opencv',20,'Loading OpenCV in an isolated worker (5-second limit)…');
-      try{
-        const cv=await getCv();
-        emit('detecting',48,'Detecting shapes with OpenCV…');
-        result=cvDetect(cv,pixels,w,h); engine='opencv';
-        if(!result.candidates.length){warning='OpenCV found no player markers. Canvas fallback used.';result=null;engine='canvas';}
-      }catch(error){warning=`OpenCV unavailable (${error instanceof Error?error.message:'initialization failed'}). Using browser Canvas detection.`;}
-    }
-    if(!result){emit('detecting',55,'Detecting player circles using browser pixels…');result=fallbackDetect(pixels,w,h);}
-    emit('detected',76,`Detected ${result.candidates.length} player markers and ${result.segments.length} line segments (${engine}).`);
-    self.postMessage({type:'done',result,engine,warning});
+    const result=fallbackDetect(pixels,w,h);
+    emit('detecting',58,'Checking for small soccer balls…');
+    result.balls=findBalls(pixels,w,h,result.candidates);
+    emit('detected',76,`Found ${result.candidates.length} players, ${result.segments.length} line segments and ${result.balls.length} possible balls.`);
+    self.postMessage({type:'done',result,engine:'canvas',warning:''});
   }catch(error){self.postMessage({type:'error',message:error instanceof Error?error.message:String(error)});}
 };

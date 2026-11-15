@@ -7,13 +7,13 @@ import type { ActivityCreatorColorObject, ActivityCreatorLine, ActivityCreatorOb
  */
 type Candidate = { x:number; y:number; r:number; rgb:[number,number,number]; label:string };
 type Segment = { x1:number; y1:number; x2:number; y2:number };
-type Detection = { candidates:Candidate[]; segments:Segment[] };
+type Detection = { candidates:Candidate[]; segments:Segment[]; balls?:{x:number;y:number;r:number}[] };
 export type ScreenshotStage = "preparing" | "opencv" | "detecting" | "detected" | "fallback" | "ocr" | "building" | "complete";
 export type ScreenshotProgress = {stage:ScreenshotStage; percent:number; message:string};
 export type ScreenshotConversion = {
   json: { name:string; activityDetails:string; numberOfPlayers:number; creatorState:ActivityCreatorStateV3 };
   warnings:string[];
-  detected:{players:number; lines:number; numbered:number};
+  detected:{players:number; lines:number; numbered:number; balls:number};
 };
 function clamp(v:number,lo:number,hi:number){return Math.max(lo,Math.min(hi,v));}
 function rgba(red:number,green:number,blue:number):ActivityCreatorColorObject{
@@ -25,7 +25,7 @@ function toPoints(s:Segment,w:number,h:number){return [{x:clamp(s.x1/w,0,1),y:cl
 function aborted(){return new DOMException("Screenshot analysis was canceled.","AbortError");}
 
 function runDetector(
-  pixels:Uint8ClampedArray,width:number,height:number,fallbackOnly:boolean,
+  pixels:Uint8ClampedArray,width:number,height:number,
   limitMs:number,signal:AbortSignal,report:(stage:ScreenshotStage,percent:number,message:string)=>void,
 ):Promise<{result:Detection;engine:string;warning:string}>{
   return new Promise((resolve,reject)=>{
@@ -52,7 +52,7 @@ function runDetector(
     // Copy once per attempt, transferring ownership to the worker to avoid
     // costly structured clones and keep the retry buffer available.
     const transfer=pixels.slice().buffer;
-    worker.postMessage({type:"analyze",width,height,pixels:transfer,fallbackOnly},[transfer]);
+    worker.postMessage({type:"analyze",width,height,pixels:transfer,},[transfer]);
   });
 }
 
@@ -98,18 +98,10 @@ export async function convertScreenshot(
   const pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
   if(controller.aborted)throw aborted();
   const warnings:string[]=[];
-  let detection:{result:Detection;engine:string;warning:string};
-  try {
-    detection=await runDetector(pixels,canvas.width,canvas.height,false,6000,controller,report);
-  }catch(error){
-    if(controller.aborted)throw aborted();
-    report("fallback",50,"OpenCV could not finish. Switching to safer Canvas detection…");
-    warnings.push(`OpenCV did not complete (${error instanceof Error?error.message:"unknown issue"}). Canvas fallback used.`);
-    detection=await runDetector(pixels,canvas.width,canvas.height,true,7000,controller,report);
-  }
+  // Canvas processing runs off the main thread. No OpenCV download or Wasm setup.
+  const detection=await runDetector(pixels,canvas.width,canvas.height,8000,controller,report);
   if(controller.aborted)throw aborted();
   if(detection.warning)warnings.push(detection.warning);
-  if(detection.engine!=="opencv")warnings.push("Canvas fallback detects approximate straight white lines, including pitch markings. Review and remove any unwanted field lines in Activity Creator.");
   const found=detection.result;
   report("ocr",80,"Attempting jersey-number recognition in a separate worker…");
   const ocr=await runOCR(pixels,canvas.width,canvas.height,found.candidates,controller,report);
@@ -129,20 +121,41 @@ export async function convertScreenshot(
   clusters.sort((a,b)=>b.count-a.count);
   const first=clusters[0]?.rgb??[37,99,235];
   const second=clusters.find(g=>colorDistance(g.rgb,first)>85)?.rgb??[239,68,68];
+  let greenCount=0, sampled=0;
+  for(let y=0;y<canvas.height;y+=15)for(let x=0;x<canvas.width;x+=15){
+    const k=(y*canvas.width+x)*4,rr=pixels[k],gg=pixels[k+1],bb=pixels[k+2];
+    if(gg>rr*1.25&&gg>bb*1.25&&gg>65)greenCount++;
+    sampled++;
+  }
+  const isGreenPitch=greenCount/sampled>.3;
   const objects: ActivityCreatorObject[]=found.candidates.map(c=>{
     const isFirst=colorDistance(c.rgb,first)<=colorDistance(c.rgb,second);
     return { id:crypto.randomUUID(),type:isFirst?"team1":"team2", x:clamp(c.x/canvas.width,0,1),y:clamp(c.y/canvas.height,0,1),rotation:0,
-      label:c.label || undefined,number:c.label || undefined,playerShape:"circle",size:clamp(c.r*2/scale,12,52),fillColor:hex(...c.rgb),
-      playerDisplayModeOverride:c.label?"number":"none",textColor:rgba(255,255,255) };
+      label:c.label || undefined,number:c.label || undefined,playerShape:"circle",size:clamp((c.r*2/canvas.width)*1000,25,64),fillColor:hex(...c.rgb),
+      playerDisplayModeOverride:c.label?"number":"none",textColor:c.rgb[0]>160&&c.rgb[1]>160&&c.rgb[2]>160?rgba(0,0,0):rgba(255,255,255) };
   });
-  const lines: ActivityCreatorLine[]=found.segments.map(s=>({id:crypto.randomUUID(),points:toPoints(s,canvas.width,canvas.height),color:"#555555",lineWidth:2,dashed:false,arrow:false,lineStyle:"standard"}));
+  // White markings are drawn on a blank green pitch to avoid duplicating
+  // the built-in standard field. Decide dashed vs solid by sampling brightness.
+  const lineWhite=(x:number,y:number)=>{
+    const px=Math.round(clamp(x,0,canvas.width-1)),py=Math.round(clamp(y,0,canvas.height-1));
+    const k=(py*canvas.width+px)*4,r=pixels[k],g=pixels[k+1],b=pixels[k+2];
+    return r>175&&g>175&&b>175&&Math.max(r,g,b)-Math.min(r,g,b)<48;
+  };
+  const lines: ActivityCreatorLine[]=found.segments.map(s=>{
+    const length=Math.hypot(s.x2-s.x1,s.y2-s.y1),count=Math.max(8,Math.floor(length/3));
+    let white=0;
+    for(let i=0;i<=count;i++){const t=i/count;if(lineWhite(s.x1+(s.x2-s.x1)*t,s.y1+(s.y2-s.y1)*t))white++;}
+    const dashed=white/(count+1)<.72;
+    return {id:crypto.randomUUID(),points:toPoints(s,canvas.width,canvas.height),color:isGreenPitch?"#ffffff":"#555555",lineWidth:4,dashed,arrow:false,lineStyle:"standard"};
+  });
+  for(const ball of found.balls||[]){objects.push({id:crypto.randomUUID(),type:"ball",x:clamp(ball.x/canvas.width,0,1),y:clamp(ball.y/canvas.height,0,1),rotation:0,size:24});}
   if(!objects.length)warnings.push("No player markers were detected. Try a cleaner, higher-contrast screenshot or add players manually in Activity Creator.");
-  warnings.push("Review lines, arrows, goals, and player numbers. Straight lines may be pitch markings rather than tactical movements; this detector cannot infer tactical intent.");
+  warnings.push("Review field boundaries, arrows, goals and player numbers. Object detection is approximate; pitch markings are editable lines, not a semantic reconstruction of the drill.");
   const frameId=crypto.randomUUID();
   const creatorState:ActivityCreatorStateV3={schemaVersion:3,sourcePlatform:"web",clientActivityId:crypto.randomUUID(),
-    pitch:{background:"whiteBlank",zoom:1,offsetX:0,offsetY:0,rotationDegrees:0,pitchAssetVersion:2,coordinateSystem:"canonicalPitchV1"},
-    settings:{playerDisplayMode:"number",team1DefaultColor:rgba(first[0], first[1], first[2]),team2DefaultColor:rgba(second[0], second[1], second[2]),team1DefaultShape:"circle",team2DefaultShape:"circle",playerTextDefaultColor:rgba(255,255,255),coneDefaultColor:rgba(249,115,22),playerDefaultSize:26,coneDefaultSize:14,logoSize:74,lineDefaultWidth:2,defaultFrameDurationMs:1000},
+    pitch:{background:isGreenPitch?"greenBlank":"whiteBlank",zoom:1,offsetX:0,offsetY:0,rotationDegrees:0,pitchAssetVersion:2,coordinateSystem:"canonicalPitchV1"},
+    settings:{playerDisplayMode:"number",team1DefaultColor:rgba(first[0], first[1], first[2]),team2DefaultColor:rgba(second[0], second[1], second[2]),team1DefaultShape:"circle",team2DefaultShape:"circle",playerTextDefaultColor:rgba(255,255,255),coneDefaultColor:rgba(249,115,22),playerDefaultSize:38,coneDefaultSize:14,logoSize:74,lineDefaultWidth:2,defaultFrameDurationMs:1000},
     activeFrameId:frameId,frames:[{id:frameId,name:"Tab 1",durationMs:1000,objects,lines}],objects,lines};
   report("complete", 100, "Activity ready for review.");
-  return { json:{name:file.name.replace(/\.[^.]+$/,""),activityDetails:"Generated from a screenshot using browser-based OpenCV/Canvas detection and optional OCR. Review player numbers, lines, and object positions before use.",numberOfPlayers:objects.length,creatorState},warnings,detected:{players:objects.length,lines:lines.length,numbered:found.candidates.filter(c=>c.label).length}};
+  return { json:{name:file.name.replace(/\.[^.]+$/,""),activityDetails:"Generated from a screenshot using browser-based Canvas detection and optional OCR. Review player numbers, lines, and object positions before use.",numberOfPlayers:found.candidates.length,creatorState},warnings,detected:{players:found.candidates.length,lines:lines.length,numbered:found.candidates.filter(c=>c.label).length,balls:(found.balls||[]).length}};
 }

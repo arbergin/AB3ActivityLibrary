@@ -12,7 +12,7 @@ import type { Activity, ActivityVisibility } from "@/types/activity";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
-export default function ImportJsonFlow({ initialJson, initialName }: { initialJson?: unknown; initialName?: string }) {
+export default function ImportJsonFlow({ initialJson, initialName, comparisonImage }: { initialJson?: unknown; initialName?: string; comparisonImage?: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [parsed, setParsed] = useState<ParsedActivityJson | null>(null);
@@ -220,11 +220,18 @@ export default function ImportJsonFlow({ initialJson, initialName }: { initialJs
                 Enlarge Preview
               </button>
             </div>
-            <div className="flex min-h-56 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-2">
+            <div className={comparisonImage ? "grid gap-3 md:grid-cols-2" : ""}>
+              {comparisonImage && <div className="flex min-h-56 flex-col rounded-lg bg-slate-100 p-2">
+                <p className="mb-2 text-center text-xs font-semibold text-slate-700">Original Screenshot</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={comparisonImage} alt="Original soccer activity screenshot" className="mx-auto max-h-[460px] max-w-full object-contain" />
+              </div>}
+            <div className="flex min-h-56 flex-col items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-2">
+              {comparisonImage && <p className="mb-2 text-xs font-semibold text-slate-700">Generated Editable Activity</p>}
               {previewLoading && !previewUrl && <p className="text-sm text-slate-500">Rendering activity...</p>}
               {previewUrl && <img src={previewUrl} alt={`Activity diagram, frame ${frameIndex + 1}`} className={`max-h-[460px] w-auto max-w-full object-contain ${previewLoading ? "opacity-50" : ""}`} />}
               {previewError && <p role="alert" className="p-3 text-sm text-red-700">Preview unavailable: {previewError}</p>}
-            </div>
+            </div></div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-slate-600">Frame {frameIndex + 1} of {frames.length}{activeFrame?.name ? ` · ${activeFrame.name}` : ""}</span>
               {frames.length > 1 && <div className="flex flex-wrap items-center gap-2">
