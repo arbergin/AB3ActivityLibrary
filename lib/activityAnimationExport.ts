@@ -943,6 +943,17 @@ async function renderFrame(
   return cropCanvasToVisiblePitch(canvas, pitch);
 }
 
+/** Render a saved creator frame for read-only previews using the same canvas
+ * pipeline as GIF/MP4 exports. This keeps preview scaling and assets aligned
+ * with imported activities. */
+export async function renderActivityFramePreview(
+  activity: Activity,
+  frame: ActivityCreatorFrame
+): Promise<string> {
+  const canvas = await renderFrame(activity, frame, new Map<string, HTMLImageElement>());
+  return canvas.toDataURL("image/png");
+}
+
 function interpolateNumber(
   fromValue: number | undefined,
   toValue: number | undefined,

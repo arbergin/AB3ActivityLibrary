@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseActivity } from "@/lib/supabaseActivities";
 import { saveStoredActivity } from "@/lib/activityStorage";
 import { parseActivityJson, type ParsedActivityJson } from "@/lib/importActivityJson";
+import { renderActivityFramePreview } from "@/lib/activityAnimationExport";
 import { getCurrentUserProfile } from "@/lib/userProfile";
 import { fieldLocationOptions, gamePhaseOptions, categoryOptions } from "@/lib/activityOptions";
 import type { Activity, ActivityVisibility } from "@/types/activity";
@@ -28,9 +29,68 @@ export default function ImportJsonFlow() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [enlarged, setEnlarged] = useState(false);
+  const [playing, setPlaying] = useState(false);
+
+  const frames = parsed?.creatorState.schemaVersion === 3 ? parsed.creatorState.frames : [];
+  const activeFrame = frames[frameIndex];
+
+  useEffect(() => {
+    if (!parsed || !activeFrame) return;
+    let cancelled = false;
+    const activity: Activity = {
+      id: "preview", activityName: parsed.name, activityDetails: parsed.activityDetails,
+      fieldLocation: parsed.fieldLocation, gamePhase: parsed.gamePhase,
+      category: parsed.category, positionsInvolved: parsed.positionsInvolved,
+      numberOfPlayers: parsed.numberOfPlayers, createdBy: "Preview",
+      hidden: false, visibility: "private", activitySource: "create",
+      creatorState: parsed.creatorState,
+    };
+    void (async () => {
+      setPreviewLoading(true);
+      setPreviewError("");
+      try {
+        const url = await renderActivityFramePreview(activity, activeFrame);
+        if (!cancelled) setPreviewUrl(url);
+      } catch (err) {
+        if (!cancelled) {
+          setPreviewUrl(null);
+          setPreviewError(err instanceof Error ? err.message : "Could not render this activity frame.");
+        }
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [parsed, activeFrame]);
+
+  useEffect(() => {
+    if (!playing || frames.length < 2) return;
+    const duration = Math.max(250, Math.min(10000, activeFrame?.durationMs ?? 1000));
+    const timer = window.setTimeout(() => setFrameIndex((index) => (index + 1) % frames.length), duration);
+    return () => window.clearTimeout(timer);
+  }, [playing, frameIndex, frames.length, activeFrame?.durationMs]);
+
+  useEffect(() => {
+    if (!enlarged) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEnlarged(false);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [enlarged]);
 
   function clear() {
     setParsed(null);
+    setFrameIndex(0);
+    setPlaying(false);
+    setEnlarged(false);
+    setPreviewUrl(null);
+    setPreviewError("");
     setFileName("");
     setError("");
     if (inputRef.current) inputRef.current.value = "";
@@ -124,6 +184,39 @@ export default function ImportJsonFlow() {
             </div>
             <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold" onClick={clear}>Remove file</button>
           </div>
+          <section aria-label="Activity diagram preview" className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-base font-semibold text-slate-800">Activity Preview</h3>
+              <button type="button" onClick={() => setEnlarged(true)} disabled={!previewUrl}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold disabled:opacity-50">
+                Enlarge Preview
+              </button>
+            </div>
+            <div className="flex min-h-56 items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-2">
+              {previewLoading && !previewUrl && <p className="text-sm text-slate-500">Rendering activity...</p>}
+              {previewUrl && <img src={previewUrl} alt={`Activity diagram, frame ${frameIndex + 1}`} className={`max-h-[460px] w-auto max-w-full object-contain ${previewLoading ? "opacity-50" : ""}`} />}
+              {previewError && <p role="alert" className="p-3 text-sm text-red-700">Preview unavailable: {previewError}</p>}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-slate-600">Frame {frameIndex + 1} of {frames.length}{activeFrame?.name ? ` · ${activeFrame.name}` : ""}</span>
+              {frames.length > 1 && <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => { setPlaying(false); setFrameIndex((i) => (i - 1 + frames.length) % frames.length); }}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold">Previous</button>
+                <button type="button" onClick={() => setPlaying((value) => !value)}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold">{playing ? "Pause" : "Play"}</button>
+                <button type="button" onClick={() => { setPlaying(false); setFrameIndex((i) => (i + 1) % frames.length); }}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold">Next</button>
+              </div>}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">Read-only preview. Objects and lines can be edited in Activity Creator after importing.</p>
+          </section>
+          {enlarged && <div role="dialog" aria-modal="true" aria-label="Enlarged activity diagram" onClick={() => setEnlarged(false)}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-3 bg-black/80 p-4">
+            <button type="button" onClick={() => setEnlarged(false)} className="self-end rounded-lg bg-white px-4 py-2 font-semibold text-slate-900">Close</button>
+            {previewUrl && <img src={previewUrl} alt={`Enlarged activity diagram, frame ${frameIndex + 1}`} onClick={(event) => event.stopPropagation()}
+              className="max-h-[83vh] max-w-full object-contain" />}
+            <span className="text-sm text-white">Frame {frameIndex + 1} of {frames.length}</span>
+          </div>}
           <div>
             <label htmlFor="json-name" className="mb-1 block text-sm font-semibold">Activity Name *</label>
             <input id="json-name" value={name} onChange={(event) => setName(event.target.value)} required maxLength={200}
