@@ -215,10 +215,16 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
           <section aria-label="Activity diagram preview" className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-base font-semibold text-slate-800">{comparisonImage ? "Compare Original & Generated Activity" : "Activity Preview"}</h3>
-              <button type="button" onClick={() => setEnlarged(true)} disabled={!previewUrl}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold disabled:opacity-50">
-                Enlarge Preview
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => setEnlarged(true)} disabled={!previewUrl}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold disabled:opacity-50">
+                  Enlarge Preview
+                </button>
+                {initialJson !== undefined && <button type="submit" disabled={saving}
+                  className="rounded-lg bg-[#0d2140] px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60">
+                  {saving ? "Creating activity..." : "Create & Edit Activity"}
+                </button>}
+              </div>
             </div>
             <div className={comparisonImage ? "grid grid-cols-1 gap-4 lg:grid-cols-2" : ""}>
               {comparisonImage && <div className="flex min-w-0 flex-col rounded-lg bg-slate-100 p-3">
