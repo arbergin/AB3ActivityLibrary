@@ -1629,6 +1629,11 @@ export default function ActivityCreator({
     [initialCreatorState, normalizedInitialCreatorState],
   );
   const pitchRef = useRef<HTMLDivElement | null>(null);
+  // The pitch has a canonical 1000-unit visual width. Object sizes and text
+  // must follow the rendered pitch width (including Fit / responsive layouts),
+  // without modifying their persisted activity values.
+  const [pitchCanvasWidth, setPitchCanvasWidth] = useState(1000);
+  const pitchObjectScale = pitchCanvasWidth / 1000;
   const pitchSectionRef = useRef<HTMLElement | null>(null);
   const pitchControlsBoundaryRef = useRef<HTMLDivElement | null>(null);
   const controlBarRef = useRef<HTMLElement | null>(null);
@@ -2077,6 +2082,21 @@ export default function ActivityCreator({
       window.removeEventListener("pointercancel", handlePopOutPointerUp);
     };
   }, [popOutDragState]);
+
+  useEffect(() => {
+    const pitch = pitchRef.current;
+    if (!pitch) return;
+    const measure = () => {
+      const nextWidth = pitch.getBoundingClientRect().width;
+      if (nextWidth > 0) {
+        setPitchCanvasWidth((previous) => Math.abs(previous - nextWidth) > 0.5 ? nextWidth : previous);
+      }
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(pitch);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -3243,14 +3263,11 @@ export default function ActivityCreator({
   const iosObjectDisplayScale = sourcePlatform === "ios" ? 1.3 : 1;
 
   function getPreviewObjectSize(object: PitchObject, canvasWidth: number) {
-    // Fallback raster rendering must match the on-screen editor, not a
-    // separate fixed 1000px or iOS source-viewport reference.
-    const editorWidth = Math.max(
-      pitchRef.current?.getBoundingClientRect().width ?? 1000,
-      1,
-    );
+    // The editor and raster preview use the same canonical pitch-relative
+    // object dimensions. Fit/Zoom Area only change the viewport, not sizes
+    // stored in the activity JSON.
     return (object.size ?? getDefaultObjectSize(object.type)) *
-      (canvasWidth / editorWidth) * iosObjectDisplayScale;
+      (canvasWidth / 1000) * iosObjectDisplayScale;
   }
 
   function drawPreviewLine(
@@ -3338,14 +3355,13 @@ export default function ActivityCreator({
       // The entire pitch is scaled by zoom during preview/export. Counter-scale
       // the arrowhead geometry so its visible size stays consistent, matching
       // the iOS Activity Planner behavior.
-      const inverseZoom = 1 / Math.max(zoom, 0.01);
       const arrowExtension =
         line.lineStyle === "dribble"
-          ? canvasWidth * 0.036 * inverseZoom
+          ? canvasWidth * 0.036
           : 0;
       const tipX = endX + arrowExtension * Math.cos(angle);
       const tipY = endY + arrowExtension * Math.sin(angle);
-      const arrowLength = canvasWidth * 0.03 * inverseZoom;
+      const arrowLength = canvasWidth * 0.03;
       const arrowAngle = Math.PI / 6;
 
       context.beginPath();
@@ -4283,7 +4299,7 @@ export default function ActivityCreator({
 
   function getObjectPixelSize(object: PitchObject) {
     return (object.size ?? getDefaultObjectSize(object.type)) *
-      iosObjectDisplayScale;
+      iosObjectDisplayScale * pitchObjectScale;
   }
 
   function getObjectPixelHeight(object: PitchObject) {
@@ -4302,7 +4318,7 @@ export default function ActivityCreator({
     }
 
     if (object.type === "textBox") {
-      return Math.max(object.fontSize ?? 20, 20) + 16;
+      return (Math.max(object.fontSize ?? 20, 20) + 16) * pitchObjectScale;
     }
 
     return width;
@@ -5986,18 +6002,15 @@ export default function ActivityCreator({
       line.points[line.points.length - 1].y - directionStart.y,
       line.points[line.points.length - 1].x - directionStart.x,
     );
-    // The SVG lives inside the pitch transform layer, so zoom would normally
-    // enlarge the arrowhead along with the pitch. Counter-scale the arrowhead
-    // geometry so arrows remain the same visible size at every zoom level.
-    // This mirrors the iOS arrowHeadPath implementation.
-    const inverseZoom = 1 / Math.max(zoom, 0.01);
+    // Arrowheads are part of the activity geometry and must zoom with the
+    // pitch, just like the rest of the line and its underlying objects.
     const arrowExtension =
-      line.lineStyle === "dribble" ? 3.6 * inverseZoom : 0;
+      line.lineStyle === "dribble" ? 3.6 : 0;
     const arrowTip = {
       x: end.x + arrowExtension * Math.cos(angle),
       y: end.y + arrowExtension * Math.sin(angle),
     };
-    const arrowLength = 2.5 * inverseZoom;
+    const arrowLength = 2.5;
     const arrowAngle = Math.PI / 6;
 
     const arrowPoint1 = {
@@ -6078,14 +6091,14 @@ export default function ActivityCreator({
   function renderPlayerObject(object: PitchObject) {
     const fallbackColor = object.type === "team1" ? team1Color : team2Color;
     const fillColor = object.fillColor ?? fallbackColor;
-    const size = (object.size ?? playerDefaultSize) * iosObjectDisplayScale;
+    const size = getObjectPixelSize(object);
     const playerShape =
       object.playerShape ?? (object.type === "team1" ? team1Shape : team2Shape);
-    const hitSize = Math.max(size, 44);
-    const fontSize = Math.max(10, Math.round(size * 0.42));
+    const hitSize = Math.max(size, 44 * pitchObjectScale);
+    const fontSize = Math.max(10 * pitchObjectScale, size * 0.42);
     const nameFontSize = Math.max(
-      9,
-      Math.round(object.nameFontSize ?? size * 0.3),
+      9 * pitchObjectScale,
+      (object.nameFontSize ?? (object.size ?? playerDefaultSize) * 0.3) * pitchObjectScale,
     );
 
     const effectiveDisplayMode =
@@ -6185,8 +6198,8 @@ export default function ActivityCreator({
   }
 
   function renderConeObject(object: PitchObject) {
-    const size = (object.size ?? coneDefaultSize) * iosObjectDisplayScale;
-    const hitSize = Math.max(size, 44);
+    const size = getObjectPixelSize(object);
+    const hitSize = Math.max(size, 44 * pitchObjectScale);
     const fillColor = object.fillColor ?? coneColor;
 
     return (
@@ -6251,8 +6264,8 @@ export default function ActivityCreator({
             ? width * 0.5
             : width;
 
-    const hitWidth = Math.max(width, 44);
-    const hitHeight = Math.max(height, 44);
+    const hitWidth = Math.max(width, 44 * pitchObjectScale);
+    const hitHeight = Math.max(height, 44 * pitchObjectScale);
 
     return (
       <button
@@ -6301,10 +6314,10 @@ export default function ActivityCreator({
   }
 
   function renderTextBoxObject(object: PitchObject) {
-    const width = object.size ?? 120;
-    const fontSize = object.fontSize ?? 20;
-    const hitWidth = Math.max(width, 60);
-    const hitHeight = Math.max(fontSize + 18, 44);
+    const width = getObjectPixelSize(object);
+    const fontSize = (object.fontSize ?? 20) * pitchObjectScale;
+    const hitWidth = Math.max(width, 60 * pitchObjectScale);
+    const hitHeight = Math.max(fontSize + 18 * pitchObjectScale, 44 * pitchObjectScale);
 
     return (
       <button
