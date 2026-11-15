@@ -47,6 +47,63 @@ function fallbackLines(pixels,w,h,candidates) {
   }
   return segments;
 }
+// Detect prominent black horizontal and vertical training-area boundaries.
+// These are separate from the bright pitch-line pass. Adjacent scan rows/columns
+// are consolidated so a thick 7px border becomes ONE editable AB3 line.
+function darkBoundaries(pixels, w, h, candidates) {
+  const dark = (x, y) => {
+    const i = (y * w + x) * 4;
+    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+    if (Math.max(r, g, b) > 90) return false;
+    // Don't treat the thin black ring surrounding a player as a boundary.
+    for (const c of candidates) if (Math.hypot(x-c.x,y-c.y) < c.r+3) return false;
+    return true;
+  };
+  const threshold = Math.max(35, Math.round(Math.min(w,h) * 0.075));
+  const horizontal = [], vertical = [];
+  function scan(axis, pos) {
+    const length = axis === 'h' ? w : h;
+    let start = -1, hits = 0, last = -1;
+    const out = [];
+    function finish() {
+      if (start < 0) return;
+      if (last-start+1 >= threshold && hits/(last-start+1) >= .8)
+        out.push({start,end:last,pos});
+    }
+    for (let j=0;j<length;j++) {
+      const x = axis==='h'?j:pos, y = axis==='h'?pos:j;
+      if (dark(x,y)) {
+        if (start<0) start=j;
+        else if (last>=0 && j-last>3) {finish(); start=j; hits=0;}
+        hits++; last=j;
+      } else if (start>=0 && j-last>2) { finish(); start=-1; hits=0; last=-1; }
+    }
+    finish();
+    return out;
+  }
+  for (let y=2;y<h-2;y+=2) horizontal.push(...scan('h',y));
+  for (let x=2;x<w-2;x+=2) vertical.push(...scan('v',x));
+  function consolidate(runs, axis) {
+    const groups=[];
+    for(const run of runs){
+      const group=groups.find(g=>Math.abs(g.pos-run.pos)<=9 &&
+        Math.min(g.end,run.end)-Math.max(g.start,run.start) >= Math.min(g.end-g.start,run.end-run.start)*.67);
+      if(group){
+        group.start=Math.min(group.start,run.start);
+        group.end=Math.max(group.end,run.end);
+        group.totalPos+=run.pos;
+        group.count++;
+        group.pos=group.totalPos/group.count;
+      } else groups.push({...run,totalPos:run.pos,count:1});
+    }
+    return groups.filter(g=>g.count>=2 && g.end-g.start>=threshold).map(g=>{
+      const pos=Math.round(g.pos);
+      return axis==='h' ? {x1:g.start,y1:pos,x2:g.end,y2:pos,tone:'dark'}:
+        {x1:pos,y1:g.start,x2:pos,y2:g.end,tone:'dark'};
+    });
+  }
+  return [...consolidate(horizontal,'h'),...consolidate(vertical,'v')].slice(0,24);
+}
 function fallbackDetect(pixels,w,h) {
   const n=w*h, classes=new Uint8Array(n), visited=new Uint8Array(n), queue=new Int32Array(n);
   for(let p=0;p<n;p++){ const k=p*4; classes[p]=markerClass(pixels[k],pixels[k+1],pixels[k+2]); }
@@ -77,7 +134,7 @@ function fallbackDetect(pixels,w,h) {
     candidates.push({x:cx,y:cy,r:radius,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)],label:''});
     if(candidates.length>=60)break;
   }
-  return { candidates, segments:fallbackLines(pixels,w,h,candidates) };
+  return { candidates, segments:[...fallbackLines(pixels,w,h,candidates), ...darkBoundaries(pixels,w,h,candidates)] };
 }
 // Small, approximately circular bright objects with dark patches, close to a
 // player, are soccer-ball candidates. Conservative to avoid field-line noise.
