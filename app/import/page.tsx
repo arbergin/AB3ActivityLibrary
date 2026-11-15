@@ -1,6 +1,7 @@
 import AppHeader from "@/components/AppHeader";
 import BulkImportFlow from "@/components/BulkImportFlow";
 import ImportFlow from "@/components/ImportFlow";
+import ImportJsonFlow from "@/components/ImportJsonFlow";
 import ProtectedPage from "@/components/ProtectedPage";
 
 export default function ImportPage() {
@@ -36,6 +37,17 @@ export default function ImportPage() {
               </div>
 
               <ImportFlow />
+            </section>
+
+            <section className="mt-8 rounded-2xl border border-slate-300 bg-white p-5 shadow-md sm:p-6">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold">Import JSON</h2>
+                <p className="mt-2 text-slate-600">
+                  Upload an AB3 activity JSON file to create a fully editable activity,
+                  including players, lines, and animation frames.
+                </p>
+              </div>
+              <ImportJsonFlow />
             </section>
 
             <section className="mt-8 rounded-2xl border border-slate-300 bg-white p-5 shadow-md sm:p-6">
