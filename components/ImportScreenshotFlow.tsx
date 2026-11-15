@@ -72,7 +72,7 @@ export default function ImportScreenshotFlow() {
   }
 
   return <div className="space-y-5">
-    <p className="text-sm text-slate-600">Free browser-based Canvas detection and optional jersey-number OCR run in separate, cancelable workers. Review the reconstruction before saving; field lines and player numbers can require adjustments.</p>
+    <p className="text-sm text-slate-600">Upload a screenshot, review the original next to the reconstructed diagram, then create an editable activity directly. No JSON download or re-upload required. Number recognition and field markings may need corrections.</p>
     <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-7 text-center hover:bg-slate-100">
       <span className="block font-semibold text-slate-700">Choose a soccer activity screenshot</span>
       <span className="mt-1 block text-sm text-slate-500">PNG, JPG or WebP • Maximum 12 MB</span>
@@ -98,7 +98,7 @@ export default function ImportScreenshotFlow() {
       <p className="mt-2 text-xs text-slate-600">{seconds}s elapsed • Progress indicates processing stages, not exact time remaining. Canvas processing has an 8s limit; optional OCR has a 14s limit. You can cancel at any time.</p>
     </div>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {original && <div className="rounded-xl border border-slate-200 bg-white p-3">
+    {original && !result && <div className="rounded-xl border border-slate-200 bg-white p-3">
       <h3 className="mb-2 font-semibold text-slate-800">Original screenshot</h3>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={original} alt="Original uploaded soccer diagram" className="mx-auto max-h-96 max-w-full object-contain" />
@@ -107,11 +107,11 @@ export default function ImportScreenshotFlow() {
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="font-semibold">Detected {result.detected.players} player markers, {result.detected.numbered} numbers, and {result.detected.lines} line segments, plus {result.detected.balls} possible soccer balls.</p>
-          <button type="button" onClick={downloadJson} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Download JSON</button>
+          <button type="button" onClick={downloadJson} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Download JSON (optional)</button>
         </div>
         {result.warnings.map((message, index) => <p key={index} className="mt-2 text-sm text-amber-800">{message}</p>)}
       </div>
-      <h3 className="text-xl font-bold">Review editable activity and import</h3>
+      <h3 className="text-xl font-bold">Compare screenshots, review details, and create your activity</h3>
       <ImportJsonFlow key={generation} initialJson={result.json} initialName={result.json.name} comparisonImage={original ?? undefined}/>
     </div>}
   </div>;

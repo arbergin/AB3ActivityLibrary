@@ -185,7 +185,7 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
       };
       const saved = await createSupabaseActivity(activity);
       saveStoredActivity(saved);
-      router.push(`/activity/${saved.id}`);
+      router.push(initialJson === undefined ? `/activity/${saved.id}` : `/activity/${saved.id}/edit`);
     } catch (err) {
       setError(err instanceof Error ? `Unable to save activity: ${err.message}` : "Unable to save activity.");
     } finally {
@@ -214,22 +214,22 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
           </div>
           <section aria-label="Activity diagram preview" className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-semibold text-slate-800">Activity Preview</h3>
+              <h3 className="text-base font-semibold text-slate-800">{comparisonImage ? "Compare Original & Generated Activity" : "Activity Preview"}</h3>
               <button type="button" onClick={() => setEnlarged(true)} disabled={!previewUrl}
                 className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold disabled:opacity-50">
                 Enlarge Preview
               </button>
             </div>
-            <div className={comparisonImage ? "grid gap-3 md:grid-cols-2" : ""}>
-              {comparisonImage && <div className="flex min-h-56 flex-col rounded-lg bg-slate-100 p-2">
+            <div className={comparisonImage ? "grid grid-cols-1 gap-4 lg:grid-cols-2" : ""}>
+              {comparisonImage && <div className="flex min-w-0 flex-col rounded-lg bg-slate-100 p-3">
                 <p className="mb-2 text-center text-xs font-semibold text-slate-700">Original Screenshot</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={comparisonImage} alt="Original soccer activity screenshot" className="mx-auto max-h-[460px] max-w-full object-contain" />
+                <img src={comparisonImage} alt="Original soccer activity screenshot" className="mx-auto h-[420px] w-full object-contain sm:h-[520px]" />
               </div>}
-            <div className="flex min-h-56 flex-col items-center justify-center overflow-hidden rounded-lg bg-slate-100 p-2">
+            <div className="flex min-w-0 flex-col items-center overflow-hidden rounded-lg bg-slate-100 p-3">
               {comparisonImage && <p className="mb-2 text-xs font-semibold text-slate-700">Generated Editable Activity</p>}
               {previewLoading && !previewUrl && <p className="text-sm text-slate-500">Rendering activity...</p>}
-              {previewUrl && <img src={previewUrl} alt={`Activity diagram, frame ${frameIndex + 1}`} className={`max-h-[460px] w-auto max-w-full object-contain ${previewLoading ? "opacity-50" : ""}`} />}
+              {previewUrl && <img src={previewUrl} alt={`Activity diagram, frame ${frameIndex + 1}`} className={`h-[420px] w-full object-contain sm:h-[520px] ${previewLoading ? "opacity-50" : ""}`} />}
               {previewError && <p role="alert" className="p-3 text-sm text-red-700">Preview unavailable: {previewError}</p>}
             </div></div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -243,7 +243,7 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
                   className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold">Next</button>
               </div>}
             </div>
-            <p className="mt-2 text-xs text-slate-500">Read-only preview. Objects and lines can be edited in Activity Creator after importing.</p>
+            <p className="mt-2 text-xs text-slate-500">Read-only comparison. Create the activity to open it directly in Activity Creator and correct any objects or lines.</p>
           </section>
           {enlarged && <div role="dialog" aria-modal="true" aria-label="Enlarged activity diagram" onClick={() => setEnlarged(false)}
             className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-3 bg-black/80 p-4">
@@ -301,7 +301,7 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
           <div className="flex justify-end gap-3">
             {initialJson === undefined && <button type="button" className="rounded-lg border border-slate-300 px-4 py-2 font-semibold" onClick={clear} disabled={saving}>Cancel</button>}
             <button type="submit" disabled={saving} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">
-              {saving ? "Importing..." : "Import JSON Activity"}
+              {saving ? "Creating activity..." : initialJson === undefined ? "Import JSON Activity" : "Create & Edit Activity"}
             </button>
           </div>
         </form>
