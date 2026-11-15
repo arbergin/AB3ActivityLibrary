@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseActivity } from "@/lib/supabaseActivities";
 import { saveStoredActivity } from "@/lib/activityStorage";
+import { SCREENSHOT_DRAFT_KEY } from "@/lib/screenshotDraft";
 import { parseActivityJson, type ParsedActivityJson } from "@/lib/importActivityJson";
 import { renderActivityFramePreview } from "@/lib/activityAnimationExport";
 import { getCurrentUserProfile } from "@/lib/userProfile";
@@ -183,9 +184,18 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
         creatorState: parsed.creatorState,
         // No PNG/PDF is needed: the viewer renders the editable creator state.
       };
+      if (initialJson !== undefined) {
+        // Screenshot-derived activities are drafts until Save is pressed in Activity Creator.
+        // sessionStorage is scoped to this browser tab; nothing is written to Supabase
+        // or My Activities here. Both Create & Edit buttons submit this same form.
+        window.sessionStorage.setItem(SCREENSHOT_DRAFT_KEY, JSON.stringify(activity));
+        router.push("/create/screenshot-draft");
+        return;
+      }
+      // Preserve the existing direct-save behavior for manually uploaded JSON files.
       const saved = await createSupabaseActivity(activity);
       saveStoredActivity(saved);
-      router.push(initialJson === undefined ? `/activity/${saved.id}` : `/activity/${saved.id}/edit`);
+      router.push(`/activity/${saved.id}`);
     } catch (err) {
       setError(err instanceof Error ? `Unable to save activity: ${err.message}` : "Unable to save activity.");
     } finally {
@@ -222,7 +232,7 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
                 </button>
                 {initialJson !== undefined && <button type="submit" disabled={saving}
                   className="rounded-lg bg-[#0d2140] px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60">
-                  {saving ? "Creating activity..." : "Create & Edit Activity"}
+                  {saving ? "Opening editor..." : "Create & Edit Activity"}
                 </button>}
               </div>
             </div>
@@ -307,7 +317,7 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
           <div className="flex justify-end gap-3">
             {initialJson === undefined && <button type="button" className="rounded-lg border border-slate-300 px-4 py-2 font-semibold" onClick={clear} disabled={saving}>Cancel</button>}
             <button type="submit" disabled={saving} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">
-              {saving ? "Creating activity..." : initialJson === undefined ? "Import JSON Activity" : "Create & Edit Activity"}
+              {saving ? "Opening editor..." : initialJson === undefined ? "Import JSON Activity" : "Create & Edit Activity"}
             </button>
           </div>
         </form>

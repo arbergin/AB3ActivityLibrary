@@ -32,6 +32,8 @@ type ActivityMetadataFormProps = {
   previewDataUrl?: string;
   creatorState?: ActivityCreatorState;
   initialActivity?: Activity;
+  // Prefills a new activity without treating it as an existing saved record.
+  initialMetadata?: Activity;
   getPreviewDataUrl?: () => Promise<string | undefined>;
   onCancel?: () => void;
   onSaved?: (activity: Activity) => boolean | void;
@@ -45,40 +47,42 @@ export default function ActivityMetadataForm({
   previewDataUrl,
   creatorState,
   initialActivity,
+  initialMetadata,
   getPreviewDataUrl,
   onCancel,
   onSaved,
   onDirtyChange,
 }: ActivityMetadataFormProps) {
   const router = useRouter();
+  const prefillActivity = initialActivity ?? initialMetadata;
 
   const [visibility, setVisibility] = useState<ActivityVisibility>(
-    initialActivity?.visibility || (mode === "create" ? "club" : "private")
+    prefillActivity?.visibility || (mode === "create" ? "club" : "private")
   );
   const [hasClub, setHasClub] = useState(false);
   const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const [activityName, setActivityName] = useState(
-    initialActivity?.activityName || ""
+    prefillActivity?.activityName || ""
   );
   const [fieldLocation, setFieldLocation] =
-    useState<Activity["fieldLocation"]>(initialActivity?.fieldLocation || "");
+    useState<Activity["fieldLocation"]>(prefillActivity?.fieldLocation || "");
   const [gamePhase, setGamePhase] = useState<Activity["gamePhase"]>(
-    initialActivity?.gamePhase || ""
+    prefillActivity?.gamePhase || ""
   );
   const [category, setCategory] = useState<Activity["category"]>(
-    initialActivity?.category || ""
+    prefillActivity?.category || ""
   );
   const [positionsInvolved, setPositionsInvolved] = useState(
-    initialActivity?.positionsInvolved || ""
+    prefillActivity?.positionsInvolved || ""
   );
   const [numberOfPlayers, setNumberOfPlayers] = useState(
-    initialActivity?.numberOfPlayers === "" ||
-      initialActivity?.numberOfPlayers === undefined
+    prefillActivity?.numberOfPlayers === "" ||
+      prefillActivity?.numberOfPlayers === undefined
       ? ""
-      : String(initialActivity.numberOfPlayers)
+      : String(prefillActivity.numberOfPlayers)
   );
   const [activityDetails, setActivityDetails] = useState(
-    initialActivity?.activityDetails || ""
+    prefillActivity?.activityDetails || ""
   );
   const [formError, setFormError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
@@ -102,18 +106,18 @@ export default function ActivityMetadataForm({
   const initialMetadataSnapshotRef = useRef(
     JSON.stringify({
       visibility:
-        initialActivity?.visibility || (mode === "create" ? "club" : "private"),
-      activityName: initialActivity?.activityName || "",
-      fieldLocation: initialActivity?.fieldLocation || "",
-      gamePhase: initialActivity?.gamePhase || "",
-      category: initialActivity?.category || "",
-      positionsInvolved: initialActivity?.positionsInvolved || "",
+        prefillActivity?.visibility || (mode === "create" ? "club" : "private"),
+      activityName: prefillActivity?.activityName || "",
+      fieldLocation: prefillActivity?.fieldLocation || "",
+      gamePhase: prefillActivity?.gamePhase || "",
+      category: prefillActivity?.category || "",
+      positionsInvolved: prefillActivity?.positionsInvolved || "",
       numberOfPlayers:
-        initialActivity?.numberOfPlayers === "" ||
-        initialActivity?.numberOfPlayers === undefined
+        prefillActivity?.numberOfPlayers === "" ||
+        prefillActivity?.numberOfPlayers === undefined
           ? ""
-          : String(initialActivity.numberOfPlayers),
-      activityDetails: initialActivity?.activityDetails || "",
+          : String(prefillActivity.numberOfPlayers),
+      activityDetails: prefillActivity?.activityDetails || "",
     })
   );
 

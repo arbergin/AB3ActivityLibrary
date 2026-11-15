@@ -12,6 +12,7 @@ import type {
   WheelEvent,
 } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
+import { SCREENSHOT_DRAFT_KEY } from "@/lib/screenshotDraft";
 import type { Activity, ActivityCreatorState } from "@/types/activity";
 
 type ToolType =
@@ -944,6 +945,8 @@ function ColorSetting({
 
 type ActivityCreatorProps = {
   initialActivity?: Activity;
+  // Initial state for unsaved screenshot activities; not an existing DB record.
+  draftActivity?: Activity;
 };
 
 type NormalizedCreatorState = {
@@ -1592,13 +1595,14 @@ function getInitialFrames(
 
 export default function ActivityCreator({
   initialActivity,
+  draftActivity,
 }: ActivityCreatorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planningTeamId = searchParams.get("planningTeamId");
   const planningActivityRowId = searchParams.get("planningActivityRowId");
   const planningPracticeId = searchParams.get("planningPracticeId");
-  const initialCreatorState = getInitialCreatorState(initialActivity);
+  const initialCreatorState = getInitialCreatorState(initialActivity ?? draftActivity);
   const normalizedInitialCreatorState = useMemo(() => {
     if (
       initialCreatorState &&
@@ -1677,7 +1681,7 @@ export default function ActivityCreator({
   const [isPlayingAnimation, setIsPlayingAnimation] = useState(false);
   const [playbackFrameIndex, setPlaybackFrameIndex] = useState(0);
   const [showActivityTabs, setShowActivityTabs] = useState(
-    Boolean(initialActivity) && normalizedInitialFrames.frames.length > 1,
+    Boolean(initialActivity || draftActivity) && normalizedInitialFrames.frames.length > 1,
   );
   const [showFrameManager, setShowFrameManager] = useState(false);
   const [frameManagerPosition, setFrameManagerPosition] = useState({
@@ -2229,7 +2233,7 @@ export default function ActivityCreator({
           );
         }
 
-        if (!initialActivity) {
+        if (!initialActivity && !draftActivity) {
           if (isPitchBackground(savedSettings.selectedPitchBackground)) {
             setSelectedPitchBackground(savedSettings.selectedPitchBackground);
           }
@@ -2325,7 +2329,7 @@ export default function ActivityCreator({
     } finally {
       setHasLoadedUserSettings(true);
     }
-  }, [initialActivity]);
+  }, [initialActivity, draftActivity]);
 
   useEffect(() => {
     if (!hasLoadedUserSettings) {
@@ -2683,8 +2687,9 @@ export default function ActivityCreator({
   );
 
   const hasUnsavedChanges =
-    savedCreatorStateSnapshotRef.current !== null &&
-    serializedCreatorState !== savedCreatorStateSnapshotRef.current;
+    Boolean(draftActivity) ||
+    (savedCreatorStateSnapshotRef.current !== null &&
+      serializedCreatorState !== savedCreatorStateSnapshotRef.current);
 
   useEffect(() => {
     if (
@@ -2799,6 +2804,10 @@ export default function ActivityCreator({
 
   function handleActivitySaved(savedActivity: Activity) {
     savedCreatorStateSnapshotRef.current = serializedCreatorState;
+    if (draftActivity) {
+      // A successfully saved screenshot draft is no longer needed.
+      window.sessionStorage.removeItem(SCREENSHOT_DRAFT_KEY);
+    }
 
     if (
       planningTeamId &&
@@ -8079,6 +8088,7 @@ export default function ActivityCreator({
                 mode="create"
                 creatorState={creatorState}
                 initialActivity={initialActivity}
+                initialMetadata={draftActivity}
                 getPreviewDataUrl={getCreatorPreviewDataUrl}
                 onSaved={handleActivitySaved}
                 onDirtyChange={setIsMetadataFormDirty}
