@@ -1,4 +1,4 @@
-import type { ActivityCreatorState, ActivityCreatorStateV3, ActivityCreatorFrame } from "@/types/activity";
+import type { ActivityCreatorStateV3, ActivityCreatorFrame } from "@/types/activity";
 
 type RecordValue = Record<string, unknown>;
 const isRecord = (value: unknown): value is RecordValue =>
@@ -24,7 +24,7 @@ export type ParsedActivityJson = {
   category: string;
   positionsInvolved: string;
   numberOfPlayers: number | "";
-  creatorState: ActivityCreatorState;
+  creatorState: ActivityCreatorStateV3;
   frameCount: number;
   playerCount: number;
 };
@@ -86,7 +86,7 @@ export function parseActivityJson(value: unknown, fallbackName: string): ParsedA
   });
 
   // Assign a fresh client ID so an imported copy cannot overwrite its original iOS sync counterpart.
-  const creatorState: ActivityCreatorState = {
+  const creatorState: ActivityCreatorStateV3 = {
     ...state,
     schemaVersion: 3,
     sourcePlatform: state.sourcePlatform === "ios" ? "ios" : "web",
@@ -97,7 +97,7 @@ export function parseActivityJson(value: unknown, fallbackName: string): ParsedA
     frames,
     objects: frames[0].objects,
     lines: frames[0].lines,
-  } as ActivityCreatorState;
+  } as ActivityCreatorStateV3;
 
   const name = [value.activityName, value.activity_name, value.name]
     .find(nonempty) as string | undefined;
