@@ -11,6 +11,42 @@ function markerClass(r,g,b) {
   if (r > 55 && r < 185 && Math.abs(r-g)<21 && Math.abs(g-b)<21) return 5;
   return 0;
 }
+// Scan bright, low-chroma lines in horizontal/vertical directions. This is
+// deliberately conservative: it recovers field and zone boundaries, not tactical intent.
+function fallbackLines(pixels,w,h,candidates) {
+  const isLine=(x,y)=>{
+    const i=(y*w+x)*4, r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+    if(r<175||g<175||b<175||Math.max(r,g,b)-Math.min(r,g,b)>48)return false;
+    for(const c of candidates)if(Math.hypot(x-c.x,y-c.y)<c.r+4)return false;
+    return true;
+  };
+  const segments=[], horizontal=[], vertical=[];
+  // Long white line fragments, tolerating dashed boundaries and tiny antialiasing gaps.
+  function runs(axis,pos){
+    const length=axis==='h'?w:h, hits=[];
+    for(let i=0;i<length;i++)if(isLine(axis==='h'?i:pos,axis==='h'?pos:i))hits.push(i);
+    if(hits.length<12)return [];
+    const out=[];let start=hits[0],end=start,solid=1;
+    for(let j=1;j<hits.length;j++){
+      const v=hits[j];
+      if(v-end<=Math.max(11,Math.floor(length*.022))){solid++;end=v;}
+      else {if(end-start>=Math.max(26,length*.065)&&solid/(end-start+1)>.26)out.push({a:start,b:end});start=end=v;solid=1;}
+    }
+    if(end-start>=Math.max(26,length*.065)&&solid/(end-start+1)>.26)out.push({a:start,b:end});
+    return out;
+  }
+  // Scan spaced rows/columns and aggregate identical neighboring detections.
+  for(let y=3;y<h-3;y+=3)for(const run of runs('h',y))horizontal.push({x1:run.a,y1:y,x2:run.b,y2:y});
+  for(let x=3;x<w-3;x+=3)for(const run of runs('v',x))vertical.push({x1:x,y1:run.a,x2:x,y2:run.b});
+  for(const dir of [horizontal,vertical]){
+    dir.sort((a,b)=>Math.hypot(b.x2-b.x1,b.y2-b.y1)-Math.hypot(a.x2-a.x1,a.y2-a.y1));
+    for(const v of dir){
+      const exists=segments.some(s=>Math.abs(s.x1-v.x1)<8&&Math.abs(s.y1-v.y1)<8&&Math.abs(s.x2-v.x2)<8&&Math.abs(s.y2-v.y2)<8);
+      if(!exists){segments.push(v);if(segments.length>=45)return segments;}
+    }
+  }
+  return segments;
+}
 function fallbackDetect(pixels,w,h) {
   const n=w*h, classes=new Uint8Array(n), visited=new Uint8Array(n), queue=new Int32Array(n);
   for(let p=0;p<n;p++){ const k=p*4; classes[p]=markerClass(pixels[k],pixels[k+1],pixels[k+2]); }
@@ -41,7 +77,7 @@ function fallbackDetect(pixels,w,h) {
     candidates.push({x:cx,y:cy,r:radius,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)],label:''});
     if(candidates.length>=60)break;
   }
-  return { candidates, segments:[] };
+  return { candidates, segments:fallbackLines(pixels,w,h,candidates) };
 }
 function cvReady(cv){return cv && typeof cv.imread==='function' && typeof cv.Mat==='function';}
 async function getCv() {
@@ -97,7 +133,7 @@ self.onmessage=async({data})=>{
     const pixels=new Uint8ClampedArray(buffer);
     let result=null,engine='canvas',warning='';
     if(!fallbackOnly){
-      emit('opencv',20,'Loading OpenCV in an isolated worker…');
+      emit('opencv',20,'Loading OpenCV in an isolated worker (5-second limit)…');
       try{
         const cv=await getCv();
         emit('detecting',48,'Detecting shapes with OpenCV…');
@@ -106,7 +142,7 @@ self.onmessage=async({data})=>{
       }catch(error){warning=`OpenCV unavailable (${error instanceof Error?error.message:'initialization failed'}). Using browser Canvas detection.`;}
     }
     if(!result){emit('detecting',55,'Detecting player circles using browser pixels…');result=fallbackDetect(pixels,w,h);}
-    emit('detected',76,`Detected ${result.candidates.length} possible player markers.`);
+    emit('detected',76,`Detected ${result.candidates.length} player markers and ${result.segments.length} line segments (${engine}).`);
     self.postMessage({type:'done',result,engine,warning});
   }catch(error){self.postMessage({type:'error',message:error instanceof Error?error.message:String(error)});}
 };

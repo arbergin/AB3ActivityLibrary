@@ -2,14 +2,13 @@
 
 import type { ActivityCreatorColorObject, ActivityCreatorLine, ActivityCreatorObject, ActivityCreatorStateV3 } from "@/types/activity";
 
-/** Browser image analysis with OpenCV isolated in a terminable worker.
- * If it fails or stalls, restart in Canvas-only mode. OCR is deliberately
- * disabled while validating safe worker execution; numbers remain editable.
+/** Screenshot analysis runs in terminable workers to preserve UI responsiveness.
+ * Independent OCR has a hard timeout; a failed OCR never blocks activity creation.
  */
 type Candidate = { x:number; y:number; r:number; rgb:[number,number,number]; label:string };
 type Segment = { x1:number; y1:number; x2:number; y2:number };
 type Detection = { candidates:Candidate[]; segments:Segment[] };
-export type ScreenshotStage = "preparing" | "opencv" | "detecting" | "detected" | "fallback" | "building" | "complete";
+export type ScreenshotStage = "preparing" | "opencv" | "detecting" | "detected" | "fallback" | "ocr" | "building" | "complete";
 export type ScreenshotProgress = {stage:ScreenshotStage; percent:number; message:string};
 export type ScreenshotConversion = {
   json: { name:string; activityDetails:string; numberOfPlayers:number; creatorState:ActivityCreatorStateV3 };
@@ -35,17 +34,18 @@ function runDetector(
     // can always be interrupted by terminate() from the responsive UI thread.
     const worker=new Worker("/workers/ab3-screenshot-detect.js");
     let settled=false;
+    let lastStage="starting worker";
     const cleanup=()=>{clearTimeout(timer);signal.removeEventListener("abort",onAbort);worker.terminate();};
     const finish=(err?:Error,value?:{result:Detection;engine:string;warning:string})=>{
       if(settled)return; settled=true;cleanup(); if(err)reject(err);else resolve(value!);
     };
     const onAbort=()=>finish(aborted());
     signal.addEventListener("abort",onAbort,{once:true});
-    const timer=window.setTimeout(()=>finish(new Error("Analysis worker exceeded its time limit.")),limitMs);
+    const timer=window.setTimeout(()=>finish(new Error(`Analysis worker exceeded its time limit during: ${lastStage}.`)),limitMs);
     worker.onerror=()=>finish(new Error("Screenshot analysis worker failed to start or execute."));
     worker.onmessage=(event:MessageEvent)=>{
       const data=event.data;
-      if(data?.type==="progress")report(data.stage,data.percent,data.detail);
+      if(data?.type==="progress"){lastStage=String(data.detail||data.stage);report(data.stage,data.percent,data.detail);}
       else if(data?.type==="done")finish(undefined,data);
       else if(data?.type==="error")finish(new Error(data.message||"Screenshot analysis failed."));
     };
@@ -53,6 +53,28 @@ function runDetector(
     // costly structured clones and keep the retry buffer available.
     const transfer=pixels.slice().buffer;
     worker.postMessage({type:"analyze",width,height,pixels:transfer,fallbackOnly},[transfer]);
+  });
+}
+
+function runOCR(pixels:Uint8ClampedArray,width:number,height:number,candidates:Candidate[],signal:AbortSignal,report:(stage:ScreenshotStage,percent:number,message:string)=>void):Promise<{labels:{index:number;label:string}[];warning:string}>{
+  return new Promise(resolve=>{
+    if(!candidates.length||signal.aborted){resolve({labels:[],warning:""});return;}
+    const worker=new Worker("/workers/ab3-screenshot-ocr.js");
+    let settled=false;
+    const finish=(labels:{index:number;label:string}[],warning:string)=>{
+      if(settled)return;settled=true;clearTimeout(timer);signal.removeEventListener("abort",onAbort);worker.terminate();resolve({labels,warning});
+    };
+    const onAbort=()=>finish([],"OCR canceled.");
+    signal.addEventListener("abort",onAbort,{once:true});
+    const timer=window.setTimeout(()=>finish([],"Jersey-number recognition exceeded 14 seconds. Players remain editable without numbers."),14000);
+    worker.onerror=()=>finish([],"OCR worker could not start. Add player numbers in Activity Creator.");
+    worker.onmessage=(event:MessageEvent)=>{
+      const data=event.data;
+      if(data?.type==="progress")report("ocr",Math.min(95,data.percent??80),data.detail);
+      else if(data?.type==="done")finish(Array.isArray(data.labels)?data.labels:[],"");
+      else if(data?.type==="error")finish([],`OCR unavailable: ${data.message??"unknown error"}.`);
+    };
+    worker.postMessage({type:"recognize",width,height,candidates,pixels:pixels.slice().buffer});
   });
 }
 
@@ -78,7 +100,7 @@ export async function convertScreenshot(
   const warnings:string[]=[];
   let detection:{result:Detection;engine:string;warning:string};
   try {
-    detection=await runDetector(pixels,canvas.width,canvas.height,false,11000,controller,report);
+    detection=await runDetector(pixels,canvas.width,canvas.height,false,6000,controller,report);
   }catch(error){
     if(controller.aborted)throw aborted();
     report("fallback",50,"OpenCV could not finish. Switching to safer Canvas detection…");
@@ -87,10 +109,16 @@ export async function convertScreenshot(
   }
   if(controller.aborted)throw aborted();
   if(detection.warning)warnings.push(detection.warning);
-  if(detection.engine!=="opencv")warnings.push("Canvas fallback recognizes candidate player markers but does not reconstruct diagram lines. Add or adjust lines in Activity Creator.");
-  warnings.push("Jersey-number OCR is temporarily disabled to prevent browser freezes. Numbered players can be edited after importing.");
+  if(detection.engine!=="opencv")warnings.push("Canvas fallback detects approximate straight white lines, including pitch markings. Review and remove any unwanted field lines in Activity Creator.");
   const found=detection.result;
-  report("building", 90, "Building your editable activity…");
+  report("ocr",80,"Attempting jersey-number recognition in a separate worker…");
+  const ocr=await runOCR(pixels,canvas.width,canvas.height,found.candidates,controller,report);
+  if(controller.aborted)throw aborted();
+  if(ocr.warning)warnings.push(ocr.warning);
+  for(const entry of ocr.labels){
+    if(entry.index>=0&&entry.index<found.candidates.length&&/^\d{1,2}$/.test(entry.label))found.candidates[entry.index].label=entry.label;
+  }
+  report("building",96,"Building your editable activity…");
   // The two most frequent non-green marker colors become AB3's two teams.
   const clusters: {rgb:[number,number,number];count:number}[]=[];
   for(const c of found.candidates){
@@ -109,12 +137,12 @@ export async function convertScreenshot(
   });
   const lines: ActivityCreatorLine[]=found.segments.map(s=>({id:crypto.randomUUID(),points:toPoints(s,canvas.width,canvas.height),color:"#555555",lineWidth:2,dashed:false,arrow:false,lineStyle:"standard"}));
   if(!objects.length)warnings.push("No player markers were detected. Try a cleaner, higher-contrast screenshot or add players manually in Activity Creator.");
-  warnings.push("Review lines, arrows, goals, and player numbers. This free detector recognizes shapes rather than tactical meaning; perspective diagrams and complex backgrounds may need substantial manual corrections.");
+  warnings.push("Review lines, arrows, goals, and player numbers. Straight lines may be pitch markings rather than tactical movements; this detector cannot infer tactical intent.");
   const frameId=crypto.randomUUID();
   const creatorState:ActivityCreatorStateV3={schemaVersion:3,sourcePlatform:"web",clientActivityId:crypto.randomUUID(),
     pitch:{background:"whiteBlank",zoom:1,offsetX:0,offsetY:0,rotationDegrees:0,pitchAssetVersion:2,coordinateSystem:"canonicalPitchV1"},
     settings:{playerDisplayMode:"number",team1DefaultColor:rgba(first[0], first[1], first[2]),team2DefaultColor:rgba(second[0], second[1], second[2]),team1DefaultShape:"circle",team2DefaultShape:"circle",playerTextDefaultColor:rgba(255,255,255),coneDefaultColor:rgba(249,115,22),playerDefaultSize:26,coneDefaultSize:14,logoSize:74,lineDefaultWidth:2,defaultFrameDurationMs:1000},
     activeFrameId:frameId,frames:[{id:frameId,name:"Tab 1",durationMs:1000,objects,lines}],objects,lines};
   report("complete", 100, "Activity ready for review.");
-  return { json:{name:file.name.replace(/\.[^.]+$/,""),activityDetails:"Generated from a screenshot using browser-based OpenCV.js with a Canvas fallback. OCR is temporarily disabled; review detected players, labels, and movement lines before use.",numberOfPlayers:objects.length,creatorState},warnings,detected:{players:objects.length,lines:lines.length,numbered:found.candidates.filter(c=>c.label).length}};
+  return { json:{name:file.name.replace(/\.[^.]+$/,""),activityDetails:"Generated from a screenshot using browser-based OpenCV/Canvas detection and optional OCR. Review player numbers, lines, and object positions before use.",numberOfPlayers:objects.length,creatorState},warnings,detected:{players:objects.length,lines:lines.length,numbered:found.candidates.filter(c=>c.label).length}};
 }

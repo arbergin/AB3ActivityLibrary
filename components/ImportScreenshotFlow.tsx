@@ -72,7 +72,7 @@ export default function ImportScreenshotFlow() {
   }
 
   return <div className="space-y-5">
-    <p className="text-sm text-slate-600">Free, browser-based detection. OpenCV runs in a separate worker so a stalled analysis can be canceled; Canvas detection is used if OpenCV is unavailable. This initial stable version pauses jersey-number OCR while we verify detection on real screenshots. Always review the generated activity before saving.</p>
+    <p className="text-sm text-slate-600">Free, browser-based detection. OpenCV runs in a separate worker so a stalled analysis can be canceled; Canvas detection is used if OpenCV is unavailable. Jersey-number OCR runs separately with a time limit and is optional if recognition is unavailable. Always review the generated activity before saving.</p>
     <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-7 text-center hover:bg-slate-100">
       <span className="block font-semibold text-slate-700">Choose a soccer activity screenshot</span>
       <span className="mt-1 block text-sm text-slate-500">PNG, JPG or WebP • Maximum 12 MB</span>
@@ -95,7 +95,7 @@ export default function ImportScreenshotFlow() {
       <div className="h-3 overflow-hidden rounded-full bg-blue-100" role="progressbar" aria-label="Screenshot analysis stage progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress?.percent ?? 0}>
         <div className="h-full rounded-full bg-blue-700 transition-all duration-300" style={{width:`${progress?.percent ?? 0}%`}}/>
       </div>
-      <p className="mt-2 text-xs text-slate-600">{seconds}s elapsed • Progress indicates processing stages, not exact time remaining. OpenCV is limited to 11s; the fallback has a 7s limit. You can cancel at any time.</p>
+      <p className="mt-2 text-xs text-slate-600">{seconds}s elapsed • Progress indicates processing stages, not exact time remaining. OpenCV has a 6s limit, Canvas fallback 7s, and optional OCR 14s. You can cancel at any time.</p>
     </div>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {original && <div className="rounded-xl border border-slate-200 bg-white p-3">
