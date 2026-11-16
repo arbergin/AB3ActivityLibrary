@@ -11,6 +11,95 @@ function markerClass(r,g,b) {
   if (r > 55 && r < 185 && Math.abs(r-g)<21 && Math.abs(g-b)<21) return 5;
   return 0;
 }
+// Estimate a strong trapezoidal pitch outline from the visible grass boundaries.
+// This is intentionally conservative: ordinary flat top-down diagrams must
+// keep their original coordinates. The estimate cannot recover real-world depth.
+function estimatePerspective(pixels,w,h) {
+  const rows=[];
+  for(let y=2;y<Math.round(h*.65);y+=Math.max(4,Math.round(h/35))) {
+    let left=-1,right=-1;
+    for(let x=0;x<w;x++) {
+      const k=(y*w+x)*4,r=pixels[k],g=pixels[k+1],b=pixels[k+2];
+      if(g>r*1.18&&g>b*1.18&&g>48){if(left<0)left=x;right=x;}
+    }
+    if(left>=0&&right-left>w*.30)rows.push({y,left,right,width:right-left});
+  }
+  if(rows.length<8)return {active:false,reason:'No reliable trapezoid detected'};
+  const top=rows.filter(r=>r.y<h*.10);
+  const bottom=rows.filter(r=>r.y>h*.28&&r.y<h*.46);
+  if(top.length<2||bottom.length<2)return {active:false,reason:'Insufficient view of converging edges'};
+  const mean=(v,key)=>v.reduce((t,r)=>t+r[key],0)/v.length;
+  const tw=mean(top,'width'),bw=mean(bottom,'width');
+  const tl=mean(top,'left'),bl=mean(bottom,'left');
+  const tr=mean(top,'right'),br=mean(bottom,'right');
+  const widening=bw/Math.max(1,tw);
+  // Require both sides of the pitch to converge toward the top. Crop-induced
+  // asymmetry can otherwise give a false perspective classification.
+  const sidesConverge=bl<tl-w*.025 && br>tr+w*.025;
+  if(widening<1.13||!sidesConverge||tw>w*.94)return {active:false,reason:'Top-down or ambiguous pitch outline'};
+  return {active:true,top:{y:mean(top,'y'),left:tl,right:tr},bottom:{y:mean(bottom,'y'),left:bl,right:br},widening};
+}
+function warpTrapezoid(pixels,w,h,estimate) {
+  // Row-by-row horizontal rectification. This is a partial perspective
+  // correction (not a calibrated 3D homography): vertical depth stays put.
+  const targetLeft=w*.08,targetRight=w*.92,span=targetRight-targetLeft;
+  const dst=new Uint8ClampedArray(pixels.length);
+  for(let y=0;y<h;y++) {
+    const t=Math.max(0,Math.min(1,(y-estimate.top.y)/Math.max(1,estimate.bottom.y-estimate.top.y)));
+    const srcLeft=estimate.top.left+(estimate.bottom.left-estimate.top.left)*t;
+    const srcRight=estimate.top.right+(estimate.bottom.right-estimate.top.right)*t;
+    for(let x=0;x<w;x++) {
+      const k=(y*w+x)*4;
+      const sourceX=srcLeft+(x-targetLeft)*(srcRight-srcLeft)/span;
+      const sx=Math.round(sourceX);
+      if(sx<0||sx>=w){dst[k]=22;dst[k+1]=115;dst[k+2]=20;dst[k+3]=255;continue;}
+      const z=(y*w+sx)*4;
+      dst[k]=pixels[z];dst[k+1]=pixels[z+1];dst[k+2]=pixels[z+2];dst[k+3]=pixels[z+3];
+    }
+  }
+  return dst;
+}
+// Dense nets and mesh contain many alternating dark/bright edges in BOTH axes;
+// a field boundary or dashed arrow normally does not. Mask these regions
+// before LINE detection, never before detecting player markers.
+function suppressMeshTexture(pixels,w,h) {
+  const tile=20, nx=Math.ceil(w/tile),ny=Math.ceil(h/tile);
+  const mesh=new Uint8Array(nx*ny);
+  const isDark=(x,y)=>{
+    const k=(y*w+x)*4;
+    const r=pixels[k],g=pixels[k+1],b=pixels[k+2];
+    return Math.max(r,g,b)<122 || (r>55&&r<175&&Math.abs(r-g)<30&&Math.abs(g-b)<30);
+  };
+  for(let ty=0;ty<ny;ty++)for(let tx=0;tx<nx;tx++) {
+    const x0=tx*tile,y0=ty*tile,x1=Math.min(w,x0+tile),y1=Math.min(h,y0+tile);
+    let hchanges=0,vchanges=0;
+    for(let yy=y0+2;yy<y1-1;yy+=3)
+      for(let xx=x0+2;xx<x1-1;xx++)if(isDark(xx,yy)!==isDark(xx-1,yy))hchanges++;
+    for(let xx=x0+2;xx<x1-1;xx+=3)
+      for(let yy=y0+2;yy<y1-1;yy++)if(isDark(xx,yy)!==isDark(xx,yy-1))vchanges++;
+    // Mesh has repeated horizontal AND vertical edges; single dark rectangles
+    // and dashed lines usually score strongly on only one axis.
+    if(hchanges>=13&&vchanges>=13)mesh[ty*nx+tx]=1;
+  }
+  const removed=new Uint8Array(mesh.length);
+  // Include immediate mesh-adjacent tiles to erase the net's outer grid, but
+  // do not expand onto unrelated rectangles further away.
+  for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)if(mesh[y*nx+x])
+    for(let yy=Math.max(0,y-1);yy<=Math.min(ny-1,y+1);yy++)
+      for(let xx=Math.max(0,x-1);xx<=Math.min(nx-1,x+1);xx++)removed[yy*nx+xx]=1;
+  const output=pixels.slice();let tiles=0;
+  for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)if(removed[y*nx+x]) {
+    tiles++;
+    for(let yy=y*tile;yy<Math.min(h,(y+1)*tile);yy++)
+      for(let xx=x*tile;xx<Math.min(w,(x+1)*tile);xx++){
+        const k=(yy*w+xx)*4;
+        // Grass substitute prevents the removed net from turning into a
+        // bright white field line. Keep its horizontal stripe variation.
+        output[k]=38;output[k+1]=132;output[k+2]=30;output[k+3]=255;
+      }
+  }
+  return {pixels:output,tiles};
+}
 // Scan bright, low-chroma lines in horizontal/vertical directions. This is
 // deliberately conservative: it recovers field and zone boundaries, not tactical intent.
 function fallbackLines(pixels,w,h,candidates) {
@@ -295,10 +384,11 @@ function groupRectangles(segments,w,h) {
   return [...segments.filter(s=>!used.has(s)),...shapes];
 }
 
-function fallbackDetect(pixels,w,h) {
+function fallbackDetect(pixels,w,h,precomputedCandidates) {
+  if(!precomputedCandidates) {
   const n=w*h, classes=new Uint8Array(n), visited=new Uint8Array(n), queue=new Int32Array(n);
   for(let p=0;p<n;p++){ const k=p*4; classes[p]=markerClass(pixels[k],pixels[k+1],pixels[k+2]); }
-  const candidates=[];
+  var candidates=[];
   const minArea=Math.max(17,Math.floor(n/30000));
   for(let i=0;i<n;i++) {
     const type=classes[i]; if (!type||visited[i]) continue;
@@ -316,7 +406,7 @@ function fallbackDetect(pixels,w,h) {
     }
     if(area<minArea)continue;
     const bw=maxX-minX+1,bh=maxY-minY+1,aspect=bw/bh,ratio=area/(bw*bh);
-    if(bw<7||bh<7||bw>Math.min(w,h)*.14||bh>Math.min(w,h)*.14||aspect<.66||aspect>1.48||ratio<.34||ratio>.96)continue;
+    if(bw<7||bh<7||bw>Math.min(w,h)*.14||bh>Math.min(w,h)*.14||aspect<.48||aspect>2.15||ratio<.28||ratio>.96)continue;
     const radius=(bw+bh)/4,cx=sumX/area,cy=sumY/area;
     // On green pitch screenshots, pure-white line junctions can resemble circles.
     // Prefer near-neutral blue-tinted white shirt markers over green-tinted paint.
@@ -325,6 +415,7 @@ function fallbackDetect(pixels,w,h) {
     candidates.push({x:cx,y:cy,r:radius,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)],label:''});
     if(candidates.length>=60)break;
   }
+  } else { var candidates=precomputedCandidates; }
   const white=fallbackLines(pixels,w,h,candidates).map(s=>({...s,tone:'light',width:3}));
   const black=darkBoundaries(pixels,w,h,candidates).map(s=>({...s,width:8}));
   const primary=[...white,...black];
@@ -375,11 +466,21 @@ self.onmessage=({data})=>{
   const {width:w,height:h,pixels:buffer}=data;
   try{
     emit('detecting',35,'Detecting players, rectangles, dashed lines and diagonal strokes…');
-    const pixels=new Uint8ClampedArray(buffer);
-    const result=fallbackDetect(pixels,w,h);
-    emit('detecting',58,'Checking for small soccer balls…');
+    const sourcePixels=new Uint8ClampedArray(buffer);
+    const perspective=estimatePerspective(sourcePixels,w,h);
+    emit('detecting',42,perspective.active?'Perspective pitch detected; rectifying field width…':'Using original top-down image coordinates…');
+    const pixels=perspective.active?warpTrapezoid(sourcePixels,w,h,perspective):sourcePixels;
+    const clean=suppressMeshTexture(pixels,w,h);
+    emit('detecting',52,'Filtering dense net textures and reconstructing editable geometry…');
+    // Player detection must see the unmasked image. Line detection receives a
+    // texture-filtered copy, with the SAME coordinate system.
+    const players=fallbackDetect(pixels,w,h);
+    const lines=fallbackDetect(clean.pixels,w,h,players.candidates);
+    const result={candidates:players.candidates,segments:lines.segments,ocrPixels:perspective.active?pixels:undefined};
+    emit('detecting',64,'Checking for small soccer balls…');
     result.balls=findBalls(pixels,w,h,result.candidates);
     emit('detected',76,`Found ${result.candidates.length} players, ${result.segments.length} line segments and ${result.balls.length} possible balls.`);
-    self.postMessage({type:'done',result,engine:'canvas',warning:''});
+    self.postMessage({type:'done',result,engine:'canvas',perspectiveDetected:perspective.active,textureTilesSuppressed:clean.tiles,
+      warning:[perspective.active?'Perspective pitch detected. Partial horizontal rectification was applied; depth and object sizes remain estimates. Review the editable preview.':'',clean.tiles?'Dense net-like texture was suppressed during line reconstruction. Check goal positions and missing markings.':''].filter(Boolean).join(' ')});
   }catch(error){self.postMessage({type:'error',message:error instanceof Error?error.message:String(error)});}
 };

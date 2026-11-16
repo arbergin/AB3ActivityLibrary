@@ -7,7 +7,7 @@ import type { ActivityCreatorColorObject, ActivityCreatorLine, ActivityCreatorOb
  */
 type Candidate = { x:number; y:number; r:number; rgb:[number,number,number]; label:string };
 type Segment = { x1:number; y1:number; x2:number; y2:number; tone?: "dark" | "light"; dashed?: boolean; arrow?: boolean; width?: number; lineStyle?: "rectangle" };
-type Detection = { candidates:Candidate[]; segments:Segment[]; balls?:{x:number;y:number;r:number}[] };
+type Detection = { candidates:Candidate[]; segments:Segment[]; balls?:{x:number;y:number;r:number}[]; ocrPixels?:Uint8ClampedArray };
 export type ScreenshotStage = "preparing" | "opencv" | "detecting" | "detected" | "fallback" | "ocr" | "building" | "complete";
 export type ScreenshotProgress = {stage:ScreenshotStage; percent:number; message:string};
 export type ScreenshotConversion = {
@@ -104,7 +104,7 @@ export async function convertScreenshot(
   if(detection.warning)warnings.push(detection.warning);
   const found=detection.result;
   report("ocr",80,"Attempting jersey-number recognition in a separate worker…");
-  const ocr=await runOCR(pixels,canvas.width,canvas.height,found.candidates,controller,report);
+  const ocr=await runOCR(found.ocrPixels ?? pixels,canvas.width,canvas.height,found.candidates,controller,report);
   if(controller.aborted)throw aborted();
   if(ocr.warning)warnings.push(ocr.warning);
   for(const entry of ocr.labels){
