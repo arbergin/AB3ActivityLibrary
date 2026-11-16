@@ -484,7 +484,7 @@ function fallbackDetect(pixels,w,h,precomputedCandidates) {
     // Prefer near-neutral blue-tinted white shirt markers over green-tinted paint.
     if(type===4 && sumG/area > sumB/area + 3 && sumR/area > 240)continue;
     if(candidates.some(c=>Math.hypot(c.x-cx,c.y-cy)<Math.max(c.r,radius)*.8))continue;
-    candidates.push({x:cx,y:cy,r:radius,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)],label:''});
+    candidates.push({x:cx,y:cy,r:radius,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)],label:'',shape:{width:bw,height:bh,area,fill:ratio,aspect,kind:type}});
     if(candidates.length>=60)break;
   }
   } else { var candidates=precomputedCandidates; }
@@ -497,6 +497,74 @@ function fallbackDetect(pixels,w,h,precomputedCandidates) {
       Math.abs(v.x1-s.x1)<14&&Math.abs(v.y1-s.y1)<14));
   const diagonal=diagonalStrokes(pixels,w,h,candidates,black);
   return { candidates, segments:[...grayRectangles.shapes,...groupRectangles([...primary,...dashed,...diagonal],w,h)] };
+}
+// Players-only mode deliberately uses stricter marker acceptance than the full
+// reconstruction. Long dashed boundaries are still detected, but are used only
+// as exclusion evidence; no line or shape is placed in players-only JSON.
+function filterPlayerMarkers(candidates,segments,pixels,w,h) {
+  if(!candidates.length)return {accepted:[],rejected:0};
+  const sorted=candidates.map(c=>c.r).sort((a,b)=>a-b);
+  const typical=sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.72))]||4;
+  const minimum=Math.max(3.3,typical*.62);
+  const distanceToSegment=(x,y,s)=>{
+    if(s.lineStyle==='rectangle'){
+      const a=Math.min(s.x1,s.x2),b=Math.max(s.x1,s.x2),c=Math.min(s.y1,s.y2),d=Math.max(s.y1,s.y2);
+      return Math.min(Math.abs(x-a),Math.abs(x-b),Math.abs(y-c),Math.abs(y-d));
+    }
+    const vx=s.x2-s.x1,vy=s.y2-s.y1,denom=vx*vx+vy*vy;
+    const t=denom?Math.max(0,Math.min(1,((x-s.x1)*vx+(y-s.y1)*vy)/denom)):0;
+    return Math.hypot(x-(s.x1+t*vx),y-(s.y1+t*vy));
+  };
+  const ringScore=c=>{
+    const x=c.x,y=c.y,r=Math.max(3,c.r);
+    let distinct=0,valid=0;
+    for(let i=0;i<16;i++){
+      const angle=i*Math.PI/8;
+      const ix=Math.round(x+Math.cos(angle)*r*.38),iy=Math.round(y+Math.sin(angle)*r*.38);
+      const ox=Math.round(x+Math.cos(angle)*r*1.12),oy=Math.round(y+Math.sin(angle)*r*1.12);
+      if(ix<0||ox<0||iy<0||oy<0||ix>=w||ox>=w||iy>=h||oy>=h)continue;
+      const a=(iy*w+ix)*4,b=(oy*w+ox)*4;
+      const delta=Math.hypot(pixels[a]-pixels[b],pixels[a+1]-pixels[b+1],pixels[a+2]-pixels[b+2]);
+      if(delta>45)distinct++;
+      valid++;
+    }
+    return valid?distinct/valid:0;
+  };
+  // Dashed-line fragments often form a near-uniform row or column. Detect
+  // repeating *small* components, without filtering genuine full-size players
+  // that happen to align in an exercise.
+  const inDashChain=c=>{
+    if(c.r>=typical*.83)return false;
+    let horizontal=0,vertical=0;
+    for(const other of candidates){
+      if(other===c||other.r>=typical*.85||Math.abs(other.r-c.r)>Math.max(2,c.r*.45))continue;
+      const dx=Math.abs(other.x-c.x),dy=Math.abs(other.y-c.y);
+      const reach=Math.max(14,typical*11);
+      if(dx>=c.r*1.8&&dx<=reach&&dy<=Math.max(2.5,c.r*.48))horizontal++;
+      if(dy>=c.r*1.8&&dy<=reach&&dx<=Math.max(2.5,c.r*.48))vertical++;
+    }
+    return horizontal>=2||vertical>=2;
+  };
+  const accepted=[];
+  for(const c of candidates){
+    const shape=c.shape||{};
+    const aspect=shape.aspect??1,fill=shape.fill??.6;
+    const circular=aspect>=.69&&aspect<=1.47&&fill>=.38;
+    const ring=ringScore(c);
+    const onLongLine=segments.some(s=>Math.hypot(s.x2-s.x1,s.y2-s.y1)>Math.max(w,h)*.11 &&
+      distanceToSegment(c.x,c.y,s)<Math.max(2,Math.min(c.r*.62,4)));
+    // Actual players have an approximately round, consistently filled core.
+    // Text dots, line junctions and elongated white dashes generally do not.
+    if(!circular)continue;
+    if(c.r<minimum && ring<.80)continue;
+    if(inDashChain(c) && ring<.9)continue;
+    if(onLongLine && c.r<typical*.9 && ring<.78)continue;
+    // A marker whose interior and outer rim are nearly identical is typically
+    // a small antialiased line artifact rather than a circle.
+    if(ring<.30 && c.r<typical*.98)continue;
+    accepted.push(c);
+  }
+  return {accepted,rejected:candidates.length-accepted.length};
 }
 // Small, approximately circular bright objects with dark patches, close to a
 // player, are soccer-ball candidates. Conservative to avoid field-line noise.
@@ -536,7 +604,7 @@ function findBalls(pixels,w,h,candidates) {
 }
 self.onmessage=({data})=>{
   if(data?.type!=='analyze')return;
-  const {width:w,height:h,pixels:buffer}=data;
+  const {width:w,height:h,pixels:buffer,playersOnly=false}=data;
   try{
     emit('detecting',35,'Detecting players, rectangles, dashed lines and diagonal strokes…');
     const sourcePixels=new Uint8ClampedArray(buffer);
@@ -565,11 +633,12 @@ self.onmessage=({data})=>{
       !paleRectangles.shapes.some(rect=>s.lineStyle==='rectangle'&&
         Math.abs(rect.x1-s.x1)<12&&Math.abs(rect.y1-s.y1)<12&&
         Math.abs(rect.x2-s.x2)<12&&Math.abs(rect.y2-s.y2)<12))];
-    const result={candidates:players.candidates,segments:reconstructed,ocrPixels:perspective.active?pixels:undefined};
-    emit('detecting',64,'Checking for small soccer balls…');
-    result.balls=findBalls(pixels,w,h,result.candidates);
+    const selection=playersOnly?filterPlayerMarkers(players.candidates,reconstructed,pixels,w,h):{accepted:players.candidates,rejected:0};
+    const result={candidates:selection.accepted,segments:playersOnly?[]:reconstructed,ocrPixels:perspective.active?pixels:undefined,excludedMarkers:selection.rejected};
+    emit('detecting',64,playersOnly?'Filtering dashed-line fragments and low-confidence markers…':'Checking for small soccer balls…');
+    result.balls=playersOnly?[]:findBalls(pixels,w,h,result.candidates);
     emit('detected',76,`Found ${result.candidates.length} players, ${result.segments.length} line segments and ${result.balls.length} possible balls.`);
     self.postMessage({type:'done',result,engine:'canvas',perspectiveDetected:perspective.active,textureTilesSuppressed:clean.tiles,
-      warning:[perspective.active?'Perspective pitch detected. Partial horizontal rectification was applied; depth and object sizes remain estimates. Review the editable preview.':'',clean.tiles?'Dense net-like texture was suppressed during line reconstruction. Check goal positions and missing markings.':''].filter(Boolean).join(' ')});
+      warning:[playersOnly&&selection.rejected?`${selection.rejected} low-confidence marker(s) excluded in players-only mode; review the preview for missing players.`:'',perspective.active?'Perspective pitch detected. Partial horizontal rectification was applied; depth and object sizes remain estimates. Review the editable preview.':'',clean.tiles?'Dense net-like texture was suppressed during line reconstruction. Check goal positions and missing markings.':''].filter(Boolean).join(' ')});
   }catch(error){self.postMessage({type:'error',message:error instanceof Error?error.message:String(error)});}
 };

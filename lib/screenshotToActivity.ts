@@ -25,7 +25,7 @@ function toPoints(s:Segment,w:number,h:number){return [{x:clamp(s.x1/w,0,1),y:cl
 function aborted(){return new DOMException("Screenshot analysis was canceled.","AbortError");}
 
 function runDetector(
-  pixels:Uint8ClampedArray,width:number,height:number,
+  pixels:Uint8ClampedArray,width:number,height:number,playersOnly:boolean,
   limitMs:number,signal:AbortSignal,report:(stage:ScreenshotStage,percent:number,message:string)=>void,
 ):Promise<{result:Detection;engine:string;warning:string}>{
   return new Promise((resolve,reject)=>{
@@ -52,7 +52,7 @@ function runDetector(
     // Copy once per attempt, transferring ownership to the worker to avoid
     // costly structured clones and keep the retry buffer available.
     const transfer=pixels.slice().buffer;
-    worker.postMessage({type:"analyze",width,height,pixels:transfer,},[transfer]);
+    worker.postMessage({type:"analyze",width,height,pixels:transfer,playersOnly,},[transfer]);
   });
 }
 
@@ -101,7 +101,7 @@ export async function convertScreenshot(
   const warnings:string[]=[];
   const playersOnly=options?.playersOnly===true;
   // Canvas processing runs off the main thread. No OpenCV download or Wasm setup.
-  const detection=await runDetector(pixels,canvas.width,canvas.height,8000,controller,report);
+  const detection=await runDetector(pixels,canvas.width,canvas.height,playersOnly,8000,controller,report);
   if(controller.aborted)throw aborted();
   if(detection.warning)warnings.push(detection.warning);
   const found=detection.result;
