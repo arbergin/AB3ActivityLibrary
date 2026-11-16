@@ -17,6 +17,7 @@ export default function ImportScreenshotFlow() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ScreenshotConversion | null>(null);
   const [working, setWorking] = useState(false);
+  const [playersOnly, setPlayersOnly] = useState(false);
   const [progress, setProgress] = useState<ScreenshotProgress | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState("");
@@ -47,7 +48,7 @@ export default function ImportScreenshotFlow() {
     setWorking(true); setError(""); setResult(null); setSeconds(0);
     setProgress({stage:"preparing",percent:0,message:"Starting screenshot analysis…"});
     try {
-      const conversion = await convertScreenshot(file, setProgress, controller.signal);
+      const conversion = await convertScreenshot(file, setProgress, controller.signal, { playersOnly });
       if (!controller.signal.aborted) { setResult(conversion); setGeneration(x => x + 1); }
     } catch (err) {
       if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Screenshot recognition failed. Please try another image.");
@@ -106,9 +107,13 @@ export default function ImportScreenshotFlow() {
     </label>
     {file && <div className="flex flex-wrap items-center justify-between gap-3">
       <span className="text-sm font-semibold text-slate-700">{file.name}</span>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {working && <button type="button" onClick={cancel} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Cancel</button>}
         <button type="button" disabled={working || tracing} onClick={() => void traceManually()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 disabled:opacity-60">{tracing ? "Opening editor..." : "Trace Manually"}</button>
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+          <input type="checkbox" checked={playersOnly} disabled={working || tracing} onChange={event => { setPlayersOnly(event.target.checked); setResult(null); setProgress(null); setError(""); }} className="h-4 w-4 accent-[#0d2140] disabled:cursor-not-allowed" />
+          Identify players only
+        </label>
         <button type="button" disabled={working || tracing} onClick={() => void generate()} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">{working ? "Analyzing screenshot..." : result ? "Analyze Again" : "Generate Editable Activity"}</button>
       </div>
     </div>}
@@ -136,6 +141,7 @@ export default function ImportScreenshotFlow() {
           <p className="font-semibold">Detected {result.detected.players} player markers, {result.detected.numbered} numbers, and {result.detected.lines} line segments, plus {result.detected.balls} possible soccer balls.</p>
           <button type="button" onClick={downloadJson} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Download JSON (optional)</button>
         </div>
+        {playersOnly && <p className="mt-2 text-sm text-slate-700">Players-only mode: lines, shapes, cones, and balls are excluded from this activity. Player numbers are recognized when possible.</p>}
         {result.warnings.map((message, index) => <p key={index} className="mt-2 text-sm text-amber-800">{message}</p>)}
       </div>
       <h3 className="text-xl font-bold">Compare screenshots, review details, and create your activity</h3>

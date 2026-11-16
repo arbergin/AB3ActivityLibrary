@@ -80,6 +80,7 @@ function runOCR(pixels:Uint8ClampedArray,width:number,height:number,candidates:C
 
 export async function convertScreenshot(
   file:File, onProgress?:(progress:ScreenshotProgress)=>void, signal?:AbortSignal,
+  options?:{ playersOnly?: boolean },
 ):Promise<ScreenshotConversion>{
   if(!/^image\/(png|jpeg|webp)$/i.test(file.type))throw new Error("Choose a PNG, JPG, or WebP image.");
   if(file.size>12*1024*1024)throw new Error("Images must be 12 MB or smaller.");
@@ -98,17 +99,19 @@ export async function convertScreenshot(
   const pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
   if(controller.aborted)throw aborted();
   const warnings:string[]=[];
+  const playersOnly=options?.playersOnly===true;
   // Canvas processing runs off the main thread. No OpenCV download or Wasm setup.
   const detection=await runDetector(pixels,canvas.width,canvas.height,8000,controller,report);
   if(controller.aborted)throw aborted();
   if(detection.warning)warnings.push(detection.warning);
   const found=detection.result;
   report("ocr",80,"Attempting jersey-number recognition in a separate worker…");
-  const ocr=await runOCR(found.ocrPixels ?? pixels,canvas.width,canvas.height,found.candidates,controller,report);
+  const playerCandidates=found.candidates.filter(c=>c.kind!=="cone");
+  const ocr=await runOCR(found.ocrPixels ?? pixels,canvas.width,canvas.height,playerCandidates,controller,report);
   if(controller.aborted)throw aborted();
   if(ocr.warning)warnings.push(ocr.warning);
   for(const entry of ocr.labels){
-    if(entry.index>=0&&entry.index<found.candidates.length&&/^\d{1,2}$/.test(entry.label))found.candidates[entry.index].label=entry.label;
+    if(entry.index>=0&&entry.index<playerCandidates.length&&/^\d{1,2}$/.test(entry.label))playerCandidates[entry.index].label=entry.label;
   }
   report("building",96,"Building your editable activity…");
   // The two most frequent non-green marker colors become AB3's two teams.
@@ -128,7 +131,7 @@ export async function convertScreenshot(
     sampled++;
   }
   const isGreenPitch=greenCount/sampled>.3;
-  const objects: ActivityCreatorObject[]=found.candidates.map(c=>{
+  const objects: ActivityCreatorObject[]=(playersOnly ? playerCandidates : found.candidates).map(c=>{
     if(c.kind==="cone") return {id:crypto.randomUUID(),type:"cone",x:clamp(c.x/canvas.width,0,1),y:clamp(c.y/canvas.height,0,1),rotation:0,size:clamp((c.r*2/canvas.width)*1000,8,20),fillColor:hex(...c.rgb)};
     const isFirst=colorDistance(c.rgb,first)<=colorDistance(c.rgb,second);
     return { id:crypto.randomUUID(),type:isFirst?"team1":"team2", x:clamp(c.x/canvas.width,0,1),y:clamp(c.y/canvas.height,0,1),rotation:0,
@@ -142,7 +145,7 @@ export async function convertScreenshot(
     const k=(py*canvas.width+px)*4,r=pixels[k],g=pixels[k+1],b=pixels[k+2];
     return r>175&&g>175&&b>175&&Math.max(r,g,b)-Math.min(r,g,b)<48;
   };
-  const lines: ActivityCreatorLine[]=found.segments.map(s=>{
+  const lines: ActivityCreatorLine[]=(playersOnly ? [] : found.segments).map(s=>{
     const length=Math.hypot(s.x2-s.x1,s.y2-s.y1),count=Math.max(8,Math.floor(length/3));
     let white=0;
     for(let i=0;i<=count;i++){const t=i/count;if(lineWhite(s.x1+(s.x2-s.x1)*t,s.y1+(s.y2-s.y1)*t))white++;}
@@ -150,14 +153,15 @@ export async function convertScreenshot(
     const dashed=s.dashed ?? (!isDark && white/(count+1)<.72);
     return {id:crypto.randomUUID(),points:toPoints(s,canvas.width,canvas.height),color:s.color??(isDark?"#0b0b0b":isGreenPitch?"#ffffff":"#555555"),lineWidth:s.width??(isDark?8:4),dashed,arrow:s.arrow??false,lineStyle:s.lineStyle??"standard"};
   });
-  for(const ball of found.balls||[]){objects.push({id:crypto.randomUUID(),type:"ball",x:clamp(ball.x/canvas.width,0,1),y:clamp(ball.y/canvas.height,0,1),rotation:0,size:24});}
+  for(const ball of playersOnly ? [] : (found.balls||[])){objects.push({id:crypto.randomUUID(),type:"ball",x:clamp(ball.x/canvas.width,0,1),y:clamp(ball.y/canvas.height,0,1),rotation:0,size:24});}
   if(!objects.length)warnings.push("No player markers were detected. Try a cleaner, higher-contrast screenshot or add players manually in Activity Creator.");
-  warnings.push("Review field boundaries, arrows, goals and player numbers. Rectangles, dashed boundaries and diagonal strokes are reconstructed geometrically. Check arrowheads, accidental field lines, balls and goals manually.");
+  if(playersOnly) warnings.push("Players-only mode: lines, rectangles, cones and balls were intentionally omitted. Review player positions, colors, and jersey numbers before saving.");
+  else warnings.push("Review field boundaries, arrows, goals and player numbers. Rectangles, dashed boundaries and diagonal strokes are reconstructed geometrically. Check arrowheads, accidental field lines, balls and goals manually.");
   const frameId=crypto.randomUUID();
   const creatorState:ActivityCreatorStateV3={schemaVersion:3,sourcePlatform:"web",clientActivityId:crypto.randomUUID(),
     pitch:{background:isGreenPitch?"greenBlank":"whiteBlank",zoom:1,offsetX:0,offsetY:0,rotationDegrees:0,pitchAssetVersion:2,coordinateSystem:"canonicalPitchV1"},
     settings:{playerDisplayMode:"number",team1DefaultColor:rgba(first[0], first[1], first[2]),team2DefaultColor:rgba(second[0], second[1], second[2]),team1DefaultShape:"circle",team2DefaultShape:"circle",playerTextDefaultColor:rgba(255,255,255),coneDefaultColor:rgba(249,115,22),playerDefaultSize:38,coneDefaultSize:14,logoSize:74,lineDefaultWidth:2,defaultFrameDurationMs:1000},
     activeFrameId:frameId,frames:[{id:frameId,name:"Tab 1",durationMs:1000,objects,lines}],objects,lines};
   report("complete", 100, "Activity ready for review.");
-  return { json:{name:file.name.replace(/\.[^.]+$/,""),activityDetails:"Generated from a screenshot using browser-based Canvas detection and optional OCR. Review player numbers, lines, and object positions before use.",numberOfPlayers:found.candidates.filter(c=>c.kind!=="cone").length,creatorState},warnings,detected:{players:found.candidates.filter(c=>c.kind!=="cone").length,lines:lines.length,numbered:found.candidates.filter(c=>c.kind!=="cone"&&c.label).length,balls:(found.balls||[]).length}};
+  return { json:{name:file.name.replace(/\.[^.]+$/,""),activityDetails:playersOnly?"Generated from a screenshot using players-only detection and optional OCR. Review player positions and numbers before use.":"Generated from a screenshot using browser-based Canvas detection and optional OCR. Review player numbers, lines, and object positions before use.",numberOfPlayers:playerCandidates.length,creatorState},warnings,detected:{players:playerCandidates.length,lines:lines.length,numbered:playerCandidates.filter(c=>c.label).length,balls:playersOnly?0:(found.balls||[]).length}};
 }
