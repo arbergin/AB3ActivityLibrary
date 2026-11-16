@@ -100,6 +100,78 @@ function suppressMeshTexture(pixels,w,h) {
   }
   return {pixels:output,tiles};
 }
+// Detect high-contrast gray rectangles on a white background BEFORE detecting
+// individual strokes. On an all-white screenshot, the white background must
+// never be mistaken for thousands of separate bright line segments.
+function detectGrayRectangles(pixels,w,h,candidates) {
+  let pale=0, samples=0;
+  for(let y=4;y<h;y+=11)for(let x=4;x<w;x+=11){
+    const k=(y*w+x)*4,r=pixels[k],g=pixels[k+1],b=pixels[k+2];
+    if(Math.min(r,g,b)>220 && Math.max(r,g,b)-Math.min(r,g,b)<24)pale++;
+    samples++;
+  }
+  const whiteBackground=pale/Math.max(1,samples)>.48;
+  if(!whiteBackground)return {shapes:[],whiteBackground:false};
+  const gray=(x,y)=>{
+    const k=(y*w+x)*4,r=pixels[k],g=pixels[k+1],b=pixels[k+2];
+    const high=Math.max(r,g,b),low=Math.min(r,g,b);
+    if(high>220||low<48||high-low>26)return false;
+    for(const c of candidates)if(Math.hypot(x-c.x,y-c.y)<c.r+3)return false;
+    return true;
+  };
+  const horizontals=[],verticals=[];
+  const minH=Math.max(42,Math.round(w*.15)),minV=Math.max(35,Math.round(h*.15));
+  const scan=(axis)=>{
+    const rows=axis==='h'?h:w, len=axis==='h'?w:h;
+    const minLen=axis==='h'?minH:minV;
+    const runs=[];
+    for(let pos=2;pos<rows-2;pos+=2){
+      let start=-1,last=-1,hits=0;
+      function finish(){
+        if(start>=0&&last-start+1>=minLen&&hits/(last-start+1)>.66)
+          runs.push({pos,a:start,b:last});
+      }
+      for(let i=2;i<len-2;i++){
+        const yes=gray(axis==='h'?i:pos,axis==='h'?pos:i);
+        if(yes){if(start<0)start=i;last=i;hits++;}
+        else if(start>=0){if(i-last>14){finish();start=-1;hits=0;last=-1;}}
+      }
+      finish();
+    }
+    // Merge parallel scanlines that belong to the same physical stroke.
+    const groups=[];
+    for(const run of runs){
+      const match=groups.find(g=>Math.abs(g.pos-run.pos)<8&&
+        Math.min(g.b,run.b)-Math.max(g.a,run.a)>Math.min(g.b-g.a,run.b-run.a)*.78);
+      if(match){match.a=Math.min(match.a,run.a);match.b=Math.max(match.b,run.b);
+        match.pos=(match.pos*match.count+run.pos)/(match.count+1);match.count++;}
+      else groups.push({...run,count:1});
+    }
+    return groups.filter(g=>g.count>=2);
+  };
+  horizontals.push(...scan('h'));verticals.push(...scan('v'));
+  const shapes=[],usedH=new Set(),usedV=new Set();
+  const tolerance=Math.max(8,Math.round(Math.min(w,h)*.018));
+  for(let i=0;i<horizontals.length;i++){
+    const top=horizontals[i];if(usedH.has(i))continue;
+    for(let j=0;j<horizontals.length;j++){
+      const bottom=horizontals[j];
+      if(bottom.pos-top.pos<minV||usedH.has(j))continue;
+      if(Math.abs(top.a-bottom.a)>tolerance||Math.abs(top.b-bottom.b)>tolerance)continue;
+      const leftIndex=verticals.findIndex((v,k)=>!usedV.has(k)&&Math.abs(v.pos-top.a)<tolerance&&
+        Math.abs(v.a-top.pos)<tolerance&&Math.abs(v.b-bottom.pos)<tolerance);
+      const rightIndex=verticals.findIndex((v,k)=>!usedV.has(k)&&k!==leftIndex&&Math.abs(v.pos-top.b)<tolerance&&
+        Math.abs(v.a-top.pos)<tolerance&&Math.abs(v.b-bottom.pos)<tolerance);
+      if(leftIndex<0||rightIndex<0)continue;
+      usedH.add(i);usedH.add(j);usedV.add(leftIndex);usedV.add(rightIndex);
+      shapes.push({x1:top.a,y1:top.pos,x2:top.b,y2:bottom.pos,tone:'dark',
+        color:'#777777',width:Math.max(2,Math.min(7,Math.round((top.count+bottom.count)/2)*2)),lineStyle:'rectangle'});
+      break;
+    }
+  }
+  return {shapes,whiteBackground};
+}
+
 // Scan bright, low-chroma lines in horizontal/vertical directions. This is
 // deliberately conservative: it recovers field and zone boundaries, not tactical intent.
 function fallbackLines(pixels,w,h,candidates) {
@@ -416,14 +488,15 @@ function fallbackDetect(pixels,w,h,precomputedCandidates) {
     if(candidates.length>=60)break;
   }
   } else { var candidates=precomputedCandidates; }
-  const white=fallbackLines(pixels,w,h,candidates).map(s=>({...s,tone:'light',width:3}));
+  const grayRectangles=detectGrayRectangles(pixels,w,h,candidates);
+  const white=grayRectangles.whiteBackground?[]:fallbackLines(pixels,w,h,candidates).map(s=>({...s,tone:'light',width:3}));
   const black=darkBoundaries(pixels,w,h,candidates).map(s=>({...s,width:8}));
   const primary=[...white,...black];
-  const dashed=[...dashedBoundaries(pixels,w,h,candidates,'dark'),...dashedBoundaries(pixels,w,h,candidates,'light')]
+  const dashed=[...dashedBoundaries(pixels,w,h,candidates,'dark'),...(grayRectangles.whiteBackground?[]:dashedBoundaries(pixels,w,h,candidates,'light'))]
     .filter(s=>!primary.some(v=>v.tone===s.tone&&Math.hypot(v.x2-v.x1,v.y2-v.y1)>.75*Math.hypot(s.x2-s.x1,s.y2-s.y1)&&
       Math.abs(v.x1-s.x1)<14&&Math.abs(v.y1-s.y1)<14));
   const diagonal=diagonalStrokes(pixels,w,h,candidates,black);
-  return { candidates, segments:groupRectangles([...primary,...dashed,...diagonal],w,h) };
+  return { candidates, segments:[...grayRectangles.shapes,...groupRectangles([...primary,...dashed,...diagonal],w,h)] };
 }
 // Small, approximately circular bright objects with dark patches, close to a
 // player, are soccer-ball candidates. Conservative to avoid field-line noise.
@@ -471,12 +544,28 @@ self.onmessage=({data})=>{
     emit('detecting',42,perspective.active?'Perspective pitch detected; rectifying field width…':'Using original top-down image coordinates…');
     const pixels=perspective.active?warpTrapezoid(sourcePixels,w,h,perspective):sourcePixels;
     const clean=suppressMeshTexture(pixels,w,h);
+    const paleRectangles=detectGrayRectangles(pixels,w,h,[]);
     emit('detecting',52,'Filtering dense net textures and reconstructing editable geometry…');
     // Player detection must see the unmasked image. Line detection receives a
     // texture-filtered copy, with the SAME coordinate system.
     const players=fallbackDetect(pixels,w,h);
     const lines=fallbackDetect(clean.pixels,w,h,players.candidates);
-    const result={candidates:players.candidates,segments:lines.segments,ocrPixels:perspective.active?pixels:undefined};
+    // Only classify tiny markers as cones when there is a distinct larger
+    // circular-marker population; uniform small-player diagrams stay players.
+    const radii=players.candidates.map(c=>c.r).sort((a,b)=>a-b);
+    const upper=radii[Math.floor(radii.length*.75)]||0;
+    for(const c of players.candidates){
+      const red=c.rgb[0]>c.rgb[1]*1.35&&c.rgb[0]>c.rgb[2]*1.25;
+      c.kind=(radii.length>=7&&upper>=4.8&&c.r<upper*.76&&red)?'cone':'player';
+    }
+    // Closed gray contours are detected directly on the original pixels,
+    // before any net-texture masking. This also prevents colored corner cones
+    // from punching holes in an otherwise continuous rectangular boundary.
+    const reconstructed=[...paleRectangles.shapes,...lines.segments.filter(s=>
+      !paleRectangles.shapes.some(rect=>s.lineStyle==='rectangle'&&
+        Math.abs(rect.x1-s.x1)<12&&Math.abs(rect.y1-s.y1)<12&&
+        Math.abs(rect.x2-s.x2)<12&&Math.abs(rect.y2-s.y2)<12))];
+    const result={candidates:players.candidates,segments:reconstructed,ocrPixels:perspective.active?pixels:undefined};
     emit('detecting',64,'Checking for small soccer balls…');
     result.balls=findBalls(pixels,w,h,result.candidates);
     emit('detected',76,`Found ${result.candidates.length} players, ${result.segments.length} line segments and ${result.balls.length} possible balls.`);

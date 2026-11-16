@@ -5,8 +5,8 @@ import type { ActivityCreatorColorObject, ActivityCreatorLine, ActivityCreatorOb
 /** Screenshot analysis runs in terminable workers to preserve UI responsiveness.
  * Independent OCR has a hard timeout; a failed OCR never blocks activity creation.
  */
-type Candidate = { x:number; y:number; r:number; rgb:[number,number,number]; label:string };
-type Segment = { x1:number; y1:number; x2:number; y2:number; tone?: "dark" | "light"; dashed?: boolean; arrow?: boolean; width?: number; lineStyle?: "rectangle" };
+type Candidate = { x:number; y:number; r:number; rgb:[number,number,number]; label:string; kind?:"cone"|"player" };
+type Segment = { x1:number; y1:number; x2:number; y2:number; tone?: "dark" | "light"; dashed?: boolean; arrow?: boolean; width?: number; lineStyle?: "rectangle"; color?:string };
 type Detection = { candidates:Candidate[]; segments:Segment[]; balls?:{x:number;y:number;r:number}[]; ocrPixels?:Uint8ClampedArray };
 export type ScreenshotStage = "preparing" | "opencv" | "detecting" | "detected" | "fallback" | "ocr" | "building" | "complete";
 export type ScreenshotProgress = {stage:ScreenshotStage; percent:number; message:string};
@@ -113,7 +113,7 @@ export async function convertScreenshot(
   report("building",96,"Building your editable activity…");
   // The two most frequent non-green marker colors become AB3's two teams.
   const clusters: {rgb:[number,number,number];count:number}[]=[];
-  for(const c of found.candidates){
+  for(const c of found.candidates.filter(c=>c.kind!=="cone")){
     const cluster=clusters.find(g=>colorDistance(g.rgb,c.rgb)<85);
     if(cluster)cluster.count++;
     else clusters.push({rgb:c.rgb,count:1});
@@ -129,6 +129,7 @@ export async function convertScreenshot(
   }
   const isGreenPitch=greenCount/sampled>.3;
   const objects: ActivityCreatorObject[]=found.candidates.map(c=>{
+    if(c.kind==="cone") return {id:crypto.randomUUID(),type:"cone",x:clamp(c.x/canvas.width,0,1),y:clamp(c.y/canvas.height,0,1),rotation:0,size:clamp((c.r*2/canvas.width)*1000,8,20),fillColor:hex(...c.rgb)};
     const isFirst=colorDistance(c.rgb,first)<=colorDistance(c.rgb,second);
     return { id:crypto.randomUUID(),type:isFirst?"team1":"team2", x:clamp(c.x/canvas.width,0,1),y:clamp(c.y/canvas.height,0,1),rotation:0,
       label:c.label || undefined,number:c.label || undefined,playerShape:"circle",size:clamp((c.r*2/canvas.width)*1000,25,64),fillColor:hex(...c.rgb),
@@ -147,7 +148,7 @@ export async function convertScreenshot(
     for(let i=0;i<=count;i++){const t=i/count;if(lineWhite(s.x1+(s.x2-s.x1)*t,s.y1+(s.y2-s.y1)*t))white++;}
     const isDark=s.tone==="dark";
     const dashed=s.dashed ?? (!isDark && white/(count+1)<.72);
-    return {id:crypto.randomUUID(),points:toPoints(s,canvas.width,canvas.height),color:isDark?"#0b0b0b":isGreenPitch?"#ffffff":"#555555",lineWidth:s.width??(isDark?8:4),dashed,arrow:s.arrow??false,lineStyle:s.lineStyle??"standard"};
+    return {id:crypto.randomUUID(),points:toPoints(s,canvas.width,canvas.height),color:s.color??(isDark?"#0b0b0b":isGreenPitch?"#ffffff":"#555555"),lineWidth:s.width??(isDark?8:4),dashed,arrow:s.arrow??false,lineStyle:s.lineStyle??"standard"};
   });
   for(const ball of found.balls||[]){objects.push({id:crypto.randomUUID(),type:"ball",x:clamp(ball.x/canvas.width,0,1),y:clamp(ball.y/canvas.height,0,1),rotation:0,size:24});}
   if(!objects.length)warnings.push("No player markers were detected. Try a cleaner, higher-contrast screenshot or add players manually in Activity Creator.");
@@ -158,5 +159,5 @@ export async function convertScreenshot(
     settings:{playerDisplayMode:"number",team1DefaultColor:rgba(first[0], first[1], first[2]),team2DefaultColor:rgba(second[0], second[1], second[2]),team1DefaultShape:"circle",team2DefaultShape:"circle",playerTextDefaultColor:rgba(255,255,255),coneDefaultColor:rgba(249,115,22),playerDefaultSize:38,coneDefaultSize:14,logoSize:74,lineDefaultWidth:2,defaultFrameDurationMs:1000},
     activeFrameId:frameId,frames:[{id:frameId,name:"Tab 1",durationMs:1000,objects,lines}],objects,lines};
   report("complete", 100, "Activity ready for review.");
-  return { json:{name:file.name.replace(/\.[^.]+$/,""),activityDetails:"Generated from a screenshot using browser-based Canvas detection and optional OCR. Review player numbers, lines, and object positions before use.",numberOfPlayers:found.candidates.length,creatorState},warnings,detected:{players:found.candidates.length,lines:lines.length,numbered:found.candidates.filter(c=>c.label).length,balls:(found.balls||[]).length}};
+  return { json:{name:file.name.replace(/\.[^.]+$/,""),activityDetails:"Generated from a screenshot using browser-based Canvas detection and optional OCR. Review player numbers, lines, and object positions before use.",numberOfPlayers:found.candidates.filter(c=>c.kind!=="cone").length,creatorState},warnings,detected:{players:found.candidates.filter(c=>c.kind!=="cone").length,lines:lines.length,numbered:found.candidates.filter(c=>c.kind!=="cone"&&c.label).length,balls:(found.balls||[]).length}};
 }
