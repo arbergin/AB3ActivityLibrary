@@ -501,7 +501,12 @@ function fallbackDetect(pixels,w,h,precomputedCandidates) {
 // Players-only mode deliberately uses stricter marker acceptance than the full
 // reconstruction. Long dashed boundaries are still detected, but are used only
 // as exclusion evidence; no line or shape is placed in players-only JSON.
-function filterPlayerMarkers(candidates,segments,pixels,w,h) {
+function filterPlayerMarkers(candidates,segments,pixels,w,h,options={}) {
+  const perspective=options.perspective===true;
+  // Perspective markers appear as flatter ovals toward the far end of the field.
+  // Use a balanced elliptical-shape threshold only when perspective is detected.
+  // Flat diagrams keep the existing stricter circular-marker rules.
+
   if(!candidates.length)return {accepted:[],rejected:0};
   const sorted=candidates.map(c=>c.r).sort((a,b)=>a-b);
   const typical=sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.72))]||4;
@@ -549,19 +554,22 @@ function filterPlayerMarkers(candidates,segments,pixels,w,h) {
   for(const c of candidates){
     const shape=c.shape||{};
     const aspect=shape.aspect??1,fill=shape.fill??.6;
-    const circular=aspect>=.69&&aspect<=1.47&&fill>=.38;
+    const farField=Math.max(0,1-c.y/Math.max(1,h));
+    const maxAspect=perspective ? 1.63+farField*.75 : 1.47;
+    const minAspect=perspective ? .60 : .69;
+    const circular=aspect>=minAspect&&aspect<=maxAspect&&fill>=(perspective?.33:.38);
     const ring=ringScore(c);
     const onLongLine=segments.some(s=>Math.hypot(s.x2-s.x1,s.y2-s.y1)>Math.max(w,h)*.11 &&
       distanceToSegment(c.x,c.y,s)<Math.max(2,Math.min(c.r*.62,4)));
     // Actual players have an approximately round, consistently filled core.
     // Text dots, line junctions and elongated white dashes generally do not.
     if(!circular)continue;
-    if(c.r<minimum && ring<.80)continue;
-    if(inDashChain(c) && ring<.9)continue;
-    if(onLongLine && c.r<typical*.9 && ring<.78)continue;
+    if(c.r<minimum && ring<(perspective?.70:.80))continue;
+    if(inDashChain(c) && ring<(perspective?.80:.9))continue;
+    if(onLongLine && c.r<typical*.9 && ring<(perspective?.68:.78))continue;
     // A marker whose interior and outer rim are nearly identical is typically
     // a small antialiased line artifact rather than a circle.
-    if(ring<.30 && c.r<typical*.98)continue;
+    if(ring<(perspective?.24:.30) && c.r<typical*.98)continue;
     accepted.push(c);
   }
   return {accepted,rejected:candidates.length-accepted.length};
@@ -633,12 +641,12 @@ self.onmessage=({data})=>{
       !paleRectangles.shapes.some(rect=>s.lineStyle==='rectangle'&&
         Math.abs(rect.x1-s.x1)<12&&Math.abs(rect.y1-s.y1)<12&&
         Math.abs(rect.x2-s.x2)<12&&Math.abs(rect.y2-s.y2)<12))];
-    const selection=playersOnly?filterPlayerMarkers(players.candidates,reconstructed,pixels,w,h):{accepted:players.candidates,rejected:0};
+    const selection=playersOnly?filterPlayerMarkers(players.candidates,reconstructed,pixels,w,h,{perspective:perspective.active}):{accepted:players.candidates,rejected:0};
     const result={candidates:selection.accepted,segments:playersOnly?[]:reconstructed,ocrPixels:perspective.active?pixels:undefined,excludedMarkers:selection.rejected};
-    emit('detecting',64,playersOnly?'Filtering dashed-line fragments and low-confidence markers…':'Checking for small soccer balls…');
+    emit('detecting',64,playersOnly?(perspective.active?'Balanced perspective-aware oval filtering and dashed-line suppression…':'Filtering dashed-line fragments and low-confidence markers…'):'Checking for small soccer balls…');
     result.balls=playersOnly?[]:findBalls(pixels,w,h,result.candidates);
     emit('detected',76,`Found ${result.candidates.length} players, ${result.segments.length} line segments and ${result.balls.length} possible balls.`);
     self.postMessage({type:'done',result,engine:'canvas',perspectiveDetected:perspective.active,textureTilesSuppressed:clean.tiles,
-      warning:[playersOnly&&selection.rejected?`${selection.rejected} low-confidence marker(s) excluded in players-only mode; review the preview for missing players.`:'',perspective.active?'Perspective pitch detected. Partial horizontal rectification was applied; depth and object sizes remain estimates. Review the editable preview.':'',clean.tiles?'Dense net-like texture was suppressed during line reconstruction. Check goal positions and missing markings.':''].filter(Boolean).join(' ')});
+      warning:[playersOnly&&perspective.active?'Perspective-aware balanced player detection used; oval markers and distance-dependent size differences are allowed.':'',playersOnly&&selection.rejected?`${selection.rejected} low-confidence marker(s) excluded in players-only mode; review the preview for missing players.`:'',perspective.active?'Perspective pitch detected. Partial horizontal rectification was applied; depth and object sizes remain estimates. Review the editable preview.':'',clean.tiles?'Dense net-like texture was suppressed during line reconstruction. Check goal positions and missing markings.':''].filter(Boolean).join(' ')});
   }catch(error){self.postMessage({type:'error',message:error instanceof Error?error.message:String(error)});}
 };
