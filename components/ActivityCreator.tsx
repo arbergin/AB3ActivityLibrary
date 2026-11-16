@@ -7478,6 +7478,33 @@ export default function ActivityCreator({
           </div>
         )}
 
+        {traceControlsOpen && traceReference && (
+          <div data-preview-exclude="true" className="relative z-[250] mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-xs text-slate-700 shadow-sm">
+            <span className="shrink-0 font-bold text-sky-900">Trace reference</span>
+            <label className="inline-flex shrink-0 items-center gap-1.5 font-medium">
+              <input type="checkbox" checked={showTraceReference} onChange={event => setShowTraceReference(event.target.checked)} /> Show
+            </label>
+            <label className="inline-flex items-center gap-2 whitespace-nowrap">
+              <span>Opacity {Math.round(traceReference.opacity * 100)}%</span>
+              <input aria-label="Reference image opacity" type="range" min="10" max="100" className="w-20 accent-sky-600" value={Math.round(traceReference.opacity * 100)} onChange={event => updateTraceReference(v => ({...v, opacity: Number(event.target.value)/100}))}/>
+            </label>
+            <label className="inline-flex items-center gap-1 whitespace-nowrap">Scale
+              <input aria-label="Reference image scale percentage" type="number" min="30" max="250" className="w-14 rounded border border-slate-300 bg-white px-1.5 py-1" value={Math.round(traceReference.scale*100)} onChange={event => updateTraceReference(v => ({...v, scale: Math.max(.3, Math.min(2.5, Number(event.target.value)/100 || 1))}))}/>%
+            </label>
+            <label className="inline-flex items-center gap-1 whitespace-nowrap">X
+              <input aria-label="Reference image horizontal offset" type="number" min="-100" max="100" className="w-14 rounded border border-slate-300 bg-white px-1.5 py-1" value={traceReference.offsetX} onChange={event => updateTraceReference(v => ({...v, offsetX: Math.max(-100, Math.min(100, Number(event.target.value)||0))}))}/>%
+            </label>
+            <label className="inline-flex items-center gap-1 whitespace-nowrap">Y
+              <input aria-label="Reference image vertical offset" type="number" min="-100" max="100" className="w-14 rounded border border-slate-300 bg-white px-1.5 py-1" value={traceReference.offsetY} onChange={event => updateTraceReference(v => ({...v, offsetY: Math.max(-100, Math.min(100, Number(event.target.value)||0))}))}/>%
+            </label>
+            <div className="flex items-center gap-2 lg:ml-auto">
+              <button type="button" className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold hover:bg-slate-50" onClick={() => traceUploadRef.current?.click()}>Replace</button>
+              <button type="button" className="rounded border border-red-300 bg-white px-2 py-1 font-semibold text-red-700 hover:bg-red-50" onClick={removeTraceReference}>Remove</button>
+            </div>
+          </div>
+        )}
+        {traceError && <p role="alert" className="mb-2 text-sm text-red-700">{traceError}</p>}
+
         <div
           ref={pitchControlsBoundaryRef}
           className={`relative mx-auto flex max-w-full justify-center rounded-xl border border-slate-200 bg-slate-100 ${
@@ -7646,24 +7673,6 @@ export default function ActivityCreator({
               </div>
             </div>
           </div>
-
-          {traceControlsOpen && traceReference && (
-            <div data-preview-exclude="true" className="relative z-[90] mx-2 mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-sky-200 bg-white p-3 shadow-sm">
-              <strong className="text-sm text-slate-800">Reference image (not saved)</strong>
-              <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={showTraceReference} onChange={event => setShowTraceReference(event.target.checked)} /> Show</label>
-              <label className="flex items-center gap-2 text-xs">Opacity {Math.round(traceReference.opacity * 100)}%
-                <input aria-label="Reference image opacity" type="range" min="10" max="100" value={Math.round(traceReference.opacity*100)} onChange={event => updateTraceReference(v => ({...v, opacity: Number(event.target.value)/100}))}/></label>
-              <label className="flex items-center gap-1 text-xs">Scale
-                <input aria-label="Reference image scale percentage" type="number" min="30" max="250" className="w-16 rounded border p-1" value={Math.round(traceReference.scale*100)} onChange={event => updateTraceReference(v => ({...v, scale: Math.max(.3, Math.min(2.5, Number(event.target.value)/100 || 1))}))}/>%</label>
-              <label className="flex items-center gap-1 text-xs">X offset
-                <input aria-label="Reference image horizontal offset" type="number" min="-100" max="100" className="w-16 rounded border p-1" value={traceReference.offsetX} onChange={event => updateTraceReference(v => ({...v, offsetX: Math.max(-100, Math.min(100, Number(event.target.value)||0))}))}/>%</label>
-              <label className="flex items-center gap-1 text-xs">Y offset
-                <input aria-label="Reference image vertical offset" type="number" min="-100" max="100" className="w-16 rounded border p-1" value={traceReference.offsetY} onChange={event => updateTraceReference(v => ({...v, offsetY: Math.max(-100, Math.min(100, Number(event.target.value)||0))}))}/>%</label>
-              <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => traceUploadRef.current?.click()}>Replace image</button>
-              <button type="button" className="rounded border border-red-300 px-2 py-1 text-xs text-red-700" onClick={removeTraceReference}>Remove image</button>
-            </div>
-          )}
-          {traceError && <p role="alert" className="mx-2 text-sm text-red-700">{traceError}</p>}
 
           <div
             className={`flex min-h-[420px] w-full justify-center overflow-visible ${
