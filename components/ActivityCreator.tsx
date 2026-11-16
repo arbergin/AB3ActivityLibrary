@@ -12,7 +12,8 @@ import type {
   WheelEvent,
 } from "react";
 import ActivityMetadataForm from "@/components/ActivityMetadataForm";
-import { SCREENSHOT_DRAFT_KEY } from "@/lib/screenshotDraft";
+import { SCREENSHOT_DRAFT_KEY, TRACE_REFERENCE_KEY } from "@/lib/screenshotDraft";
+import { defaultTraceReference, prepareTraceImage, type TraceReference } from "@/lib/traceReference";
 import type { Activity, ActivityCreatorState } from "@/types/activity";
 
 type ToolType =
@@ -1632,6 +1633,59 @@ export default function ActivityCreator({
     () => getInitialFrames(initialCreatorState, normalizedInitialCreatorState),
     [initialCreatorState, normalizedInitialCreatorState],
   );
+  // View-only tracing reference. Never serialized into creatorState or saved to Supabase.
+  const traceUploadRef = useRef<HTMLInputElement | null>(null);
+  const [traceReference, setTraceReference] = useState<TraceReference | null>(null);
+  const [showTraceReference, setShowTraceReference] = useState(true);
+  const [traceControlsOpen, setTraceControlsOpen] = useState(false);
+  const [traceError, setTraceError] = useState("");
+
+  useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem(TRACE_REFERENCE_KEY);
+      if (!stored || !draftActivity) return;
+      const decoded = JSON.parse(stored) as TraceReference;
+      if (typeof decoded.image === "string" && decoded.image.startsWith("data:image/")) {
+        setTraceReference(decoded);
+        setTraceControlsOpen(true);
+        if (!draftActivity.creatorState) setSelectedPitchBackground("greenBlank");
+      }
+    } catch { /* Corrupt or unavailable session reference. */ }
+  }, [draftActivity]);
+
+  function updateTraceReference(updater: (current: TraceReference) => TraceReference) {
+    setTraceReference(current => {
+      if (!current) return null;
+      const next = updater(current);
+      try { window.sessionStorage.setItem(TRACE_REFERENCE_KEY, JSON.stringify(next)); } catch { /* Temporary reference is still available in memory. */ }
+      return next;
+    });
+  }
+
+  async function chooseTraceImage(file?: File) {
+    if (!file) return;
+    setTraceError("");
+    try {
+      const image = await prepareTraceImage(file);
+      const reference = defaultTraceReference(image);
+      setTraceReference(reference);
+      setShowTraceReference(true);
+      setTraceControlsOpen(true);
+      try { window.sessionStorage.setItem(TRACE_REFERENCE_KEY, JSON.stringify(reference)); } catch { /* Image remains usable in memory. */ }
+    } catch (error) {
+      setTraceError(error instanceof Error ? error.message : "Unable to load reference image.");
+    } finally {
+      if (traceUploadRef.current) traceUploadRef.current.value = "";
+    }
+  }
+
+  function removeTraceReference() {
+    setTraceReference(null);
+    setTraceControlsOpen(false);
+    setTraceError("");
+    window.sessionStorage.removeItem(TRACE_REFERENCE_KEY);
+  }
+
   const pitchRef = useRef<HTMLDivElement | null>(null);
   // The pitch has a canonical 1000-unit visual width. Object sizes and text
   // must follow the rendered pitch width (including Fit / responsive layouts),
@@ -2807,6 +2861,7 @@ export default function ActivityCreator({
     if (draftActivity) {
       // A successfully saved screenshot draft is no longer needed.
       window.sessionStorage.removeItem(SCREENSHOT_DRAFT_KEY);
+      window.sessionStorage.removeItem(TRACE_REFERENCE_KEY);
     }
 
     if (
@@ -7284,6 +7339,12 @@ export default function ActivityCreator({
             ))}
           </select>
 
+          <input ref={traceUploadRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => void chooseTraceImage(event.target.files?.[0])} />
+          <button type="button" onClick={() => traceReference ? setTraceControlsOpen(v => !v) : traceUploadRef.current?.click()}
+            className={`rounded-lg border px-3 py-2 text-sm font-bold ${traceReference ? "border-sky-500 bg-sky-50 text-sky-800" : "border-slate-300 bg-white text-slate-700"}`}>
+            Trace Image{traceReference ? " ✓" : ""}
+          </button>
+
           <label className="text-sm font-semibold text-slate-700 md:ml-4">
             Player Display Mode
           </label>
@@ -7586,6 +7647,24 @@ export default function ActivityCreator({
             </div>
           </div>
 
+          {traceControlsOpen && traceReference && (
+            <div data-preview-exclude="true" className="relative z-[90] mx-2 mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-sky-200 bg-white p-3 shadow-sm">
+              <strong className="text-sm text-slate-800">Reference image (not saved)</strong>
+              <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={showTraceReference} onChange={event => setShowTraceReference(event.target.checked)} /> Show</label>
+              <label className="flex items-center gap-2 text-xs">Opacity {Math.round(traceReference.opacity * 100)}%
+                <input aria-label="Reference image opacity" type="range" min="10" max="100" value={Math.round(traceReference.opacity*100)} onChange={event => updateTraceReference(v => ({...v, opacity: Number(event.target.value)/100}))}/></label>
+              <label className="flex items-center gap-1 text-xs">Scale
+                <input aria-label="Reference image scale percentage" type="number" min="30" max="250" className="w-16 rounded border p-1" value={Math.round(traceReference.scale*100)} onChange={event => updateTraceReference(v => ({...v, scale: Math.max(.3, Math.min(2.5, Number(event.target.value)/100 || 1))}))}/>%</label>
+              <label className="flex items-center gap-1 text-xs">X offset
+                <input aria-label="Reference image horizontal offset" type="number" min="-100" max="100" className="w-16 rounded border p-1" value={traceReference.offsetX} onChange={event => updateTraceReference(v => ({...v, offsetX: Math.max(-100, Math.min(100, Number(event.target.value)||0))}))}/>%</label>
+              <label className="flex items-center gap-1 text-xs">Y offset
+                <input aria-label="Reference image vertical offset" type="number" min="-100" max="100" className="w-16 rounded border p-1" value={traceReference.offsetY} onChange={event => updateTraceReference(v => ({...v, offsetY: Math.max(-100, Math.min(100, Number(event.target.value)||0))}))}/>%</label>
+              <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => traceUploadRef.current?.click()}>Replace image</button>
+              <button type="button" className="rounded border border-red-300 px-2 py-1 text-xs text-red-700" onClick={removeTraceReference}>Remove image</button>
+            </div>
+          )}
+          {traceError && <p role="alert" className="mx-2 text-sm text-red-700">{traceError}</p>}
+
           <div
             className={`flex min-h-[420px] w-full justify-center overflow-visible ${
               isPitchPoppedOut ? "min-h-[calc(100vh-9rem)]" : ""
@@ -7659,6 +7738,17 @@ export default function ActivityCreator({
                 }}
               >
                 <CodedPitchBackground background={selectedPitchBackground} stripeCount={grassStripeCount} />
+                {traceReference && showTraceReference && (
+                  // Reference sits above the pitch but below all editable objects and lines.
+                  // It is excluded from preview capture and never included in activity JSON.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img data-preview-exclude="true" src={traceReference.image} alt="Temporary image for tracing"
+                    className="pointer-events-none absolute z-[5] h-full w-full select-none"
+                    draggable={false}
+                    style={{ objectFit: "fill", opacity: traceReference.opacity, transform: `translate(${traceReference.offsetX}%, ${traceReference.offsetY}%) scale(${traceReference.scale})`, transformOrigin: "center center" }}
+                  />
+                )}
+
 
                 <svg
                   className="absolute inset-0 z-10 h-full w-full"

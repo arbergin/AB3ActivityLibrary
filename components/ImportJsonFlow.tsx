@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseActivity } from "@/lib/supabaseActivities";
 import { saveStoredActivity } from "@/lib/activityStorage";
-import { SCREENSHOT_DRAFT_KEY } from "@/lib/screenshotDraft";
+import { SCREENSHOT_DRAFT_KEY, TRACE_REFERENCE_KEY } from "@/lib/screenshotDraft";
 import { parseActivityJson, type ParsedActivityJson } from "@/lib/importActivityJson";
 import { renderActivityFramePreview } from "@/lib/activityAnimationExport";
 import { getCurrentUserProfile } from "@/lib/userProfile";
@@ -188,6 +188,7 @@ export default function ImportJsonFlow({ initialJson, initialName, comparisonIma
         // Screenshot-derived activities are drafts until Save is pressed in Activity Creator.
         // sessionStorage is scoped to this browser tab; nothing is written to Supabase
         // or My Activities here. Both Create & Edit buttons submit this same form.
+        window.sessionStorage.removeItem(TRACE_REFERENCE_KEY);
         window.sessionStorage.setItem(SCREENSHOT_DRAFT_KEY, JSON.stringify(activity));
         router.push("/create/screenshot-draft");
         return;

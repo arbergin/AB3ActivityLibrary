@@ -1,11 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { SCREENSHOT_DRAFT_KEY, TRACE_REFERENCE_KEY } from "@/lib/screenshotDraft";
+import { defaultTraceReference, prepareTraceImage } from "@/lib/traceReference";
+import type { Activity } from "@/types/activity";
 import ImportJsonFlow from "@/components/ImportJsonFlow";
 import { convertScreenshot, type ScreenshotConversion, type ScreenshotProgress } from "@/lib/screenshotToActivity";
 
 export default function ImportScreenshotFlow() {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [tracing, setTracing] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const [original, setOriginal] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -51,6 +57,26 @@ export default function ImportScreenshotFlow() {
     }
   }
 
+  async function traceManually() {
+    if (!file || working || tracing) return;
+    setTracing(true); setError("");
+    try {
+      const image = await prepareTraceImage(file);
+      const draft: Activity = {
+        id: crypto.randomUUID(), activityName: file.name.replace(/\.[^.]+$/, ""),
+        activityDetails: "", fieldLocation: "", gamePhase: "", category: "",
+        positionsInvolved: "", numberOfPlayers: "", createdBy: "Coach User",
+        hidden: false, visibility: "private", activitySource: "create",
+      };
+      window.sessionStorage.setItem(SCREENSHOT_DRAFT_KEY, JSON.stringify(draft));
+      window.sessionStorage.setItem(TRACE_REFERENCE_KEY, JSON.stringify(defaultTraceReference(image)));
+      router.push("/create/screenshot-draft");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to open tracing mode.");
+      setTracing(false);
+    }
+  }
+
   function cancel() {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -72,7 +98,7 @@ export default function ImportScreenshotFlow() {
   }
 
   return <div className="space-y-5">
-    <p className="text-sm text-slate-600">Upload a screenshot, review the original next to the reconstructed diagram, then create an editable activity directly. No JSON download or re-upload required. Number recognition and field markings may need corrections.</p>
+    <p className="text-sm text-slate-600">Upload a screenshot to reconstruct it automatically, or choose Trace Manually to place editable objects over a temporary reference image. No JSON download or re-upload required. Number recognition and field markings may need corrections.</p>
     <label className="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-7 text-center hover:bg-slate-100">
       <span className="block font-semibold text-slate-700">Choose a soccer activity screenshot</span>
       <span className="mt-1 block text-sm text-slate-500">PNG, JPG or WebP • Maximum 12 MB</span>
@@ -82,7 +108,8 @@ export default function ImportScreenshotFlow() {
       <span className="text-sm font-semibold text-slate-700">{file.name}</span>
       <div className="flex items-center gap-2">
         {working && <button type="button" onClick={cancel} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Cancel</button>}
-        <button type="button" disabled={working} onClick={() => void generate()} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">{working ? "Analyzing screenshot..." : result ? "Analyze Again" : "Generate Editable Activity"}</button>
+        <button type="button" disabled={working || tracing} onClick={() => void traceManually()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 disabled:opacity-60">{tracing ? "Opening editor..." : "Trace Manually"}</button>
+        <button type="button" disabled={working || tracing} onClick={() => void generate()} className="rounded-lg bg-[#0d2140] px-5 py-2 font-semibold text-white disabled:opacity-60">{working ? "Analyzing screenshot..." : result ? "Analyze Again" : "Generate Editable Activity"}</button>
       </div>
     </div>}
     {/* Progress is placed ABOVE the original image and represents completed stages,

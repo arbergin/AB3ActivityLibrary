@@ -16,7 +16,7 @@ export default function ScreenshotDraftCreator() {
       if (raw) {
         const candidate: unknown = JSON.parse(raw);
         if (candidate && typeof candidate === "object" &&
-            "creatorState" in candidate && "activityName" in candidate) {
+            "activityName" in candidate && "id" in candidate) {
           setDraft(candidate as Activity);
         }
       }
