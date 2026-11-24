@@ -1,3 +1,4 @@
+import { normalizeSessionDetails, type SessionDetails } from "@/lib/sessionTactics";
 import { supabase } from "@/lib/supabaseClient";
 
 export type PlanningTeam = {
@@ -5,6 +6,7 @@ export type PlanningTeam = {
   userId: string;
   name: string;
   kind: "team" | "session";
+  sessionDetails?: SessionDetails;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -58,6 +60,7 @@ type PlanningTeamRow = {
   user_id: string;
   name: string;
   kind: "team" | "session";
+  session_details?: Partial<SessionDetails> | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -112,6 +115,7 @@ function rowToPlanningTeam(row: PlanningTeamRow): PlanningTeam {
     userId: row.user_id,
     name: row.name,
     kind: row.kind,
+    ...(row.kind === "session" ? { sessionDetails: normalizeSessionDetails(row.session_details ?? {}) } : {}),
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -852,7 +856,7 @@ export async function getStandaloneSessions(): Promise<PlanningTeam[]> {
   const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("planning_teams")
-    .select("id, user_id, name, kind, is_active, created_at, updated_at")
+    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
     .eq("user_id", userId)
     .eq("kind", "session")
     .eq("is_active", true)
@@ -861,30 +865,30 @@ export async function getStandaloneSessions(): Promise<PlanningTeam[]> {
   return ((data ?? []) as PlanningTeamRow[]).map(rowToPlanningTeam);
 }
 
-export async function createStandaloneSession(name: string): Promise<PlanningTeam> {
+export async function createStandaloneSession(name: string, details: SessionDetails): Promise<PlanningTeam> {
   const cleanName = name.trim();
   if (!cleanName) throw new Error("Session name is required.");
   const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("planning_teams")
-    .insert({ user_id: userId, name: cleanName, kind: "session", is_active: true })
-    .select("id, user_id, name, kind, is_active, created_at, updated_at")
+    .insert({ user_id: userId, name: cleanName, kind: "session", is_active: true, session_details: normalizeSessionDetails(details) })
+    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
     .single();
   if (error) throw error;
   return rowToPlanningTeam(data as PlanningTeamRow);
 }
 
-export async function renameStandaloneSession(id: string, name: string): Promise<PlanningTeam> {
+export async function updateStandaloneSession(id: string, name: string, details: SessionDetails): Promise<PlanningTeam> {
   const cleanName = name.trim();
   if (!cleanName) throw new Error("Session name is required.");
   const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("planning_teams")
-    .update({ name: cleanName })
+    .update({ name: cleanName, session_details: normalizeSessionDetails(details) })
     .eq("id", id)
     .eq("user_id", userId)
     .eq("kind", "session")
-    .select("id, user_id, name, kind, is_active, created_at, updated_at")
+    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
     .single();
   if (error) throw error;
   return rowToPlanningTeam(data as PlanningTeamRow);
@@ -900,4 +904,13 @@ export async function archiveStandaloneSession(id: string): Promise<void> {
     .eq("user_id", userId)
     .eq("kind", "session");
   if (error) throw error;
+}
+
+export async function getStandaloneSessionById(id: string): Promise<PlanningTeam | null> {
+  const userId = await getCurrentUserId();
+  const { data, error } = await supabase.from("planning_teams")
+    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
+    .eq("id", id).eq("user_id", userId).eq("kind", "session").eq("is_active", true).maybeSingle();
+  if (error) throw error;
+  return data ? rowToPlanningTeam(data as PlanningTeamRow) : null;
 }

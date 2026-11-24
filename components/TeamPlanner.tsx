@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import SessionDetailsFields, { SessionDetailsSummary } from "@/components/SessionDetailsFields";
+import { emptySessionDetails } from "@/lib/sessionTactics";
 import PlannerActivityPicker from "@/components/PlannerActivityPicker";
 import PlayerMentionTextarea from "@/components/PlayerMentionTextarea";
 import PlayerMentionText from "@/components/PlayerMentionText";
@@ -36,6 +38,8 @@ import {
   getPlanningPracticeActivities,
   getPlanningPractices,
   getPlanningTeamById,
+  getStandaloneSessionById,
+  updateStandaloneSession,
   getPlanningWeeks,
   renamePlanningPractice,
   renamePlanningWeek,
@@ -138,6 +142,9 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [editingSessionDetails, setEditingSessionDetails] = useState(false);
+  const [sessionName, setSessionName] = useState("");
+  const [sessionDetails, setSessionDetails] = useState(emptySessionDetails);
   const [team, setTeam] = useState<PlanningTeam | null>(null);
   const [weeks, setWeeks] = useState<PlanningWeek[]>([]);
   const [practices, setPractices] = useState<PlanningPractice[]>([]);
@@ -230,7 +237,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
     setIsLoading(true);
 
     try {
-      const loadedTeam = await getPlanningTeamById(teamId);
+      const loadedTeam = await (standalone ? getStandaloneSessionById(teamId) : getPlanningTeamById(teamId));
 
       if (!loadedTeam || loadedTeam.kind !== (standalone ? "session" : "team")) {
         setTeam(null);
@@ -1169,7 +1176,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
       onDragEnd={handleDragEnd}
     >
       <div className="grid gap-6">
-        <section className="sticky top-[72px] z-40 rounded-xl bg-white p-5 shadow-sm">
+        <section className={standalone ? "relative z-40 rounded-xl bg-white p-5 shadow-sm" : "sticky top-[72px] z-40 rounded-xl bg-white p-5 shadow-sm"}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -1188,6 +1195,19 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
             </Link>
           </div>
 
+          {standalone && <div className="mt-4 rounded-lg border border-slate-200 p-4">
+            {editingSessionDetails ? <form className="grid gap-3" onSubmit={async event => {
+              event.preventDefault(); if(isSaving || !sessionName.trim()) return;
+              setIsSaving(true);
+              try { const updated = await updateStandaloneSession(teamId, sessionName, sessionDetails); setTeam(updated); setEditingSessionDetails(false); setMessage(""); }
+              catch(error) { setMessage(error instanceof Error ? error.message : "Unable to update session details."); }
+              finally { setIsSaving(false); }
+            }}>
+              <label className="grid gap-1 text-sm font-semibold">Session Name<input required maxLength={150} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" value={sessionName} onChange={e=>setSessionName(e.target.value)}/></label>
+              <SessionDetailsFields value={sessionDetails} onChange={setSessionDetails}/>
+              <div className="flex gap-2"><button type="submit" disabled={isSaving || !sessionName.trim()} className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Save Changes</button><button type="button" disabled={isSaving} onClick={()=>setEditingSessionDetails(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button></div>
+            </form> : <><div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-semibold">Session Details</h2><button type="button" disabled={isSaving} onClick={()=>{setSessionName(team.name);setSessionDetails(team.sessionDetails??emptySessionDetails());setEditingSessionDetails(true);}} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold">Edit Details</button></div><SessionDetailsSummary value={team.sessionDetails??emptySessionDetails()}/></>}
+          </div>}
           <div className="mt-5 flex flex-wrap gap-3">
             {!standalone && <>
             <button

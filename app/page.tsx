@@ -63,7 +63,7 @@ function DashboardPrimaryActions() {
     {
       href: "/sessions",
       title: "Create Sessions",
-      description: "Build sessions with practices, notes, and activities from your library.",
+      description: "Build sessions with objectives, notes, and activities from your library.",
       icon: "/team_planning.svg",
       iconAlt: "Create Sessions",
     },
