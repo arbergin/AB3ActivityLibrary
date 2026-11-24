@@ -62,6 +62,7 @@ type SelectedRow =
 
 type TeamPlannerProps = {
   teamId: string;
+  standalone?: boolean;
 };
 
 type PlannerDragData =
@@ -133,7 +134,7 @@ function PlannerDropZone({
 }
 
 
-export default function TeamPlanner({ teamId }: TeamPlannerProps) {
+export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -231,13 +232,13 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     try {
       const loadedTeam = await getPlanningTeamById(teamId);
 
-      if (!loadedTeam) {
+      if (!loadedTeam || loadedTeam.kind !== (standalone ? "session" : "team")) {
         setTeam(null);
         setWeeks([]);
         setPractices([]);
         setActivityRows([]);
         setLibraryActivities([]);
-        setMessage("This team could not be found.");
+        setMessage(`This ${standalone ? "session" : "team"} could not be found.`);
         return;
       }
 
@@ -255,8 +256,12 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
         getPlanningNotes(practiceIds),
       ]);
 
-      const teamPlayers = await listTeamPlayers(teamId);
-      setMentionPlayers(teamPlayers.map(p => ({ id: p.id, name: p.name })));
+      if (standalone) {
+        setMentionPlayers([]);
+      } else {
+        const teamPlayers = await listTeamPlayers(teamId);
+        setMentionPlayers(teamPlayers.map(p => ({ id: p.id, name: p.name })));
+      }
       setTeam(loadedTeam);
       setWeeks(loadedWeeks);
       setPractices(loadedPractices);
@@ -270,7 +275,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [teamId]);
+  }, [teamId, standalone]);
 
   useEffect(() => {
     loadPlan();
@@ -330,7 +335,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
         setSelectedRow({ type: "activity", id: updatedRow.id });
         setMessage("New activity created and added to the practice.");
 
-        router.replace(`/team-planning/${teamId}`, { scroll: false });
+        router.replace(`${standalone ? "/sessions" : "/team-planning"}/${teamId}`, { scroll: false });
       } catch (error) {
         console.error("Unable to attach created activity to practice.", error);
 
@@ -338,7 +343,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
           setMessage(
             "The activity was created, but it could not be attached to this practice."
           );
-          router.replace(`/team-planning/${teamId}`, { scroll: false });
+          router.replace(`${standalone ? "/sessions" : "/team-planning"}/${teamId}`, { scroll: false });
         }
       } finally {
         if (!cancelled) {
@@ -352,7 +357,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams, teamId]);
+  }, [router, searchParams, teamId, standalone]);
 
   function beginEdit(row: Exclude<SelectedRow, null>, currentValue: string) {
     if (row.type === "activity") return;
@@ -732,6 +737,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
   function handleCreateNewActivity(row: PlanningPracticeActivity) {
     const query = new URLSearchParams({
       planningTeamId: teamId,
+      ...(standalone ? { planningStandalone: "1" } : {}),
       planningActivityRowId: row.id,
     });
 
@@ -780,6 +786,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     // The row will only be created after the new activity is actually saved.
     const query = new URLSearchParams({
       planningTeamId: teamId,
+      ...(standalone ? { planningStandalone: "1" } : {}),
       planningPracticeId: practiceId,
     });
 
@@ -1116,7 +1123,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
   if (isLoading) {
     return (
       <section className="rounded-xl bg-white p-6 shadow-sm">
-        <div className="text-sm text-slate-500">Loading team plan...</div>
+        <div className="text-sm text-slate-500">Loading {standalone ? "session" : "team plan"}...</div>
       </section>
     );
   }
@@ -1125,13 +1132,13 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
     return (
       <section className="rounded-xl bg-white p-6 shadow-sm">
         <div className="text-sm text-red-700">
-          {message || "This team could not be found."}
+          {message || `This ${standalone ? "session" : "team"} could not be found.`}
         </div>
         <Link
-          href="/team-planning"
+          href={standalone ? "/sessions" : "/team-planning"}
           className="mt-4 inline-flex rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white"
         >
-          Back to Team Planning
+          {standalone ? "Back to Sessions" : "Back to Team Planning"}
         </Link>
       </section>
     );
@@ -1152,7 +1159,7 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Team
+                {standalone ? "SESSION" : "Team"}
               </div>
               <h1 className="mt-1 text-3xl font-bold text-slate-900">
                 {team.name}
@@ -1160,10 +1167,10 @@ export default function TeamPlanner({ teamId }: TeamPlannerProps) {
             </div>
 
             <Link
-              href="/team-planning"
+              href={standalone ? "/sessions" : "/team-planning"}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              Back to Teams
+              {standalone ? "Back to Sessions" : "Back to Teams"}
             </Link>
           </div>
 

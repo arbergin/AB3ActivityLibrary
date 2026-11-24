@@ -61,6 +61,13 @@ function DashboardPrimaryActions() {
       iconAlt: "Search Activities",
     },
     {
+      href: "/sessions",
+      title: "Create Sessions",
+      description: "Build standalone sessions with practices, notes, and activities from your library.",
+      icon: "/team_planning.svg",
+      iconAlt: "Create Sessions",
+    },
+    {
       href: "/team-planning",
       title: "Team Planning",
       description:
@@ -79,16 +86,16 @@ function DashboardPrimaryActions() {
   ];
 
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
-          className="flex min-h-44 items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          className="flex min-h-44 items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md 2xl:p-5"
         >
           <div className="min-w-0 flex-1">
             <div className="flex h-8 items-start">
-              <div className="text-xl font-bold leading-8 text-slate-900">
+              <div className="text-lg font-bold leading-8 text-slate-900 2xl:text-xl">
                 {action.title}
               </div>
             </div>

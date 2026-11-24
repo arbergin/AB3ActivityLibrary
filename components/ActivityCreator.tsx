@@ -1601,6 +1601,7 @@ export default function ActivityCreator({
   const router = useRouter();
   const searchParams = useSearchParams();
   const planningTeamId = searchParams.get("planningTeamId");
+  const planningStandalone = searchParams.get("planningStandalone") === "1";
   const planningActivityRowId = searchParams.get("planningActivityRowId");
   const planningPracticeId = searchParams.get("planningPracticeId");
   const initialCreatorState = getInitialCreatorState(initialActivity ?? draftActivity);
@@ -2884,7 +2885,7 @@ export default function ActivityCreator({
       }
 
       router.push(
-        `/team-planning/${planningTeamId}?${query.toString()}`
+        `/${planningStandalone ? "sessions" : "team-planning"}/${planningTeamId}?${query.toString()}`
       );
 
       return false;
