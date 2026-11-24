@@ -852,15 +852,16 @@ export async function movePlanningNote(
 }
 
 /** Standalone sessions use the existing planning hierarchy, without an associated team. */
-export async function getStandaloneSessions(): Promise<PlanningTeam[]> {
+export async function getStandaloneSessions(includeArchived = false): Promise<PlanningTeam[]> {
   const userId = await getCurrentUserId();
-  const { data, error } = await supabase
+  let query = supabase
     .from("planning_teams")
     .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
     .eq("user_id", userId)
     .eq("kind", "session")
-    .eq("is_active", true)
     .order("updated_at", { ascending: false });
+  if (!includeArchived) query = query.eq("is_active", true);
+  const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as PlanningTeamRow[]).map(rowToPlanningTeam);
 }
@@ -888,6 +889,7 @@ export async function updateStandaloneSession(id: string, name: string, details:
     .eq("id", id)
     .eq("user_id", userId)
     .eq("kind", "session")
+    .eq("is_active", true)
     .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
     .single();
   if (error) throw error;
@@ -897,20 +899,44 @@ export async function updateStandaloneSession(id: string, name: string, details:
 /** Archive, preserving all weeks, practices, notes and linked library activities. */
 export async function archiveStandaloneSession(id: string): Promise<void> {
   const userId = await getCurrentUserId();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("planning_teams")
     .update({ is_active: false })
     .eq("id", id)
     .eq("user_id", userId)
-    .eq("kind", "session");
+    .eq("kind", "session").eq("is_active", true).select("id").maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Session could not be archived.");
 }
 
 export async function getStandaloneSessionById(id: string): Promise<PlanningTeam | null> {
   const userId = await getCurrentUserId();
   const { data, error } = await supabase.from("planning_teams")
     .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
-    .eq("id", id).eq("user_id", userId).eq("kind", "session").eq("is_active", true).maybeSingle();
+    .eq("id", id).eq("user_id", userId).eq("kind", "session").maybeSingle();
   if (error) throw error;
   return data ? rowToPlanningTeam(data as PlanningTeamRow) : null;
+}
+
+/** Only the owner can restore or permanently delete an archived session. */
+export async function restoreStandaloneSession(id: string): Promise<PlanningTeam> {
+  const userId = await getCurrentUserId();
+  const { data, error } = await supabase.from("planning_teams")
+    .update({ is_active: true })
+    .eq("id", id).eq("user_id", userId).eq("kind", "session").eq("is_active", false)
+    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Archived session could not be restored.");
+  return rowToPlanningTeam(data as PlanningTeamRow);
+}
+
+export async function permanentlyDeleteStandaloneSession(id: string): Promise<void> {
+  const userId = await getCurrentUserId();
+  // Delete the planning parent only, never the referenced library activities.
+  // The existing planning foreign keys handle dependent records atomically.
+  const { data, error } = await supabase.from("planning_teams").delete()
+    .eq("id", id).eq("user_id", userId).eq("kind", "session").eq("is_active", false)
+    .select("id").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Session was not deleted. It may have been restored or your permissions may have changed.");
 }
