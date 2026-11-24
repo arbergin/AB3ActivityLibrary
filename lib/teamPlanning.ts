@@ -856,9 +856,9 @@ export async function movePlanningNote(
 }
 
 /** Standalone sessions use the existing planning hierarchy, without an associated team. */
-export async function getStandaloneSessions(includeArchived = false): Promise<PlanningTeam[]> {
+export async function getStandaloneSessions(includeArchived = false, search = ""): Promise<PlanningTeam[]> {
   const userId = await getCurrentUserId();
-  const { data, error } = await supabase.rpc("ab3_list_sessions");
+  const { data, error } = await (search.trim() ? supabase.rpc("ab3_search_sessions", {p_search:search.trim()}) : supabase.rpc("ab3_list_sessions"));
   if (error) throw error;
   return ((data ?? []) as PlanningTeamRow[]).filter(row=>includeArchived||row.is_active).map(row=>({...rowToPlanningTeam(row),isOwner:row.user_id===userId}));
 }
