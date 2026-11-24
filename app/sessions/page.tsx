@@ -3,14 +3,30 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import ProtectedPage from "@/components/ProtectedPage";
-import SessionDetailsFields, { SessionDetailsSummary } from "@/components/SessionDetailsFields";
+import SessionDetailsFields, { SessionVisibilityIndicator } from "@/components/SessionDetailsFields";
 import { archiveStandaloneSession, createStandaloneSession, getStandaloneSessions, restoreStandaloneSession, permanentlyDeleteStandaloneSession, type PlanningTeam } from "@/lib/teamPlanning";
-import { emptySessionDetails, gamePhases, principleOptions, subprincipleOptions } from "@/lib/sessionTactics";
+import { emptySessionDetails, gamePhases, principleOptions, subprincipleOptions, type SessionDetails } from "@/lib/sessionTactics";
 
 const inputClass = "w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 const primary = "rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40";
 const secondary = "rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40";
 function errorMessage(error:unknown,fallback:string){return error instanceof Error?error.message:typeof error==="object"&&error!==null&&"message" in error?String(error.message):fallback;}
+function CompactSessionSummary({value}: {value:SessionDetails}) {
+  const fields = [
+    {label:"Game Phase", text:value.gamePhase},
+    {label:"Principles", text:value.principles.join(" • ")},
+    {label:"Subprinciples", text:value.subprinciples.join(" • ")},
+  ];
+  const hasTactics = fields.some(field=>field.text.trim());
+  const objective = value.objective.trim();
+  if (!objective && !hasTactics) return <p className="text-xs text-slate-500">No session details added.</p>;
+  return <div className="grid gap-2 text-sm leading-snug text-slate-700">
+    {objective && <p className="whitespace-pre-wrap break-words"><span className="font-semibold">Objective: </span>{objective}</p>}
+    {hasTactics && <dl className="grid gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,2fr)]">
+      {fields.map(field=>field.text.trim() ? <div key={field.label} className="min-w-0"><dt className="text-xs font-semibold text-slate-600">{field.label}</dt><dd className="break-words">{field.text}</dd></div> : null)}
+    </dl>}
+  </div>;
+}
 export default function SessionsPage() {
   const [sessions,setSessions] = useState<PlanningTeam[]>([]);
   const [name,setName] = useState("");
@@ -63,6 +79,6 @@ export default function SessionsPage() {
       <div className="mb-4 grid gap-3 sm:grid-cols-2"><input aria-label="Search sessions" className={inputClass} placeholder="Search sessions" title="Search names, objectives, tactics, activities, notes and session creators" value={search} onChange={e=>setSearch(e.target.value)}/><select aria-label="Filter game phase" className={inputClass} value={phase} onChange={e=>{setPhase(e.target.value);setPrinciple("");setSubprinciple("");}}><option value="">All game phases</option>{gamePhases.map(p=><option key={p}>{p}</option>)}</select><select aria-label="Filter principle" className={inputClass} value={principle} onChange={e=>{setPrinciple(e.target.value);setSubprinciple("");}}><option value="">All principles</option>{filterPrinciples.map(p=><option key={p}>{p}</option>)}</select><select aria-label="Filter subprinciple" className={inputClass} value={subprinciple} onChange={e=>setSubprinciple(e.target.value)}><option value="">All subprinciples</option>{filterSubs.map(p=><option key={p}>{p}</option>)}</select></div>
       {tab==="mine"&&<label className="mb-4 flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/>Show Archived Sessions</label>}
       {error&&<p role="alert" className="mb-3 text-sm text-red-700">{error}</p>}
-      {(loading||loadedKey!==requestKey)?<p>{query?"Searching sessions...":"Loading sessions..."}</p>:!visible.length?<p className="text-slate-500">{tab==="mine"?"No sessions match your filters. Use Create Session to get started or show archived sessions.":"No shared sessions match your filters."}</p>:<div className="divide-y divide-slate-200 rounded-lg border border-slate-200">{visible.map(session=><div key={session.id} className="flex flex-wrap items-start gap-4 p-4"><div className="min-w-0 flex-1 basis-80"><Link href={`/sessions/${session.id}`} className="mb-2 block text-lg font-semibold text-[#0d2140] hover:underline">{session.name}</Link>{!session.isActive&&<span className="mb-2 inline-block rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">Archived</span>}<SessionDetailsSummary value={session.sessionDetails??emptySessionDetails()}/></div><div className="flex flex-wrap gap-2"><Link href={`/sessions/${session.id}`} className={`${primary} inline-flex w-24 items-center justify-center`}>Open</Link>{session.isOwner&&(session.isActive?<button type="button" disabled={saving} className={`${secondary} inline-flex w-24 items-center justify-center border-red-300 text-red-700`} onClick={()=>void archive(session)}>Archive</button>:<><button type="button" disabled={saving} className={`${secondary} inline-flex w-24 items-center justify-center text-emerald-700`} onClick={()=>void restore(session)}>Restore</button><button type="button" disabled={saving} className={`${secondary} inline-flex w-24 items-center justify-center border-red-300 text-red-700`} onClick={()=>void remove(session)}>Delete</button></>)}</div></div>)}</div>}
+      {(loading||loadedKey!==requestKey)?<p>{query?"Searching sessions...":"Loading sessions..."}</p>:!visible.length?<p className="text-slate-500">{tab==="mine"?"No sessions match your filters. Use Create Session to get started or show archived sessions.":"No shared sessions match your filters."}</p>:<div className="divide-y divide-slate-200 rounded-lg border border-slate-200">{visible.map(session=><div key={session.id} className="grid gap-2 p-3"><div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2"><div className="flex min-w-0 flex-1 basis-40 flex-wrap items-center gap-x-2 gap-y-1"><Link href={`/sessions/${session.id}`} className="min-w-0 break-words text-base font-semibold text-[#0d2140] hover:underline">{session.name}</Link><SessionVisibilityIndicator value={(session.sessionDetails??emptySessionDetails()).visibility}/>{!session.isActive&&<span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Archived</span>}</div><div className="flex flex-wrap gap-2"><Link href={`/sessions/${session.id}`} className={`${primary} inline-flex w-24 items-center justify-center`}>Open</Link>{session.isOwner&&(session.isActive?<button type="button" disabled={saving} className={`${secondary} inline-flex w-24 items-center justify-center border-red-300 text-red-700`} onClick={()=>void archive(session)}>Archive</button>:<><button type="button" disabled={saving} className={`${secondary} inline-flex w-24 items-center justify-center text-emerald-700`} onClick={()=>void restore(session)}>Restore</button><button type="button" disabled={saving} className={`${secondary} inline-flex w-24 items-center justify-center border-red-300 text-red-700`} onClick={()=>void remove(session)}>Delete</button></>)}</div></div><CompactSessionSummary value={session.sessionDetails??emptySessionDetails()}/></div>)}</div>}
     </div></section></main></ProtectedPage>;
 }
