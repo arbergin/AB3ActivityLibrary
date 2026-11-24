@@ -67,7 +67,9 @@ type PitchObject = {
   fontSize?: number;
 };
 
-type ShapeStyle = "line" | "rectangle" | "circle";
+type ShapeStyle = "line" | "rectangle" | "circle" | "freehand" | "dribble";
+type AreaPoint = {x:number;y:number};
+type AreaBox = {a:AreaPoint;b:AreaPoint};
 
 type PitchLine = {
   id: string;
@@ -1672,6 +1674,8 @@ export default function ActivityCreator({
       setTraceReference(reference);
       setShowTraceReference(true);
       setTraceControlsOpen(true);
+      setTraceCollapsed(false);
+      setTracePanelPosition({left:Math.max(8,Math.min(180,window.innerWidth-264)),top:Math.max(8,Math.min(140,window.innerHeight-300))});
       try { window.sessionStorage.setItem(TRACE_REFERENCE_KEY, JSON.stringify(reference)); } catch { /* Image remains usable in memory. */ }
     } catch (error) {
       setTraceError(error instanceof Error ? error.message : "Unable to load reference image.");
@@ -1710,6 +1714,23 @@ export default function ActivityCreator({
   const [selectedTool, setSelectedTool] = useState<ToolType | null>("team1");
   const [selectedShapeStyle, setSelectedShapeStyle] = useState<ShapeStyle>("line");
   const [showShapeMenu, setShowShapeMenu] = useState(false);
+  const [drawMenuPosition, setDrawMenuPosition] = useState({left:0,top:0});
+  const [areaMode, setAreaMode] = useState(false);
+  const [areaBox, setAreaBox] = useState<AreaBox|null>(null);
+  const areaGesture = useRef<{start:AreaPoint; box:AreaBox; moving:boolean; objects:PitchObject[]; lines:PitchLine[]; changed:boolean}|null>(null);
+  const [tracePanelPosition,setTracePanelPosition] = useState({left:8,top:100});
+  const [traceCollapsed,setTraceCollapsed] = useState(false);
+  useEffect(()=>{
+    const close=(e:globalThis.PointerEvent)=>{if(e.target instanceof Element && !e.target.closest('[data-draw-menu]'))setShowShapeMenu(false);};
+    document.addEventListener('pointerdown',close); return ()=>document.removeEventListener('pointerdown',close);
+  },[]);
+  useEffect(()=>{
+    const paste=(e:ClipboardEvent)=>{
+      if(e.target instanceof Element && e.target.closest('input,textarea,[contenteditable=true]'))return;
+      const file=Array.from(e.clipboardData?.items??[]).find(i=>i.kind==='file' && i.type.startsWith('image/'))?.getAsFile();
+      if(file){e.preventDefault();void chooseTraceImage(file);}
+    };window.addEventListener('paste',paste);return()=>window.removeEventListener('paste',paste);
+  },[]);
   const [showShapeFillPicker, setShowShapeFillPicker] = useState(false);
   const [mobileToolGroup, setMobileToolGroup] =
     useState<MobileToolGroup>("objects");
@@ -2486,6 +2507,7 @@ export default function ActivityCreator({
         return;
       }
 
+      if(event.key === "Escape" && areaMode){clearArea();return;}
       const isSelectAll =
         (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a";
 
@@ -2518,6 +2540,7 @@ export default function ActivityCreator({
         );
         setSelectedObjectIds([]);
         setSelectedShapeIds([]);
+        setAreaBox(null);
         setSelectedLineId(null);
         setSelectedObjectId(null);
         setDraggingObjectId(null);
@@ -2534,10 +2557,10 @@ export default function ActivityCreator({
     return () => {
       window.removeEventListener("keydown", handleObjectSelectionKeyboard);
     };
-  }, [isSavePanelOpen, objects, lines, selectedObjectIds, selectedShapeIds]);
+  }, [isSavePanelOpen, objects, lines, selectedObjectIds, selectedShapeIds, areaMode]);
 
   function isObjectSelected(objectId: string) {
-    return selectedObjectIds.includes(objectId);
+    return !areaMode && selectedObjectIds.includes(objectId);
   }
 
   function selectObject(objectId: string, addToSelection: boolean) {
@@ -2935,6 +2958,7 @@ export default function ActivityCreator({
   }
 
   function switchFrame(frameId: string) {
+    clearArea();
     if (frameId === activeFrameId) {
       return;
     }
@@ -3087,6 +3111,7 @@ export default function ActivityCreator({
   }
 
   function toggleAnimationPlayback() {
+    clearArea();
     if (frames.length < 2) {
       setMessage("Create at least two tabs before playing the animation.");
       return;
@@ -3190,6 +3215,7 @@ export default function ActivityCreator({
   }
 
   function openSavePanel() {
+    clearArea();
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
     setActiveLinePoints([]);
@@ -4105,6 +4131,7 @@ export default function ActivityCreator({
   }
 
   function restoreHistorySnapshot(snapshot: HistorySnapshot) {
+    clearArea();
     setObjects(snapshot.objects.map((object) => ({ ...object })));
     setLines(
       snapshot.lines.map((line) => ({
@@ -4259,6 +4286,7 @@ export default function ActivityCreator({
   }
 
   function fitPitchToScreen() {
+    clearArea();
     setZoomAreaCanvasWidth(null);
     setIsFitView(true);
     setIsZoomAreaMode(false);
@@ -4271,6 +4299,7 @@ export default function ActivityCreator({
   }
 
   function togglePanMode() {
+    clearArea();
     setIsPanMode((previous) => !previous);
     setIsZoomAreaMode(false);
     setZoomAreaRect(null);
@@ -4281,6 +4310,7 @@ export default function ActivityCreator({
   }
 
   function toggleZoomArea() {
+    clearArea();
     setIsPanMode(false);
     setIsZoomAreaMode((previous) => !previous);
     setZoomAreaRect(null);
@@ -4490,6 +4520,7 @@ export default function ActivityCreator({
   }
 
   function handleToolClick(tool: ToolType) {
+    clearArea();
     const canToggleOff =
       tool === "textBox" ||
       tool === "line" ||
@@ -5708,6 +5739,7 @@ export default function ActivityCreator({
   }
 
   function addShape(style: "rectangle" | "circle") {
+    clearArea();
     saveHistorySnapshot();
     const rect = pitchRef.current?.getBoundingClientRect();
     const center = rect ? getPitchPointFromClient(rect.left + rect.width * 0.5, rect.top + rect.height * 0.46) : {x:50,y:46};
@@ -5722,35 +5754,72 @@ export default function ActivityCreator({
     setSelectedTool("line");
   }
 
-  function chooseShape(style: ShapeStyle) {
-    setSelectedShapeStyle(style);
-    setShowShapeMenu(false);
-    if(style === "line") { setSelectedTool("line"); setSelectedLineId(null); }
-    else addShape(style);
+  function clearArea() {
+    setAreaMode(false); setAreaBox(null); areaGesture.current=null;
+    setSelectedObjectIds([]); setSelectedShapeIds([]);
   }
-
-  function renderToolButton(tool: {
-    type: ToolType;
-    label: string;
-    shortLabel: string;
-  }) {
-    if (tool.type === "line") {
-      const active = selectedTool === "line";
-      return <div key="shape" className="relative flex h-12 md:h-14">
-        <button type="button" title={`Add ${selectedShapeStyle}`}
-          onClick={() => selectedShapeStyle === "line" ? handleToolClick("line") : addShape(selectedShapeStyle)}
-          className={`flex w-11 flex-col items-center justify-center rounded-l-lg text-[10px] font-semibold ${active ? "bg-[#0d2140] text-white" : "border border-slate-300 bg-white text-slate-700"}`}>
-          <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5">
-            {selectedShapeStyle === "line" ? <path d="M6 26L26 6"/> : selectedShapeStyle === "rectangle" ? <rect x="5" y="7" width="22" height="18"/> : <circle cx="16" cy="16" r="11"/>}
-          </svg><span>Shape</span>
+  function areaBounds(box:AreaBox) {return {left:Math.min(box.a.x,box.b.x),right:Math.max(box.a.x,box.b.x),top:Math.min(box.a.y,box.b.y),bottom:Math.max(box.a.y,box.b.y)};}
+  function areaDown(e:PointerEvent<HTMLDivElement>) {
+    e.stopPropagation();
+    if(e.button!==0 || isPlayingAnimation)return;e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);
+    const start=getPitchPointFromClient(e.clientX,e.clientY);
+    const bounds=areaBox&&areaBounds(areaBox);
+    const moving=!!bounds && (selectedObjectIds.length+selectedShapeIds.length>0) && start.x>=bounds.left && start.x<=bounds.right && start.y>=bounds.top && start.y<=bounds.bottom;
+    const box=moving&&areaBox?areaBox:{a:start,b:start};
+    areaGesture.current={start,box,moving,objects:objects.filter(o=>selectedObjectIds.includes(o.id)),lines:lines.filter(l=>selectedShapeIds.includes(l.id)),changed:false};
+    if(!moving){setSelectedObjectIds([]);setSelectedShapeIds([]);setAreaBox(box);}
+  }
+  function areaMove(e:PointerEvent<HTMLDivElement>) {
+    const g=areaGesture.current;if(!g)return;e.stopPropagation();
+    const point=getPitchPointFromClient(e.clientX,e.clientY);
+    if(!g.moving){setAreaBox({a:g.start,b:point});return;}
+    const bounds=areaBounds(g.box);
+    const dx=clamp(point.x-g.start.x,-bounds.left,100-bounds.right),dy=clamp(point.y-g.start.y,-bounds.top,100-bounds.bottom);
+    if(!g.changed && (Math.abs(dx)+Math.abs(dy)<.2))return;
+    if(!g.changed){saveHistorySnapshot();g.changed=true;}
+    const shift=(p:AreaPoint)=>({x:p.x+dx,y:p.y+dy});
+    setObjects(prev=>prev.map(o=>{const old=g.objects.find(v=>v.id===o.id);return old?{...o,...shift(old)}:o;}));
+    setLines(prev=>prev.map(l=>{const old=g.lines.find(v=>v.id===l.id);return old?{...l,points:old.points.map(shift)}:l;}));
+    setAreaBox({a:shift(g.box.a),b:shift(g.box.b)});
+  }
+  function areaUp(e:PointerEvent<HTMLDivElement>) {
+    const g=areaGesture.current;if(!g)return;e.stopPropagation();areaGesture.current=null;
+    if(g.moving)return;
+    const end=getPitchPointFromClient(e.clientX,e.clientY), box={a:g.start,b:end}, b=areaBounds(box);
+    if(b.right-b.left<.5 || b.bottom-b.top<.5){setAreaBox(null);return;}
+    const inside=(p:AreaPoint)=>p.x>=b.left&&p.x<=b.right&&p.y>=b.top&&p.y<=b.bottom;
+    const rect=pitchRef.current?.getBoundingClientRect();
+    const ids=objects.filter(o=>{const hx=getObjectPixelSize(o)/2/Math.max(1,rect?.width??1000)*100,hy=getObjectPixelHeight(o)/2/Math.max(1,rect?.height??1000)*100;return inside({x:o.x-hx,y:o.y-hy})&&inside({x:o.x+hx,y:o.y+hy});}).map(o=>o.id);
+    const lids=lines.filter(l=>l.points.length>0&&l.points.every(inside)).map(l=>l.id);
+    setSelectedObjectIds(ids);setSelectedShapeIds(lids);setAreaBox(ids.length+lids.length?box:null);
+  }
+  function duplicateArea() {
+    if(!areaBox)return;const b=areaBounds(areaBox),dx=clamp(3,-b.left,100-b.right),dy=clamp(3,-b.top,100-b.bottom);
+    const shift=(p:AreaPoint)=>({x:p.x+dx,y:p.y+dy});
+    const copies=objects.filter(o=>selectedObjectIds.includes(o.id)).map(o=>({...o,...shift(o),id:makeId()}));
+    const lineCopies=lines.filter(l=>selectedShapeIds.includes(l.id)).map(l=>({...l,id:makeId(),points:l.points.map(shift)}));
+    if(!copies.length&&!lineCopies.length)return;saveHistorySnapshot();
+    setObjects(prev=>[...prev,...copies]);setLines(prev=>[...prev,...lineCopies]);setSelectedObjectIds(copies.map(o=>o.id));setSelectedShapeIds(lineCopies.map(l=>l.id));setAreaBox({a:shift(areaBox.a),b:shift(areaBox.b)});
+  }
+  function chooseShape(style: ShapeStyle) {
+    setSelectedShapeStyle(style);setShowShapeMenu(false);
+    if(style === "rectangle" || style === "circle") addShape(style); else handleToolClick(style);
+  }
+  function renderExtraTools(){return <>
+    <button type="button" title="Select area" aria-pressed={areaMode} onClick={()=>{if(areaMode){clearArea();return;}setSelectedTool(null);setActiveLinePoints([]);setLineDragState(null);setDraggingObjectId(null);setSelectedObjectId(null);setSelectedLineId(null);setSelectedObjectIds([]);setSelectedShapeIds([]);setIsPanMode(false);setIsZoomAreaMode(false);setAreaMode(true);}} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg border text-[10px] font-semibold md:h-14 md:w-14 ${areaMode?'bg-[#0d2140] text-white':'bg-white text-slate-700'}`}><svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="5" width="22" height="22" strokeDasharray="4 3"/></svg>Select</button>
+    <button type="button" title="Import or trace image (or paste screenshot)" onClick={()=>{clearArea();if(traceReference){setTraceControlsOpen(v=>!v);setTraceCollapsed(false);}else traceUploadRef.current?.click();}} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg border text-[10px] font-semibold md:h-14 md:w-14 ${traceReference?'bg-sky-100 text-sky-800':'bg-white text-slate-700'}`}><svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="5" width="24" height="22" rx="2"/><circle cx="11" cy="12" r="2"/><path d="M5 24L15 15L21 21L25 17L28 21"/></svg>Trace</button>
+  </>;}
+  function renderToolButton(tool: {type: ToolType;label:string;shortLabel:string}) {
+    if(tool.type === "freehand" || tool.type === "dribble")return null;
+    if(tool.type === "line") {
+      const active = selectedTool === "line" || selectedTool === "freehand" || selectedTool === "dribble";
+      const labels:Record<ShapeStyle,string>={line:"Line",rectangle:"Rectangle",circle:"Circle",freehand:"Free Line",dribble:"Dribble Line"};
+      return <div key="shape" data-draw-menu className="relative flex h-12 md:h-14">
+        <button type="button" title={labels[selectedShapeStyle]} aria-pressed={active} onClick={()=>chooseShape(selectedShapeStyle)} className={`flex w-11 flex-col items-center justify-center rounded-l-lg border border-slate-300 bg-white text-[10px] font-semibold text-slate-700 hover:bg-slate-50 ${active?'ring-1 ring-inset ring-slate-500':''}`}>
+          <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5">{selectedShapeStyle==='rectangle'?<rect x="5" y="7" width="22" height="18"/>:selectedShapeStyle==='circle'?<circle cx="16" cy="16" r="11"/>:selectedShapeStyle==='freehand'?<path d="M4 24Q10 2 16 18T28 7"/>:selectedShapeStyle==='dribble'?<path d="M4 25L10 16L15 21L21 10L27 15"/>:<path d="M6 26L26 6"/>}</svg>Draw
         </button>
-        <button type="button" aria-label="Choose shape" title="Choose Line, Rectangle, or Circle"
-          onClick={() => setShowShapeMenu(value=>!value)}
-          className={`w-5 rounded-r-lg border border-l-0 border-slate-300 text-xs ${active ? "bg-[#0d2140] text-white" : "bg-white"}`}>⌄</button>
-        {showShapeMenu && <div className="absolute left-0 top-full z-[100] mt-1 w-36 rounded-lg border border-slate-300 bg-white p-1 shadow-xl">
-          {(["line","rectangle","circle"] as ShapeStyle[]).map(style => <button key={style} type="button"
-            onClick={() => chooseShape(style)} className="block w-full rounded px-3 py-2 text-left text-sm capitalize text-slate-800 hover:bg-sky-100">{style}</button>)}
-        </div>}
+        <button type="button" aria-label="Choose drawing tool" aria-expanded={showShapeMenu} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setDrawMenuPosition({left:Math.max(8,Math.min(r.left-44,window.innerWidth-180)),top:r.bottom+4+155>window.innerHeight?Math.max(8,r.top-180):r.bottom+4});setShowShapeMenu(v=>!v);}} className="w-5 rounded-r-lg border border-l-0 border-slate-300 bg-white text-xs">⌄</button>
+
       </div>;
     }
     return (
@@ -6905,7 +6974,7 @@ export default function ActivityCreator({
 
           {mobileToolGroup !== "settings" && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {mobileVisibleTools.map((tool) => renderToolButton(tool))}
+              {mobileVisibleTools.map((tool) => renderToolButton(tool))}{mobileToolGroup === "draw" && renderExtraTools()}
 
               {mobileToolGroup === "draw" && (
                 <>
@@ -6951,7 +7020,7 @@ export default function ActivityCreator({
 
         {!isToolbarOnLeft && (
           <div className="hidden flex-wrap items-center gap-2 md:flex">
-            {tools.map((tool) => renderToolButton(tool))}
+            {tools.map((tool) => renderToolButton(tool))}{renderExtraTools()}
             {renderLineOptionsButton("horizontal")}
 
             <div className="mx-1 hidden h-10 w-px bg-slate-200 sm:block" />
@@ -7341,10 +7410,7 @@ export default function ActivityCreator({
           </select>
 
           <input ref={traceUploadRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => void chooseTraceImage(event.target.files?.[0])} />
-          <button type="button" onClick={() => traceReference ? setTraceControlsOpen(v => !v) : traceUploadRef.current?.click()}
-            className={`rounded-lg border px-3 py-2 text-sm font-bold ${traceReference ? "border-sky-500 bg-sky-50 text-sky-800" : "border-slate-300 bg-white text-slate-700"}`}>
-            Trace Image{traceReference ? " ✓" : ""}
-          </button>
+
 
           <label className="text-sm font-semibold text-slate-700 md:ml-4">
             Player Display Mode
@@ -7479,9 +7545,11 @@ export default function ActivityCreator({
           </div>
         )}
 
-        {traceControlsOpen && traceReference && (
-          <div data-preview-exclude="true" className="relative z-[250] mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-xs text-slate-700 shadow-sm">
-            <span className="shrink-0 font-bold text-sky-900">Trace reference</span>
+        {showShapeMenu && typeof document!=="undefined" && createPortal(<div data-draw-menu className="fixed z-[10000] w-44 rounded-lg border border-slate-300 bg-white p-1 shadow-xl" style={drawMenuPosition}>{(["line","rectangle","circle","freehand","dribble"] as ShapeStyle[]).map(style=><button key={style} type="button" onClick={()=>chooseShape(style)} className="block w-full rounded px-3 py-2 text-left text-sm text-slate-800 hover:bg-sky-100">{{line:"Line",rectangle:"Rectangle",circle:"Circle",freehand:"Free Line",dribble:"Dribble Line"}[style]}</button>)}</div>,document.body)}
+        {traceControlsOpen && traceReference && typeof document!=="undefined" && createPortal(
+          <div data-preview-exclude="true" className="fixed z-[10001] flex w-64 max-w-[calc(100vw-16px)] flex-col gap-2 rounded-lg border border-sky-200 bg-white p-3 text-xs text-slate-700 shadow-xl" style={tracePanelPosition}>
+            <div className="flex items-center gap-2"><span className="flex-1 cursor-move touch-none font-bold text-sky-900" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);const x=e.clientX-tracePanelPosition.left,y=e.clientY-tracePanelPosition.top;const el=e.currentTarget;const move=(ev:globalThis.PointerEvent)=>setTracePanelPosition({left:clamp(ev.clientX-x,0,Math.max(0,window.innerWidth-256)),top:clamp(ev.clientY-y,0,Math.max(0,window.innerHeight-48))});const stop=()=>{el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',stop);el.removeEventListener('pointercancel',stop);};el.addEventListener('pointermove',move);el.addEventListener('pointerup',stop);el.addEventListener('pointercancel',stop);}}>⠿ Trace Image</span><button type="button" onClick={()=>setTraceCollapsed(v=>!v)}>{traceCollapsed?'Expand':'Collapse'}</button><button type="button" onClick={()=>setTraceControlsOpen(false)}>×</button></div>
+            {!traceCollapsed && <>
             <label className="inline-flex shrink-0 items-center gap-1.5 font-medium">
               <input type="checkbox" checked={showTraceReference} onChange={event => setShowTraceReference(event.target.checked)} /> Show
             </label>
@@ -7500,9 +7568,10 @@ export default function ActivityCreator({
             </label>
             <div className="flex items-center gap-2 lg:ml-auto">
               <button type="button" className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold hover:bg-slate-50" onClick={() => traceUploadRef.current?.click()}>Replace</button>
+              <button type="button" className="rounded border px-2 py-1" onClick={()=>{updateTraceReference(v=>({...v,opacity:.45,scale:1,offsetX:0,offsetY:0}));setShowTraceReference(true);}}>Reset</button>
               <button type="button" className="rounded border border-red-300 bg-white px-2 py-1 font-semibold text-red-700 hover:bg-red-50" onClick={removeTraceReference}>Remove</button>
-            </div>
-          </div>
+            </div></>}
+          </div>,document.body
         )}
         {traceError && <p role="alert" className="mb-2 text-sm text-red-700">{traceError}</p>}
 
@@ -7627,7 +7696,7 @@ export default function ActivityCreator({
                       Settings
                     </button>
 
-                    {tools.map((tool) => renderToolButton(tool))}
+                    {tools.map((tool) => renderToolButton(tool))}{renderExtraTools()}
                     {renderLineOptionsButton("left")}
 
                     <label className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-300 bg-white text-[9px] font-semibold text-slate-700 md:h-14 md:w-14 md:text-[10px]">
@@ -7766,7 +7835,7 @@ export default function ActivityCreator({
                   preserveAspectRatio="none"
                 >
                   {displayedLines.map((line) => renderLine(line))}
-                  {!isPlayingAnimation && lines.filter((line) => selectedShapeIds.includes(line.id) && line.points.length >= 2).map((shape) => {
+                  {!areaMode && !isPlayingAnimation && lines.filter((line) => selectedShapeIds.includes(line.id) && line.points.length >= 2 && (line.lineStyle === "rectangle" || line.lineStyle === "circle")).map((shape) => {
                     const a = shape.points[0], b = shape.points[1];
                     const x = Math.min(a.x,b.x), y = Math.min(a.y,b.y);
                     const width = Math.abs(b.x-a.x), height = Math.abs(b.y-a.y);
@@ -7853,9 +7922,13 @@ export default function ActivityCreator({
                 })()}
 
                 {displayedObjects.map((object) => renderObject(object))}
-                {!isPlayingAnimation && renderMultiSelectionControls()}
-                {!isPlayingAnimation && renderSelectedObjectDuplicateControl()}
-                {!isPlayingAnimation && renderSelectedObjectPitchControls()}
+                {areaMode && !isPlayingAnimation && <>
+                  <div data-preview-exclude="true" className="absolute inset-0 z-[76] cursor-crosshair touch-none" onPointerDown={areaDown} onPointerMove={areaMove} onPointerUp={areaUp} onPointerCancel={()=>{areaGesture.current=null;}} onClick={e=>e.stopPropagation()}/>
+                  {areaBox && (()=>{const b=areaBounds(areaBox);return <><div data-preview-exclude="true" className="pointer-events-none absolute z-[77] border-2 border-dashed border-sky-500 bg-sky-400/15" style={{left:`${b.left}%`,top:`${b.top}%`,width:`${b.right-b.left}%`,height:`${b.bottom-b.top}%`}}/>{selectedObjectIds.length+selectedShapeIds.length>0&&<div data-preview-exclude="true" className="absolute z-[78] flex gap-2 rounded border bg-white p-1 shadow" style={{left:`${clamp(b.left,0,75)}%`,top:`${clamp(b.top,8,95)}%`,transform:`translateY(-100%) scale(${1/Math.max(zoom,.01)})`,transformOrigin:'left bottom'}} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}><button type="button" title="Duplicate selected area" className="px-2 text-lg font-bold text-sky-700" onClick={duplicateArea}>+</button><button type="button" title="Delete selected area" className="px-2 text-red-600" onClick={()=>{deleteSelectedObjects();setAreaBox(null);}}><SmallTrashIcon/></button></div>}</>;})()}
+                </>}
+                {!areaMode && !isPlayingAnimation && renderMultiSelectionControls()}
+                {!areaMode && !isPlayingAnimation && renderSelectedObjectDuplicateControl()}
+                {!areaMode && !isPlayingAnimation && renderSelectedObjectPitchControls()}
               </div>
             </div>
           </div>
