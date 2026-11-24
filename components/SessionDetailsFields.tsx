@@ -26,8 +26,8 @@ export function MultiSelect({label, options, values, onChange, disabled = false}
     };
   }, []);
   return <div className="min-w-0">
-    <div className="mb-1 text-sm font-semibold text-slate-700">{label} (optional)</div>
-    {disabled ? <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500">{label === "Principles" ? "Select a game phase to add principles (optional)" : "Select principles to add subprinciples (optional)"}</div> :
+    <div className="mb-1 text-sm font-semibold text-slate-700">{label}</div>
+    {disabled ? <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500">{label === "Principles" ? "Select a game phase to add principles" : "Select principles to add subprinciples"}</div> :
     <details ref={dropdownRef} className="relative rounded-lg border border-slate-300 bg-white">
       <summary className="cursor-pointer px-3 py-2 text-sm">{values.length ? `${values.length} selected` : `Select ${label.toLowerCase()}`}</summary>
       <div className="absolute left-0 right-0 z-50 mt-1 max-h-72 min-w-0 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-lg">
@@ -41,9 +41,9 @@ export function MultiSelect({label, options, values, onChange, disabled = false}
 export default function SessionDetailsFields({value,onChange,compact=false}: {value:SessionDetails; onChange:(value:SessionDetails)=>void; compact?:boolean}) {
   const id=useId();
   return <div className="grid gap-4">
-    <label className="grid gap-1 text-sm font-semibold text-slate-700" htmlFor={`${id}-objective`}>Objective (optional)<textarea id={`${id}-objective`} rows={3} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" value={value.objective} onChange={e=>onChange({...value,objective:e.target.value})} placeholder="Enter the session objective"/></label>
+    <label className="grid gap-1 text-sm font-semibold text-slate-700" htmlFor={`${id}-objective`}>Objective<textarea id={`${id}-objective`} rows={3} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" value={value.objective} onChange={e=>onChange({...value,objective:e.target.value})} placeholder="Enter the session objective"/></label>
     <div className={compact ? "grid gap-4" : "grid gap-4 md:grid-cols-3"}>
-      <label className="grid content-start gap-1 text-sm font-semibold text-slate-700">Game Phase (optional)<select className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={value.gamePhase} onChange={e=>onChange({...value,gamePhase:e.target.value,principles:[],subprinciples:[]})}><option value="">No game phase selected</option>{gamePhases.map(p=><option key={p}>{p}</option>)}</select></label>
+      <label className="grid content-start gap-1 text-sm font-semibold text-slate-700">Game Phase<select className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={value.gamePhase} onChange={e=>onChange({...value,gamePhase:e.target.value,principles:[],subprinciples:[]})}><option value="">No game phase selected</option>{gamePhases.map(p=><option key={p}>{p}</option>)}</select></label>
       <MultiSelect label="Principles" options={principleOptions(value.gamePhase)} values={value.principles} disabled={!value.gamePhase} onChange={principles=>onChange(normalizeSessionDetails({...value,principles}))}/>
       <MultiSelect label="Subprinciples" options={subprincipleOptions(value.gamePhase,value.principles)} values={value.subprinciples} disabled={!value.principles.length} onChange={subprinciples=>onChange({...value,subprinciples})}/>
     </div>
