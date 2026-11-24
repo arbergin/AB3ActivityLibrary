@@ -5,7 +5,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ActivityDetailsMarkdown from "@/components/ActivityDetailsMarkdown";
 import { CreatorStateActivityPreview } from "@/components/ActivityViewClient";
-import SessionDetailsFields, { SessionDetailsSummary } from "@/components/SessionDetailsFields";
+import SessionDetailsFields, { SessionDetailsSummary, SessionVisibilityIndicator } from "@/components/SessionDetailsFields";
 import { emptySessionDetails } from "@/lib/sessionTactics";
 import PlannerActivityPicker from "@/components/PlannerActivityPicker";
 import PlayerMentionTextarea from "@/components/PlayerMentionTextarea";
@@ -1206,12 +1206,12 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
     return <div className="grid gap-5">
       <section className="rounded-xl bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="text-sm font-semibold text-slate-500">{team.isActive?"SHARED SESSION":"ARCHIVED SESSION"}</div><h1 className="text-3xl font-bold">{team.name}</h1></div>
+          <div><div className="text-sm font-semibold text-slate-500">{team.isActive?"SHARED SESSION":"ARCHIVED SESSION"}</div><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h1 className="text-3xl font-bold break-words">{team.name}</h1><SessionVisibilityIndicator value={(team.sessionDetails??emptySessionDetails()).visibility}/></div></div>
           <div className="flex flex-wrap gap-2">{team.isActive&&<button type="button" disabled={isSaving} onClick={()=>void copyCurrentSession()} className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isSaving?"Copying…":"Copy Session"}</button>}<Link href="/sessions" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold">Back to Sessions</Link></div>
         </div>
-        <p className="my-4 text-sm text-slate-600">{team.isActive?"This session is shared with you and is read-only. Copy it to create an independent private session and private activity copies in your own library.":"This session is archived and read-only. Restore it from My Sessions to make changes."}</p>
+        <p className="my-2 text-sm text-slate-600">{team.isActive?"This session is shared with you and is read-only. Copy it to create an independent private session and private activity copies in your own library.":"This session is archived and read-only. Restore it from My Sessions to make changes."}</p>
         {message&&<p role="alert" className="mb-3 text-sm text-red-700">{message}</p>}
-        <SessionDetailsSummary value={team.sessionDetails??emptySessionDetails()}/>
+        <SessionDetailsSummary planner value={team.sessionDetails??emptySessionDetails()}/>
       </section>
       <section className="grid gap-3 rounded-xl bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold">Activities and Notes</h2>
@@ -1253,9 +1253,10 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
               <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 {standalone ? "SESSION" : "Team"}
               </div>
-              <h1 className="mt-1 text-3xl font-bold text-slate-900">
-                {team.name}
-              </h1>
+              <div className={standalone ? "mt-1 flex flex-wrap items-center gap-x-3 gap-y-1" : "mt-1"}>
+                <h1 className="text-3xl font-bold text-slate-900">{team.name}</h1>
+                {standalone && <SessionVisibilityIndicator value={(team.sessionDetails??emptySessionDetails()).visibility}/>}
+              </div>
             </div>
 
             <div className={standalone ? "flex flex-wrap gap-2" : "contents"}>
@@ -1269,7 +1270,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
             </div>
           </div>
 
-          {standalone && <div className="mt-4 rounded-lg border border-slate-200 p-4">
+          {standalone && <div className="mt-3 border-t border-slate-200 pt-3">
             {editingSessionDetails ? <form className="grid gap-3" onSubmit={async event => {
               event.preventDefault(); if(isSaving || !sessionName.trim()) return;
               setIsSaving(true);
@@ -1280,9 +1281,12 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
               <label className="grid gap-1 text-sm font-semibold">Session Name<input required maxLength={150} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" value={sessionName} onChange={e=>setSessionName(e.target.value)}/></label>
               <SessionDetailsFields value={sessionDetails} onChange={setSessionDetails}/>
               <div className="flex gap-2"><button type="submit" disabled={isSaving || !sessionName.trim()} className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Save Changes</button><button type="button" disabled={isSaving} onClick={()=>setEditingSessionDetails(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button></div>
-            </form> : <><div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-semibold">Session Details</h2><button type="button" disabled={isSaving} onClick={()=>{setSessionName(team.name);setSessionDetails(team.sessionDetails??emptySessionDetails());setEditingSessionDetails(true);}} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold">Edit Details</button></div><SessionDetailsSummary value={team.sessionDetails??emptySessionDetails()}/></>}
+            </form> : <div className="relative">
+              <div className="mb-2 flex justify-end sm:absolute sm:right-0 sm:top-0 sm:mb-0"><button type="button" disabled={isSaving} onClick={()=>{setSessionName(team.name);setSessionDetails(team.sessionDetails??emptySessionDetails());setEditingSessionDetails(true);}} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold">Edit Details</button></div>
+              <div className="sm:[&>dl>div:first-child]:min-h-9 sm:[&>dl>div:first-child]:pr-32"><SessionDetailsSummary planner value={team.sessionDetails??emptySessionDetails()}/></div>
+            </div>}
           </div>}
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className={standalone ? "mt-3 flex flex-wrap gap-3 border-t border-slate-200 pt-3" : "mt-5 flex flex-wrap gap-3"}>
             {!standalone && <>
             <button
               type="button"
@@ -1322,7 +1326,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
             </button>
           </div>
 
-          <p className="mt-3 text-sm text-slate-500">
+          <p className={standalone ? "mt-2 text-sm text-slate-500" : "mt-3 text-sm text-slate-500"}>
             {standalone ? "Add activities and notes to your session. Select an activity to attach a note to it." : "Select a week to create a practice. Select a practice to create an activity row."}
           </p>
 

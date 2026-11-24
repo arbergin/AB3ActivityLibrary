@@ -55,7 +55,21 @@ export default function SessionDetailsFields({value,onChange,compact=false}: {va
     </label>
   </div>;
 }
-export function SessionDetailsSummary({value}: {value:SessionDetails}) {
+export function SessionVisibilityIndicator({value}: {value:SessionVisibility}) {
+  return <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-slate-500">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      {value === "club" ? <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4"/></> : value === "everyone" ? <><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></> : <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>}
+    </svg>
+    {visibilityLabels[value]}
+  </span>;
+}
+export function SessionDetailsSummary({value,planner=false}: {value:SessionDetails; planner?:boolean}) {
+  if (planner) return <dl className="grid gap-x-5 gap-y-2 text-sm text-slate-700 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,2fr)]">
+    <div className="min-w-0 md:col-span-3"><dt className="font-semibold">Objective</dt><dd className="whitespace-pre-wrap break-words">{value.objective || 'Not specified'}</dd></div>
+    <div className="min-w-0"><dt className="font-semibold">Game Phase</dt><dd className="break-words">{value.gamePhase || 'Not specified'}</dd></div>
+    <div className="min-w-0"><dt className="font-semibold">Principles</dt><dd className="break-words">{value.principles.join(' • ') || 'Not specified'}</dd></div>
+    <div className="min-w-0"><dt className="font-semibold">Subprinciples</dt><dd className="break-words">{value.subprinciples.join(' • ') || 'Not specified'}</dd></div>
+  </dl>;
   return <dl className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
     <div className="sm:col-span-2"><dt className="font-semibold">Visibility</dt><dd>{visibilityLabels[value.visibility]}</dd></div>
     <div className="sm:col-span-2"><dt className="font-semibold">Objective</dt><dd className="whitespace-pre-wrap break-words">{value.objective || 'Not specified'}</dd></div>
