@@ -16,11 +16,11 @@ export function MultiSelect({label, options, values, onChange, disabled = false}
     {!!values.length && <div className="mt-2 flex flex-wrap gap-1">{values.map(v=><button type="button" key={v} onClick={()=>onChange(values.filter(x=>x!==v))} className="rounded bg-slate-100 px-2 py-1 text-left text-xs text-slate-700" aria-label={`Remove ${v}`}>{v} ×</button>)}</div>}
   </div>;
 }
-export default function SessionDetailsFields({value,onChange}: {value:SessionDetails; onChange:(value:SessionDetails)=>void}) {
+export default function SessionDetailsFields({value,onChange,compact=false}: {value:SessionDetails; onChange:(value:SessionDetails)=>void; compact?:boolean}) {
   const id=useId();
   return <div className="grid gap-4">
     <label className="grid gap-1 text-sm font-semibold text-slate-700" htmlFor={`${id}-objective`}>Objective<textarea id={`${id}-objective`} rows={3} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" value={value.objective} onChange={e=>onChange({...value,objective:e.target.value})} placeholder="Enter the session objective"/></label>
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className={compact ? "grid gap-4" : "grid gap-4 md:grid-cols-3"}>
       <label className="grid content-start gap-1 text-sm font-semibold text-slate-700">Game Phase<select className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={value.gamePhase} onChange={e=>onChange({...value,gamePhase:e.target.value,principles:[],subprinciples:[]})}><option value="">Select game phase</option>{gamePhases.map(p=><option key={p}>{p}</option>)}</select></label>
       <MultiSelect label="Principles" options={principleOptions(value.gamePhase)} values={value.principles} disabled={!value.gamePhase} onChange={principles=>onChange(normalizeSessionDetails({...value,principles}))}/>
       <MultiSelect label="Subprinciples" options={subprincipleOptions(value.gamePhase,value.principles)} values={value.subprinciples} disabled={!value.principles.length} onChange={subprinciples=>onChange({...value,subprinciples})}/>
