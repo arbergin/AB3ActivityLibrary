@@ -1,12 +1,34 @@
 "use client";
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { gamePhases, principleOptions, subprincipleOptions, normalizeSessionDetails, type SessionDetails } from "@/lib/sessionTactics";
 
 export function MultiSelect({label, options, values, onChange, disabled = false}: {label:string; options:string[]; values:string[]; onChange:(values:string[])=>void; disabled?:boolean}) {
+  const dropdownRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const dropdown = dropdownRef.current;
+      if (dropdown?.open && event.target instanceof Node && !dropdown.contains(event.target)) {
+        dropdown.open = false;
+      }
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      const dropdown = dropdownRef.current;
+      if (event.key === "Escape" && dropdown?.open) {
+        dropdown.open = false;
+        if (dropdown.contains(document.activeElement)) dropdown.querySelector("summary")?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
   return <div className="min-w-0">
     <div className="mb-1 text-sm font-semibold text-slate-700">{label}</div>
     {disabled ? <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500">Select the preceding field first</div> :
-    <details className="relative rounded-lg border border-slate-300 bg-white">
+    <details ref={dropdownRef} className="relative rounded-lg border border-slate-300 bg-white">
       <summary className="cursor-pointer px-3 py-2 text-sm">{values.length ? `${values.length} selected` : `Select ${label.toLowerCase()}`}</summary>
       <div className="absolute left-0 right-0 z-50 mt-1 max-h-72 min-w-0 overflow-auto rounded-lg border border-slate-300 bg-white p-2 shadow-lg">
         <button type="button" onClick={()=>onChange([])} className="mb-1 px-2 text-xs font-semibold text-blue-700">Clear selection</button>
