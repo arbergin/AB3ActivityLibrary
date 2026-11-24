@@ -5815,10 +5815,10 @@ export default function ActivityCreator({
       const active = selectedTool === "line" || selectedTool === "freehand" || selectedTool === "dribble";
       const labels:Record<ShapeStyle,string>={line:"Line",rectangle:"Rectangle",circle:"Circle",freehand:"Free Line",dribble:"Dribble Line"};
       return <div key="shape" data-draw-menu className="relative flex h-12 md:h-14">
-        <button type="button" title={labels[selectedShapeStyle]} aria-pressed={active} onClick={()=>chooseShape(selectedShapeStyle)} className={`flex w-11 flex-col items-center justify-center rounded-l-lg border border-slate-300 bg-white text-[10px] font-semibold text-slate-700 hover:bg-slate-50 ${active?'ring-1 ring-inset ring-slate-500':''}`}>
+        <button type="button" title={labels[selectedShapeStyle]} aria-pressed={active} onClick={()=>chooseShape(selectedShapeStyle)} className={`flex w-11 flex-col items-center justify-center rounded-l-lg border text-[10px] font-semibold ${active?'border-[#0d2140] bg-[#0d2140] text-white':'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
           <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5">{selectedShapeStyle==='rectangle'?<rect x="5" y="7" width="22" height="18"/>:selectedShapeStyle==='circle'?<circle cx="16" cy="16" r="11"/>:selectedShapeStyle==='freehand'?<path d="M4 24Q10 2 16 18T28 7"/>:selectedShapeStyle==='dribble'?<path d="M4 25L10 16L15 21L21 10L27 15"/>:<path d="M6 26L26 6"/>}</svg>Draw
         </button>
-        <button type="button" aria-label="Choose drawing tool" aria-expanded={showShapeMenu} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setDrawMenuPosition({left:Math.max(8,Math.min(r.left-44,window.innerWidth-180)),top:r.bottom+4+155>window.innerHeight?Math.max(8,r.top-180):r.bottom+4});setShowShapeMenu(v=>!v);}} className="w-5 rounded-r-lg border border-l-0 border-slate-300 bg-white text-xs">⌄</button>
+        <button type="button" aria-label="Choose drawing tool" aria-expanded={showShapeMenu} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setDrawMenuPosition({left:Math.max(8,Math.min(r.left-44,window.innerWidth-180)),top:r.bottom+4+155>window.innerHeight?Math.max(8,r.top-180):r.bottom+4});setShowShapeMenu(v=>!v);}} className={`w-5 rounded-r-lg border border-l-0 text-xs ${active?'border-[#0d2140] bg-[#0d2140] text-white':'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>⌄</button>
 
       </div>;
     }
