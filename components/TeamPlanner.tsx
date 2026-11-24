@@ -529,7 +529,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
 
     const placement = getNotePlacementForSelection();
 
-    if (!placement) {
+    if (!placement && !standalone) {
       setMessage(
         selectedRow?.type === "week"
           ? "Create a practice in this week before adding a note."
@@ -542,11 +542,14 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
     setMessage("");
 
     try {
+      const target = placement ?? {
+        practiceId: await ensureSessionPractice(),
+        afterActivityRowId: null,
+        noteScope: "practice" as const,
+        weekId: null,
+      };
       const note = await createPlanningNote(
-        placement.practiceId,
-        placement.afterActivityRowId,
-        placement.noteScope,
-        placement.weekId
+        target.practiceId, target.afterActivityRowId, target.noteScope, target.weekId
       );
 
       setNotes((current) => [...current, note]);
@@ -572,7 +575,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
         window.alert("Please enter a date for this week note before saving.");
         return;
       }
-    } else if (!practice?.practiceDate) {
+    } else if (!standalone && !practice?.practiceDate) {
       window.alert("Please enter the Practice Date before saving this note.");
       return;
     }
@@ -584,7 +587,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
         noteId, noteValue,
         currentNote.noteScope === "week" ? weekNoteDate : undefined
       );
-      await createMentionNoteCopies("practice", noteId, noteValue);
+      if (!standalone) await createMentionNoteCopies("practice", noteId, noteValue);
       setNotes((current) => current.map((note) => note.id === updated.id ? updated : note));
       setEditingNoteId(null);
       setNoteValue("");
@@ -663,14 +666,25 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
     }
   }
 
+  // Sessions reuse the existing relational storage without exposing weeks or practices.
+  async function ensureSessionPractice(): Promise<string> {
+    const existing = practices[0];
+    if (existing) return existing.id;
+    const week = weeks[0] ?? await createPlanningWeek(teamId, "Session");
+    if (!weeks.length) setWeeks(current => [...current, week]);
+    const practice = await createPlanningPractice(week.id, "Session");
+    setPractices(current => [...current, practice]);
+    return practice.id;
+  }
+
   async function handleCreateActivity() {
-    if (!selectedRow || selectedRow.type !== "practice" || isSaving) return;
+    if (isSaving || (!standalone && selectedRow?.type !== "practice")) return;
 
     setIsSaving(true);
     setMessage("");
 
     try {
-      const practiceId = selectedRow.id;
+      const practiceId = standalone ? await ensureSessionPractice() : selectedRow!.id;
       const row = await createPlanningActivitySlot(practiceId);
       setActivityRows((current) => [...current, row]);
 
@@ -725,7 +739,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
       setSelectedRow({ type: "activity", id: updatedRow.id });
       setSearchingRowId(null);
       setSearchingPracticeId(null);
-      setMessage(`"${activity.activityName}" added to the practice.`);
+      setMessage(`"${activity.activityName}" added to the ${standalone ? "session" : "practice"}.`);
     } catch (error) {
       console.error("Unable to add activity to practice.", error);
       setMessage("The activity could not be added to the practice.");
@@ -1145,7 +1159,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
   }
 
   const canCreatePractice = selectedRow?.type === "week";
-  const canCreateActivity = selectedRow?.type === "practice";
+  const canCreateActivity = standalone || selectedRow?.type === "practice";
 
   return (
     <DndContext
@@ -1175,6 +1189,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
+            {!standalone && <>
             <button
               type="button"
               onClick={handleCreateWeek}
@@ -1192,6 +1207,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
             >
               + Add Practice
             </button>
+            </>}
 
             <button
               type="button"
@@ -1205,7 +1221,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
             <button
               type="button"
               onClick={handleAddNote}
-              disabled={!selectedRow || isSaving}
+              disabled={(!standalone && !selectedRow) || isSaving}
               className="rounded-lg border border-[#0d2140] bg-white px-4 py-2 text-sm font-semibold text-[#0d2140] disabled:cursor-not-allowed disabled:opacity-40"
             >
               + Add Note
@@ -1213,8 +1229,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
           </div>
 
           <p className="mt-3 text-sm text-slate-500">
-            Select a week to create a practice. Select a practice to create an
-            activity row.
+            {standalone ? "Add activities and notes to your session. Select an activity to attach a note to it." : "Select a week to create a practice. Select a practice to create an activity row."}
           </p>
 
           {message && (
@@ -1225,9 +1240,9 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
         </section>
 
         <section className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
-          {weeks.length === 0 ? (
+          {(standalone ? activityRows.length === 0 && notes.length === 0 : weeks.length === 0) ? (
             <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-              No weeks yet. Click Create Week to start building the plan.
+              {standalone ? "No activities or notes yet. Click Add Activity or Add Note to start building your session." : "No weeks yet. Click Create Week to start building the plan."}
             </div>
           ) : (
             <div className="grid gap-3">
@@ -1236,6 +1251,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
 
                 return (
                   <div key={week.id} className="grid gap-2">
+                    {!standalone && (
                     <div
                       onClick={() =>
                         setSelectedRow({ type: "week", id: week.id })
@@ -1481,15 +1497,18 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                       )}
                     </div>
 
-                    {!collapsedWeekIds.has(week.id) && (
+                    )}
+
+                    {(standalone || !collapsedWeekIds.has(week.id)) && (
                       <>
-                        <div className="ml-5 grid gap-2 border-l-2 border-slate-200 pl-4 sm:ml-8 sm:pl-5">
+                        <div className={standalone ? "grid gap-2" : "ml-5 grid gap-2 border-l-2 border-slate-200 pl-4 sm:ml-8 sm:pl-5"}>
                       {weekPractices.map((practice, practiceIndex) => {
                         const practiceActivities =
                           activitiesByPractice.get(practice.id) ?? [];
 
                         return (
                           <Fragment key={practice.id}>
+                    {!standalone && (
                             <PlannerDropZone
                               id={`practice-drop:${week.id}:${practiceIndex}`}
                               data={{
@@ -1499,7 +1518,10 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                               }}
                               disabled={isSaving || activeDrag?.type === "activity"}
                             />
+
+                    )}
                             <div className="grid gap-2">
+                    {!standalone && (
                             <div
                               onClick={() =>
                                 setSelectedRow({
@@ -1790,9 +1812,11 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                               )}
                             </div>
 
-                            {!collapsedPracticeIds.has(practice.id) && (
+                    )}
+
+                            {(standalone || !collapsedPracticeIds.has(practice.id)) && (
                               <>
-                                <div className="ml-5 grid gap-2 border-l-2 border-dashed border-slate-200 pl-4 sm:ml-8 sm:pl-5">
+                                <div className={standalone ? "grid gap-2" : "ml-5 grid gap-2 border-l-2 border-dashed border-slate-200 pl-4 sm:ml-8 sm:pl-5"}>
                               {practiceActivities.map((row, activityIndex) => {
                                 const activity = row.activityId
                                   ? activitiesById.get(row.activityId)
@@ -1989,7 +2013,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                       >
                                         {editingNoteId === note.id ? (
                                           <div className="grid gap-2">
-                                            <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
+                                            <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder={standalone ? "Enter note" : "Enter note; type @ to mention a player"} rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
 
                                             <div className="flex justify-end gap-2">
                                               <button
@@ -2091,7 +2115,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                     >
                                       {editingNoteId === note.id ? (
                                         <div className="grid gap-2">
-                                          <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
+                                          <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder={standalone ? "Enter note" : "Enter note; type @ to mention a player"} rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
 
                                           <div className="flex justify-end gap-2">
                                             <button
@@ -2162,7 +2186,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                       Add Another Activity
                                     </div>
                                     <div className="mt-1 text-xs text-slate-500">
-                                      Search the library or create another new activity for this practice.
+                                      Search the library or create another new activity for this {standalone ? "session" : "practice"}.
                                     </div>
                                   </div>
 
@@ -2205,10 +2229,10 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                   {editingNoteId === note.id ? (
                                     <div className="grid gap-2">
                                       <div className="text-xs font-bold uppercase tracking-wide text-amber-700">
-                                        Practice Note
+                                        {standalone ? "Session Note" : "Practice Note"}
                                       </div>
 
-                                      <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
+                                      <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder={standalone ? "Enter note" : "Enter note; type @ to mention a player"} rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
 
                                       <div className="flex justify-end gap-2">
                                         <button
@@ -2236,7 +2260,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                       <div className="min-w-0 flex-1">
                                         <div className="text-xs font-bold uppercase tracking-wide text-amber-700">
-                                          Practice Note
+                                          {standalone ? "Session Note" : "Practice Note"}
                                         </div>
 
                                         <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
@@ -2274,6 +2298,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                           </Fragment>
                         );
                       })}
+                    {!standalone && (
                       <PlannerDropZone
                         id={`practice-drop:${week.id}:${weekPractices.length}`}
                         data={{
@@ -2283,6 +2308,8 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                         }}
                         disabled={isSaving || activeDrag?.type === "activity"}
                       />
+
+                    )}
                     </div>
 
                     {(notesByPractice.get(
@@ -2305,7 +2332,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                   onChange={(event) => setWeekNoteDate(event.target.value)}
                                   className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm" />
                               </label>
-                              <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder="Enter note; type @ to mention a player" rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
+                              <PlayerMentionTextarea autoFocus value={noteValue} onChange={setNoteValue} players={mentionPlayers} placeholder={standalone ? "Enter note" : "Enter note; type @ to mention a player"} rows={3} className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" />
                               <div className="flex justify-end gap-2">
                                 <button
                                   type="button"
