@@ -38,7 +38,7 @@ function DashboardActionIcon({ src, alt }: { src: string; alt: string }) {
     <img
       src={src}
       alt={alt}
-      className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
+      className="h-10 w-10 shrink-0 object-contain sm:h-11 sm:w-11"
     />
   );
 }
@@ -63,7 +63,7 @@ function DashboardPrimaryActions() {
     {
       href: "/sessions",
       title: "Create Sessions",
-      description: "Build standalone sessions with practices, notes, and activities from your library.",
+      description: "Build sessions with practices, notes, and activities from your library.",
       icon: "/team_planning.svg",
       iconAlt: "Create Sessions",
     },
@@ -91,21 +91,16 @@ function DashboardPrimaryActions() {
         <Link
           key={action.href}
           href={action.href}
-          className="flex min-h-44 items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md 2xl:p-5"
+          className="flex min-h-44 min-w-0 flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md 2xl:p-5"
         >
-          <div className="min-w-0 flex-1">
-            <div className="flex h-8 items-start">
-              <div className="text-lg font-bold leading-8 text-slate-900 2xl:text-xl">
-                {action.title}
-              </div>
-            </div>
+          <h2 className="text-lg font-bold leading-snug text-slate-900">
+            {action.title}
+          </h2>
 
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+          <div className="flex items-start gap-3">
+            <p className="min-w-0 flex-1 text-sm leading-6 text-slate-600">
               {action.description}
             </p>
-          </div>
-
-          <div className="pt-10">
             <DashboardActionIcon src={action.icon} alt={action.iconAlt} />
           </div>
         </Link>
