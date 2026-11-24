@@ -1,4 +1,6 @@
-import { normalizeSessionDetails, type SessionDetails } from "@/lib/sessionTactics";
+import { normalizeSessionDetails, type SessionDetails, type SessionVisibility } from "@/lib/sessionTactics";
+import { getPublicActivityFileUrl } from "@/lib/supabaseActivities";
+import { supabaseRowToActivity, type SupabaseActivityRow } from "@/types/supabaseActivity";
 import { supabase } from "@/lib/supabaseClient";
 
 export type PlanningTeam = {
@@ -7,6 +9,7 @@ export type PlanningTeam = {
   name: string;
   kind: "team" | "session";
   sessionDetails?: SessionDetails;
+  isOwner?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -61,6 +64,7 @@ type PlanningTeamRow = {
   name: string;
   kind: "team" | "session";
   session_details?: Partial<SessionDetails> | null;
+  session_visibility?: SessionVisibility;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -115,7 +119,7 @@ function rowToPlanningTeam(row: PlanningTeamRow): PlanningTeam {
     userId: row.user_id,
     name: row.name,
     kind: row.kind,
-    ...(row.kind === "session" ? { sessionDetails: normalizeSessionDetails(row.session_details ?? {}) } : {}),
+    ...(row.kind === "session" ? { sessionDetails: normalizeSessionDetails({ ...row.session_details, visibility: row.session_visibility ?? "private" }) } : {}),
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -854,16 +858,32 @@ export async function movePlanningNote(
 /** Standalone sessions use the existing planning hierarchy, without an associated team. */
 export async function getStandaloneSessions(includeArchived = false): Promise<PlanningTeam[]> {
   const userId = await getCurrentUserId();
-  let query = supabase
-    .from("planning_teams")
-    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
-    .eq("user_id", userId)
-    .eq("kind", "session")
-    .order("updated_at", { ascending: false });
-  if (!includeArchived) query = query.eq("is_active", true);
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc("ab3_list_sessions");
   if (error) throw error;
-  return ((data ?? []) as PlanningTeamRow[]).map(rowToPlanningTeam);
+  return ((data ?? []) as PlanningTeamRow[]).filter(row=>includeArchived||row.is_active).map(row=>({...rowToPlanningTeam(row),isOwner:row.user_id===userId}));
+}
+
+export async function getStandaloneSessionBundle(id: string) {
+  const userId = await getCurrentUserId();
+  const { data, error } = await supabase.rpc("ab3_session_bundle", { p_id:id });
+  if (error) throw error;
+  const bundle = data as {team:PlanningTeamRow;weeks:PlanningWeekRow[];practices:PlanningPracticeRow[];activityRows:PlanningPracticeActivityRow[];notes:PlanningNoteRow[];activities:SupabaseActivityRow[]};
+  return {
+    team:{...rowToPlanningTeam(bundle.team),isOwner:bundle.team.user_id===userId},
+    weeks:bundle.weeks.map(rowToPlanningWeek), practices:bundle.practices.map(rowToPlanningPractice),
+    activityRows:bundle.activityRows.map(rowToPlanningPracticeActivity), notes:bundle.notes.map(rowToPlanningNote),
+    activities:bundle.activities.map(row=>({...supabaseRowToActivity(row),previewDataUrl:getPublicActivityFileUrl(row.file_path??undefined)})),
+  };
+}
+
+export async function copyStandaloneSession(id:string):Promise<string> {
+  const {data:{session},error}=await supabase.auth.getSession();
+  if(error)throw error;
+  if(!session)throw new Error("Login required.");
+  const response=await fetch("/api/sessions/copy",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({sessionId:id})});
+  const result=await response.json();
+  if(!response.ok||!result.id)throw new Error(result.error??"Unable to copy session.");
+  return result.id;
 }
 
 export async function createStandaloneSession(name: string, details: SessionDetails): Promise<PlanningTeam> {
@@ -872,11 +892,11 @@ export async function createStandaloneSession(name: string, details: SessionDeta
   const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("planning_teams")
-    .insert({ user_id: userId, name: cleanName, kind: "session", is_active: true, session_details: normalizeSessionDetails(details) })
-    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
+    .insert({ user_id: userId, name: cleanName, kind: "session", is_active: true, session_details: normalizeSessionDetails(details), session_visibility: normalizeSessionDetails(details).visibility })
+    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details, session_visibility")
     .single();
   if (error) throw error;
-  return rowToPlanningTeam(data as PlanningTeamRow);
+  return {...rowToPlanningTeam(data as PlanningTeamRow),isOwner:true};
 }
 
 export async function updateStandaloneSession(id: string, name: string, details: SessionDetails): Promise<PlanningTeam> {
@@ -885,15 +905,15 @@ export async function updateStandaloneSession(id: string, name: string, details:
   const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from("planning_teams")
-    .update({ name: cleanName, session_details: normalizeSessionDetails(details) })
+    .update({ name: cleanName, session_details: normalizeSessionDetails(details), session_visibility: normalizeSessionDetails(details).visibility })
     .eq("id", id)
     .eq("user_id", userId)
     .eq("kind", "session")
     .eq("is_active", true)
-    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
+    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details, session_visibility")
     .single();
   if (error) throw error;
-  return rowToPlanningTeam(data as PlanningTeamRow);
+  return {...rowToPlanningTeam(data as PlanningTeamRow),isOwner:true};
 }
 
 /** Archive, preserving all weeks, practices, notes and linked library activities. */
@@ -910,12 +930,7 @@ export async function archiveStandaloneSession(id: string): Promise<void> {
 }
 
 export async function getStandaloneSessionById(id: string): Promise<PlanningTeam | null> {
-  const userId = await getCurrentUserId();
-  const { data, error } = await supabase.from("planning_teams")
-    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details")
-    .eq("id", id).eq("user_id", userId).eq("kind", "session").maybeSingle();
-  if (error) throw error;
-  return data ? rowToPlanningTeam(data as PlanningTeamRow) : null;
+  return (await getStandaloneSessionBundle(id)).team;
 }
 
 /** Only the owner can restore or permanently delete an archived session. */
@@ -924,10 +939,10 @@ export async function restoreStandaloneSession(id: string): Promise<PlanningTeam
   const { data, error } = await supabase.from("planning_teams")
     .update({ is_active: true })
     .eq("id", id).eq("user_id", userId).eq("kind", "session").eq("is_active", false)
-    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details").maybeSingle();
+    .select("id, user_id, name, kind, is_active, created_at, updated_at, session_details, session_visibility").maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("Archived session could not be restored.");
-  return rowToPlanningTeam(data as PlanningTeamRow);
+  return {...rowToPlanningTeam(data as PlanningTeamRow),isOwner:true};
 }
 
 export async function permanentlyDeleteStandaloneSession(id: string): Promise<void> {

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import ActivityDetailsMarkdown from "@/components/ActivityDetailsMarkdown";
+import { CreatorStateActivityPreview } from "@/components/ActivityViewClient";
 import SessionDetailsFields, { SessionDetailsSummary } from "@/components/SessionDetailsFields";
 import { emptySessionDetails } from "@/lib/sessionTactics";
 import PlannerActivityPicker from "@/components/PlannerActivityPicker";
@@ -38,7 +40,8 @@ import {
   getPlanningPracticeActivities,
   getPlanningPractices,
   getPlanningTeamById,
-  getStandaloneSessionById,
+  getStandaloneSessionBundle,
+  copyStandaloneSession,
   updateStandaloneSession,
   getPlanningWeeks,
   renamePlanningPractice,
@@ -237,7 +240,22 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
     setIsLoading(true);
 
     try {
-      const loadedTeam = await (standalone ? getStandaloneSessionById(teamId) : getPlanningTeamById(teamId));
+      if (standalone) {
+        const bundle = await getStandaloneSessionBundle(teamId);
+        const library = bundle.team.isOwner ? await getSupabaseActivities() : [];
+        // A shared session only receives its authorized linked activities, never the owner's library.
+        const merged = new Map([...library,...bundle.activities].map(activity=>[activity.id,activity]));
+        setTeam(bundle.team);
+        setWeeks(bundle.weeks);
+        setPractices(bundle.practices);
+        setActivityRows(bundle.activityRows);
+        setNotes(bundle.notes);
+        setLibraryActivities([...merged.values()]);
+        setMentionPlayers([]);
+        setMessage("");
+        return;
+      }
+      const loadedTeam = await getPlanningTeamById(teamId);
 
       if (!loadedTeam || loadedTeam.kind !== (standalone ? "session" : "team")) {
         setTeam(null);
@@ -278,7 +296,9 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
       setMessage("");
     } catch (error) {
       console.error("Unable to load team plan.", error);
-      setMessage("The team plan could not be loaded.");
+      setTeam(null);
+      setWeeks([]);setPractices([]);setActivityRows([]);setNotes([]);setLibraryActivities([]);
+      setMessage(standalone ? "The session could not be loaded. It may be private or no longer shared with you." : "The team plan could not be loaded.");
     } finally {
       setIsLoading(false);
     }
@@ -288,7 +308,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
     loadPlan();
   }, [loadPlan]);
 
-  const canAttachReturnedActivity = !standalone || team?.isActive === true;
+  const canAttachReturnedActivity = !standalone || (team?.isOwner === true && team?.isActive === true);
   useEffect(() => {
     if (!canAttachReturnedActivity) return;
     const returnedActivityId = searchParams.get("attachActivityId");
@@ -1167,8 +1187,16 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
     );
   }
 
-  // Archived sessions are view-only until restored from My Sessions.
-  if (standalone && !team.isActive) {
+  async function copyCurrentSession() {
+    if(isSaving) return;
+    setIsSaving(true);setMessage("");
+    try { const id=await copyStandaloneSession(teamId); router.push(`/sessions/${id}`); }
+    catch(error) {setMessage(error instanceof Error?error.message:"Unable to copy session.");}
+    finally {setIsSaving(false);}
+  }
+
+  // Archived and other coaches' sessions are read-only. Shared content stays in this view.
+  if (standalone && (!team.isActive || !team.isOwner)) {
     const renderNote = (note: PlanningNote) => (
       <div key={note.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
         <div className="font-semibold text-slate-700">Note{note.noteDate ? ` · ${note.noteDate}` : ""}</div>
@@ -1178,10 +1206,11 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
     return <div className="grid gap-5">
       <section className="rounded-xl bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="text-sm font-semibold text-slate-500">ARCHIVED SESSION</div><h1 className="text-3xl font-bold">{team.name}</h1></div>
-          <Link href="/sessions" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold">Back to Sessions</Link>
+          <div><div className="text-sm font-semibold text-slate-500">{team.isActive?"SHARED SESSION":"ARCHIVED SESSION"}</div><h1 className="text-3xl font-bold">{team.name}</h1></div>
+          <div className="flex flex-wrap gap-2">{team.isActive&&<button type="button" disabled={isSaving} onClick={()=>void copyCurrentSession()} className="rounded-lg bg-[#0d2140] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isSaving?"Copying…":"Copy Session"}</button>}<Link href="/sessions" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold">Back to Sessions</Link></div>
         </div>
-        <p className="my-4 text-sm text-slate-600">This session is archived and read-only. Restore it from My Sessions to make changes.</p>
+        <p className="my-4 text-sm text-slate-600">{team.isActive?"This session is shared with you and is read-only. Copy it to create an independent private session and private activity copies in your own library.":"This session is archived and read-only. Restore it from My Sessions to make changes."}</p>
+        {message&&<p role="alert" className="mb-3 text-sm text-red-700">{message}</p>}
         <SessionDetailsSummary value={team.sessionDetails??emptySessionDetails()}/>
       </section>
       <section className="grid gap-3 rounded-xl bg-white p-5 shadow-sm">
@@ -1195,8 +1224,9 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
               <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 p-3">
                 {activity?.previewDataUrl&&<div className="flex h-28 w-36 items-center justify-center overflow-hidden rounded bg-slate-50">{activity.fileType==="application/pdf"?<iframe title={`${activity.activityName} preview`} src={activity.previewDataUrl} className="h-full w-full"/>:<img src={activity.previewDataUrl} alt={`${activity.activityName} preview`} className="h-full w-full object-contain"/>}</div>}
                 <div className="min-w-0 flex-1 font-semibold">{activity?.activityName??(row.activityId?"Activity unavailable":"Empty activity slot")}</div>
-                {activity&&<Link href={`/activity/${activity.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Open Activity</Link>}
+                {activity&&team.isOwner&&<Link href={`/activity/${activity.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Open Activity</Link>}
               </div>
+              {activity&&!team.isOwner&&<details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-semibold text-[#0d2140]">View Activity</summary><div className="mt-3 grid gap-3 text-sm"><div className="flex flex-wrap gap-3 text-slate-600">{[activity.fieldLocation,activity.gamePhase,activity.category,activity.positionsInvolved,activity.numberOfPlayers!==""?`${activity.numberOfPlayers} players`:""].filter(Boolean).map((value,index)=><span key={index}>{value}</span>)}</div>{activity.creatorState?<CreatorStateActivityPreview activity={activity}/>:activity.previewDataUrl?(activity.fileType==="application/pdf"?<iframe title={activity.activityName} src={activity.previewDataUrl} className="h-[500px] w-full rounded-lg"/>:<img src={activity.previewDataUrl} alt={activity.activityName} className="max-h-[600px] w-full object-contain"/>):null}<ActivityDetailsMarkdown value={activity.activityDetails} fallback="No activity details."/></div></details>}
               {practiceNotes.filter(note=>note.afterActivityRowId===row.id).map(renderNote)}
             </div>;})}
             {practiceNotes.filter(note=>!rows.some(row=>row.id===note.afterActivityRowId)).map(renderNote)}
@@ -1228,12 +1258,15 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
               </h1>
             </div>
 
+            <div className={standalone ? "flex flex-wrap gap-2" : "contents"}>
+            {standalone&&<button type="button" disabled={isSaving} onClick={()=>void copyCurrentSession()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50">{isSaving?"Copying…":"Copy Session"}</button>}
             <Link
               href={standalone ? "/sessions" : "/team-planning"}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
               {standalone ? "Back to Sessions" : "Back to Teams"}
             </Link>
+            </div>
           </div>
 
           {standalone && <div className="mt-4 rounded-lg border border-slate-200 p-4">
@@ -1241,7 +1274,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
               event.preventDefault(); if(isSaving || !sessionName.trim()) return;
               setIsSaving(true);
               try { const updated = await updateStandaloneSession(teamId, sessionName, sessionDetails); setTeam(updated); setEditingSessionDetails(false); setMessage(""); }
-              catch(error) { setMessage(error instanceof Error ? error.message : "Unable to update session details."); }
+              catch(error) { setMessage(error instanceof Error ? error.message : typeof error==="object"&&error!==null&&"message" in error?String(error.message):"Unable to update session details."); }
               finally { setIsSaving(false); }
             }}>
               <label className="grid gap-1 text-sm font-semibold">Session Name<input required maxLength={150} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" value={sessionName} onChange={e=>setSessionName(e.target.value)}/></label>

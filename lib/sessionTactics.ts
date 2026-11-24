@@ -29,13 +29,16 @@ export const tactics: Record<string, Record<string, string[]>> = {
   },
 };
 export const gamePhases = Object.keys(tactics);
-export type SessionDetails = { objective: string; gamePhase: string; principles: string[]; subprinciples: string[] };
-export const emptySessionDetails = (): SessionDetails => ({ objective: '', gamePhase: '', principles: [], subprinciples: [] });
+export type SessionVisibility = 'private' | 'club' | 'everyone';
+export const visibilityLabels: Record<SessionVisibility, string> = { private: 'Private', club: 'My Club', everyone: 'Everyone' };
+export type SessionDetails = { visibility: SessionVisibility; objective: string; gamePhase: string; principles: string[]; subprinciples: string[] };
+export const emptySessionDetails = (): SessionDetails => ({ visibility: 'private', objective: '', gamePhase: '', principles: [], subprinciples: [] });
 export function principleOptions(phase: string) { return Object.keys(tactics[phase] ?? {}); }
 export function subprincipleOptions(phase: string, principles: string[]) { return [...new Set(principles.flatMap(p => tactics[phase]?.[p] ?? []))]; }
 export function normalizeSessionDetails(value: Partial<SessionDetails> = {}): SessionDetails {
   const gamePhase = gamePhases.includes(value.gamePhase ?? '') ? value.gamePhase! : '';
   const principles = principleOptions(gamePhase).filter(p => value.principles?.includes(p));
   const subprinciples = subprincipleOptions(gamePhase, principles).filter(s => value.subprinciples?.includes(s));
-  return { objective: value.objective ?? '', gamePhase, principles, subprinciples };
+  const visibility = value.visibility === 'club' || value.visibility === 'everyone' ? value.visibility : 'private';
+  return { visibility, objective: value.objective ?? '', gamePhase, principles, subprinciples };
 }

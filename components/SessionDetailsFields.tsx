@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useRef } from "react";
-import { gamePhases, principleOptions, subprincipleOptions, normalizeSessionDetails, type SessionDetails } from "@/lib/sessionTactics";
+import { gamePhases, principleOptions, subprincipleOptions, normalizeSessionDetails, visibilityLabels, type SessionVisibility, type SessionDetails } from "@/lib/sessionTactics";
 
 export function MultiSelect({label, options, values, onChange, disabled = false}: {label:string; options:string[]; values:string[]; onChange:(values:string[])=>void; disabled?:boolean}) {
   const dropdownRef = useRef<HTMLDetailsElement>(null);
@@ -47,10 +47,17 @@ export default function SessionDetailsFields({value,onChange,compact=false}: {va
       <MultiSelect label="Principles" options={principleOptions(value.gamePhase)} values={value.principles} disabled={!value.gamePhase} onChange={principles=>onChange(normalizeSessionDetails({...value,principles}))}/>
       <MultiSelect label="Subprinciples" options={subprincipleOptions(value.gamePhase,value.principles)} values={value.subprinciples} disabled={!value.principles.length} onChange={subprinciples=>onChange({...value,subprinciples})}/>
     </div>
+    <label className="grid gap-1 text-sm font-semibold text-slate-700">Visibility
+      <select className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={value.visibility} onChange={e=>onChange({...value,visibility:e.target.value as SessionVisibility})}>
+        {Object.entries(visibilityLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}
+      </select>
+      <span className="text-xs font-normal text-slate-500">{value.visibility==='private'?'Only you can view this session.':value.visibility==='club'?'Members of your club can view and copy this session, including your linked private activities and notes.':'All signed-in users can view and copy this session, including your linked private activities and notes.'}</span>
+    </label>
   </div>;
 }
 export function SessionDetailsSummary({value}: {value:SessionDetails}) {
   return <dl className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+    <div className="sm:col-span-2"><dt className="font-semibold">Visibility</dt><dd>{visibilityLabels[value.visibility]}</dd></div>
     <div className="sm:col-span-2"><dt className="font-semibold">Objective</dt><dd className="whitespace-pre-wrap break-words">{value.objective || 'Not specified'}</dd></div>
     <div><dt className="font-semibold">Game Phase</dt><dd>{value.gamePhase || 'Not specified'}</dd></div>
     <div><dt className="font-semibold">Principles</dt><dd>{value.principles.join(' • ') || 'Not specified'}</dd></div>

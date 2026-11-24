@@ -581,7 +581,7 @@ function renderPreviewLine(line: PreviewLine) {
   );
 }
 
-function CreatorStateActivityPreview({ activity }: { activity: Activity }) {
+export function CreatorStateActivityPreview({ activity }: { activity: Activity }) {
   const frames = useMemo(
     () => getActivityCreatorFrames(activity.creatorState),
     [activity.creatorState]
