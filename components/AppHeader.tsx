@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type ProfileRow = {
@@ -80,6 +81,12 @@ export default function AppHeader() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     let isMounted = true;
@@ -215,125 +222,117 @@ export default function AppHeader() {
 
   const isAdmin = userRole === "admin";
 
+  const navLinks = [
+    { href: "/", label: "Home" },
+    { href: "/create", label: "Create" },
+    { href: "/search", label: "Search" },
+    { href: "/sessions", label: "Sessions" },
+    { href: "/team-planning", label: "Teams" },
+  ];
+
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0d2140] text-white shadow-sm">
-      <div className="mx-auto flex min-h-[72px] w-full max-w-7xl items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="flex min-w-0 flex-shrink items-center gap-2 sm:gap-3"
-        >
+    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-[#0d2140] text-white shadow-sm">
+      <div className="mx-auto flex min-h-[72px] w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        <Link href="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Image
             src="/ab3-activity-library-logo.png"
             alt="AB3 Soccer Activity Library"
             width={44}
             height={44}
             priority
-            className="h-11 w-11 flex-shrink-0 rounded-md object-contain"
+            className="h-11 w-11 shrink-0 rounded-md object-contain"
           />
-
-          <span className="hidden truncate text-lg font-bold tracking-tight sm:block sm:text-xl">
+          <span className="hidden truncate text-lg font-bold tracking-tight xl:block">
             AB3 Soccer Activity Library
           </span>
         </Link>
 
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:flex-initial sm:gap-3">
-          <nav className="flex min-w-0 items-center gap-0 sm:gap-2">
-            <Link
-              href="/"
-              aria-label="Home"
-              title="Home"
-              className="rounded-md px-2 py-2 text-white/90 transition hover:bg-white/10 hover:text-white"
-            >
-              <HomeIcon />
-            </Link>
-
-            <Link
-              href="/create"
-              className="rounded-md px-1.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3 sm:text-sm"
-            >
-              Create
-            </Link>
-
-            <Link
-              href="/search"
-              className="rounded-md px-1.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3 sm:text-sm"
-            >
-              Search
-            </Link>
-
-            <Link
-              href="/sessions"
-              className="rounded-md px-1.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3 sm:text-sm"
-            >
-              Sessions
-            </Link>
-
-            <Link
-              href="/team-planning"
-              className="rounded-md px-1.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white sm:px-3 sm:text-sm"
-            >
-              Teams
-            </Link>
+        {/* Desktop navigation: never shrink links into each other. */}
+        <div className="hidden min-w-0 items-center gap-2 lg:flex xl:gap-3">
+          <nav aria-label="Main navigation" className="flex shrink-0 items-center gap-1 xl:gap-2">
+            {navLinks.map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                aria-current={pathname === href ? "page" : undefined}
+                className="whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white xl:px-3"
+              >
+                {href === "/" ? <HomeIcon /> : label}
+              </Link>
+            ))}
           </nav>
-
-          <div className="ml-1 flex min-w-0 flex-shrink-0 items-center justify-end gap-1 border-l border-white/20 pl-2 sm:ml-2 sm:min-w-[220px] sm:gap-3 sm:pl-4">
+          <div className="flex shrink-0 items-center gap-2 border-l border-white/20 pl-3">
             {isLoggedIn ? (
               <>
                 <Link
                   href="/account"
-                  title="My Account"
+                  title={displayName || "My Account"}
                   aria-label="My Account"
-                  className="flex min-w-0 items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+                  className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
                 >
-                  <span className="sm:hidden">
-                    <AccountIcon />
-                  </span>
-                  <span className="hidden max-w-[140px] truncate sm:inline">
-                    {displayName || "My Account"}
-                  </span>
+                  <AccountIcon />
+                  <span className="hidden max-w-28 truncate 2xl:inline">{displayName || "My Account"}</span>
                 </Link>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="whitespace-nowrap rounded-md bg-white px-2.5 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100 sm:px-3"
-                >
+                <button type="button" onClick={handleLogout} className="whitespace-nowrap rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] hover:bg-slate-100">
                   Logout
                 </button>
-
-                {isAdmin ? (
-                  <Link
-                    href="/settings"
-                    aria-label="Settings"
-                    title="Settings"
-                    className="rounded-md px-2 py-2 text-white/90 transition hover:bg-white/10 hover:text-white"
-                  >
+                {isAdmin && (
+                  <Link href="/settings" aria-label="Settings" title="Settings" className="rounded-md p-2 text-white/90 hover:bg-white/10">
                     <SettingsIcon />
                   </Link>
-                ) : (
-                  <span className="hidden h-9 w-9 sm:block" aria-hidden="true" />
                 )}
               </>
             ) : (
-              <>
-                <span
-                  className="hidden max-w-[140px] truncate text-sm font-semibold text-white/90 sm:inline"
-                  aria-hidden="true"
-                />
-
-                <Link
-                  href="/login#login-form"
-                  className="whitespace-nowrap rounded-md bg-white px-2.5 py-2 text-sm font-semibold text-[#0d2140] transition hover:bg-slate-100 sm:px-3"
-                >
-                  Login
-                </Link>
-
-                <span className="hidden h-9 w-9 sm:block" aria-hidden="true" />
-              </>
+              <Link href="/login#login-form" className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-[#0d2140] hover:bg-slate-100">
+                Login
+              </Link>
             )}
           </div>
         </div>
+
+        {/* On phones and tablets use an accessible, full-width menu rather than a crowded row. */}
+        <button
+          type="button"
+          aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="ab3-mobile-navigation"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/25 text-white hover:bg-white/10 lg:hidden"
+        >
+          {mobileMenuOpen ? (
+            <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg>
+          ) : (
+            <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          )}
+        </button>
       </div>
+
+      {mobileMenuOpen && (
+        <nav id="ab3-mobile-navigation" aria-label="Mobile navigation" className="border-t border-white/15 px-4 pb-4 pt-2 lg:hidden">
+          <div className="mx-auto grid max-w-7xl grid-cols-2 gap-2">
+            {navLinks.map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                aria-current={pathname === href ? "page" : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`rounded-lg px-4 py-3 text-sm font-semibold ${pathname === href ? "bg-white/20 text-white" : "bg-white/5 text-white/90 hover:bg-white/10"}`}
+              >
+                {label}
+              </Link>
+            ))}
+            {isLoggedIn ? (
+              <>
+                <Link href="/account" onClick={() => setMobileMenuOpen(false)} className="rounded-lg bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">My Account</Link>
+                {isAdmin && <Link href="/settings" onClick={() => setMobileMenuOpen(false)} className="rounded-lg bg-white/5 px-4 py-3 text-sm font-semibold hover:bg-white/10">Settings</Link>}
+                <button type="button" onClick={handleLogout} className="rounded-lg bg-white px-4 py-3 text-left text-sm font-semibold text-[#0d2140]">Logout</button>
+              </>
+            ) : (
+              <Link href="/login#login-form" onClick={() => setMobileMenuOpen(false)} className="rounded-lg bg-white px-4 py-3 text-sm font-semibold text-[#0d2140]">Login</Link>
+            )}
+          </div>
+        </nav>
+      )}
     </header>
   );
 }

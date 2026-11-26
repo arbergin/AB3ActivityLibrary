@@ -125,7 +125,7 @@ function ActivityList({
   currentProfile: UserProfile | null;
 }) {
   return (
-    <section className="rounded-xl bg-white p-6 shadow-sm">
+    <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6">
       <div className="flex items-center justify-between gap-4">
         {titleHref ? (
           <Link
@@ -165,10 +165,10 @@ function ActivityList({
             return (
               <div
                 key={activity.id}
-                className="flex items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 first:border-t-0 hover:bg-slate-50"
+                className="flex min-w-0 flex-col items-stretch gap-3 border-t border-slate-200 px-3 py-4 first:border-t-0 hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-slate-800">
+                  <div className="break-words font-semibold text-slate-800">
                     {activity.activityName}
                   </div>
 
@@ -183,7 +183,7 @@ function ActivityList({
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                   <Link
                     href={`/activity/${activity.id}`}
                     className="rounded-md bg-[#0d2140] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#17345f]"
@@ -253,16 +253,16 @@ export default function HomePage() {
 
   return (
     <ProtectedPage>
-      <main className="relative min-h-screen overflow-hidden bg-slate-100 text-slate-900">
+      <main className="relative min-h-screen min-w-0 overflow-x-clip bg-slate-100 text-slate-900">
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-[url('/dashboard_background.png')] bg-cover bg-center bg-no-repeat opacity-65"
         />
 
-        <div className="relative z-10">
+        <div className="relative z-10 min-w-0">
           <AppHeader />
 
-          <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+          <section className="mx-auto w-full min-w-0 max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
             <div className="mb-8 w-full rounded-xl bg-[#0d2140] px-5 py-4 shadow-lg backdrop-blur-sm">
               <h2 className="text-3xl font-bold text-white">Dashboard</h2>
               <p className="mt-2 text-slate-200 lg:whitespace-nowrap">
