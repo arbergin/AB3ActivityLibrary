@@ -475,14 +475,14 @@ function ToolIcon({
         aria-hidden="true"
       >
         <path
-          d="M2 16C4.5 8 7.5 8 10 16C12.5 24 15.5 24 18 16C20.5 8 23.5 8 26 16C27.5 21 28.5 21 29.5 18"
+          d="M8 28L18 20L10 14L20 8L16 3"
           stroke={lineColor}
           strokeWidth="3.2"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
         <path
-          d="M25.5 16.5L29.5 18L27.8 22"
+          d="M12 7L16 3L20 7"
           stroke={lineColor}
           strokeWidth="2.4"
           strokeLinecap="round"
@@ -5816,7 +5816,7 @@ export default function ActivityCreator({
       const labels:Record<ShapeStyle,string>={line:"Line",rectangle:"Rectangle",circle:"Circle",freehand:"Free Line",dribble:"Dribble Line"};
       return <div key="shape" data-draw-menu className="relative flex h-12 md:h-14">
         <button type="button" title={labels[selectedShapeStyle]} aria-pressed={active} onClick={()=>chooseShape(selectedShapeStyle)} className={`flex w-11 flex-col items-center justify-center rounded-l-lg border text-[10px] font-semibold ${active?'border-[#0d2140] bg-[#0d2140] text-white':'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
-          <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5">{selectedShapeStyle==='rectangle'?<rect x="5" y="7" width="22" height="18"/>:selectedShapeStyle==='circle'?<circle cx="16" cy="16" r="11"/>:selectedShapeStyle==='freehand'?<path d="M4 24Q10 2 16 18T28 7"/>:selectedShapeStyle==='dribble'?<path d="M4 25L10 16L15 21L21 10L27 15"/>:<path d="M6 26L26 6"/>}</svg>Draw
+          <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5">{selectedShapeStyle==='rectangle'?<rect x="5" y="7" width="22" height="18"/>:selectedShapeStyle==='circle'?<circle cx="16" cy="16" r="11"/>:selectedShapeStyle==='freehand'?<path d="M4 24Q10 2 16 18T28 7"/>:selectedShapeStyle==='dribble'?<path d="M6 26L14 19L9 13L18 7L26 12"/>:<path d="M6 26L26 6"/>}</svg>Draw
         </button>
         <button type="button" aria-label="Choose drawing tool" aria-expanded={showShapeMenu} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setDrawMenuPosition({left:Math.max(8,Math.min(r.left-44,window.innerWidth-180)),top:r.bottom+4+155>window.innerHeight?Math.max(8,r.top-180):r.bottom+4});setShowShapeMenu(v=>!v);}} className={`w-5 rounded-r-lg border border-l-0 text-xs ${active?'border-[#0d2140] bg-[#0d2140] text-white':'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>⌄</button>
 
@@ -6097,11 +6097,11 @@ export default function ActivityCreator({
   function getDribblePolylinePoints(points: { x: number; y: number }[]) {
     if (points.length < 2) return points;
 
-    const wavelength = 4.2;
-    const amplitude = 1.15;
-    const sampleStep = 0.45;
-    const output: { x: number; y: number }[] = [];
-    let travelled = 0;
+    const zigSpacing = 3.1;
+    const amplitude = 1.8;
+    const output: { x: number; y: number }[] = [{ ...points[0] }];
+    let remainingToNext = zigSpacing * 0.75;
+    let direction = -1;
 
     for (let index = 0; index < points.length - 1; index += 1) {
       const start = points[index];
@@ -6111,23 +6111,36 @@ export default function ActivityCreator({
       const length = Math.hypot(dx, dy);
       if (length < 0.001) continue;
 
-      const normalX = -dy / length;
-      const normalY = dx / length;
-      const steps = Math.max(1, Math.ceil(length / sampleStep));
+      const unitX = dx / length;
+      const unitY = dy / length;
+      const normalX = -unitY;
+      const normalY = unitX;
+      let consumed = 0;
 
-      for (let step = 0; step <= steps; step += 1) {
-        if (index > 0 && step === 0) continue;
-        const t = step / steps;
-        const distance = travelled + length * t;
-        const offset =
-          Math.sin((distance / wavelength) * Math.PI * 2) * amplitude;
+      while (consumed + remainingToNext < length) {
+        consumed += remainingToNext;
+        const baseX = start.x + unitX * consumed;
+        const baseY = start.y + unitY * consumed;
+
         output.push({
-          x: start.x + dx * t + normalX * offset,
-          y: start.y + dy * t + normalY * offset,
+          x: baseX + normalX * amplitude * direction,
+          y: baseY + normalY * amplitude * direction,
         });
+
+        direction *= -1;
+        remainingToNext = zigSpacing;
       }
 
-      travelled += length;
+      remainingToNext -= length - consumed;
+      if (remainingToNext <= 0.0001) {
+        remainingToNext = zigSpacing;
+      }
+    }
+
+    const endPoint = points[points.length - 1];
+    const lastPoint = output[output.length - 1];
+    if (!lastPoint || lastPoint.x !== endPoint.x || lastPoint.y !== endPoint.y) {
+      output.push({ ...endPoint });
     }
 
     return output;

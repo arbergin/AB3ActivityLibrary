@@ -561,8 +561,11 @@ function drawPitch(context: CanvasRenderingContext2D, pitch: Pitch) {
 function dribblePoints(points: { x: number; y: number }[]) {
   if (points.length < 2) return points;
 
-  const output: { x: number; y: number }[] = [];
-  let travelled = 0;
+  const zigSpacing = 3.1;
+  const amplitude = 1.8;
+  const output: { x: number; y: number }[] = [{ ...points[0] }];
+  let remainingToNext = zigSpacing * 0.75;
+  let direction = -1;
 
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index];
@@ -572,22 +575,36 @@ function dribblePoints(points: { x: number; y: number }[]) {
     const length = Math.hypot(dx, dy);
     if (length < 0.001) continue;
 
-    const normalX = -dy / length;
-    const normalY = dx / length;
-    const steps = Math.max(1, Math.ceil(length / 0.45));
+    const unitX = dx / length;
+    const unitY = dy / length;
+    const normalX = -unitY;
+    const normalY = unitX;
+    let consumed = 0;
 
-    for (let step = 0; step <= steps; step += 1) {
-      if (index > 0 && step === 0) continue;
-      const t = step / steps;
-      const distance = travelled + length * t;
-      const offset = Math.sin((distance / 4.2) * Math.PI * 2) * 1.15;
+    while (consumed + remainingToNext < length) {
+      consumed += remainingToNext;
+      const baseX = start.x + unitX * consumed;
+      const baseY = start.y + unitY * consumed;
+
       output.push({
-        x: start.x + dx * t + normalX * offset,
-        y: start.y + dy * t + normalY * offset,
+        x: baseX + normalX * amplitude * direction,
+        y: baseY + normalY * amplitude * direction,
       });
+
+      direction *= -1;
+      remainingToNext = zigSpacing;
     }
 
-    travelled += length;
+    remainingToNext -= length - consumed;
+    if (remainingToNext <= 0.0001) {
+      remainingToNext = zigSpacing;
+    }
+  }
+
+  const endPoint = points[points.length - 1];
+  const lastPoint = output[output.length - 1];
+  if (!lastPoint || lastPoint.x !== endPoint.x || lastPoint.y !== endPoint.y) {
+    output.push({ ...endPoint });
   }
 
   return output;
