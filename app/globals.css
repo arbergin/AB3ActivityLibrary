@@ -26,13 +26,47 @@ body {
 }
 
 
-/* Responsive page containment: avoid intrinsic-width expansion on narrow screens. */
+/* Keep the document's layout width tied to the viewport, including iOS Safari.
+   Use a definite width on page roots rather than hiding oversized page content. */
+html, body {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+body > main, body > #__next, main {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
 @media (max-width: 1023px) {
-  html { max-width: 100%; overflow-x: clip; }
-  body { width: 100%; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+  html, body {
+    max-width: 100vw;
+    max-width: 100dvw;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body { overflow-wrap: anywhere; }
   main, main > div, main section, main article, main aside, main form { min-width: 0; max-width: 100%; }
   main .grid > *, main .flex > * { min-width: 0; }
   main input:not([type="checkbox"]):not([type="radio"]), main select, main textarea, main iframe, main video { min-width: 0; max-width: 100%; }
   main button, main a { max-width: 100%; }
   main pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ab3-app-header, .ab3-header-inner, .ab3-dashboard, .ab3-dashboard-content, .ab3-dashboard-actions, .ab3-dashboard-lists {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .ab3-header-inner { display: flex; justify-content: space-between; }
+  .ab3-header-desktop { display: none; }
+  .ab3-header-toggle { display: inline-flex; flex: 0 0 44px; margin-left: auto; }
+}
+@media (max-width: 767px) {
+  .ab3-dashboard-actions, .ab3-dashboard-lists { grid-template-columns: minmax(0, 1fr); }
+  .ab3-dashboard-actions > *, .ab3-dashboard-lists > * { width: 100%; min-width: 0; max-width: 100%; }
+  .ab3-dashboard-content { padding-inline: 16px; }
 }

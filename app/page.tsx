@@ -86,7 +86,7 @@ function DashboardPrimaryActions() {
   ];
 
   return (
-    <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+    <section className="ab3-dashboard-actions grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
       {actions.map((action) => (
         <Link
           key={action.href}
@@ -262,16 +262,16 @@ export default function HomePage() {
 
   return (
     <ProtectedPage>
-      <main className="relative min-h-screen min-w-0 overflow-x-clip bg-slate-100 text-slate-900">
+      <main className="ab3-dashboard relative w-full max-w-full min-h-screen min-w-0 bg-slate-100 text-slate-900">
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-[url('/dashboard_background.png')] bg-cover bg-center bg-no-repeat opacity-65"
         />
 
-        <div className="relative z-10 min-w-0">
+        <div className="relative z-10 w-full max-w-full min-w-0">
           <AppHeader />
 
-          <section className="mx-auto w-full min-w-0 max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+          <section className="ab3-dashboard-content mx-auto w-full min-w-0 max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
             <div className="mb-8 w-full rounded-xl bg-[#0d2140] px-5 py-4 shadow-lg backdrop-blur-sm">
               <h2 className="text-3xl font-bold text-white">Dashboard</h2>
               <p className="mt-2 text-slate-200 ">
@@ -282,7 +282,7 @@ export default function HomePage() {
 
             <DashboardPrimaryActions />
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <div className="ab3-dashboard-lists mt-6 grid w-full min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
               <ActivityList
                 title="My Activities"
                 titleHref="/my-activities"

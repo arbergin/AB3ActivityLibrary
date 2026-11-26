@@ -231,8 +231,8 @@ export default function AppHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-[#0d2140] text-white shadow-sm">
-      <div className="mx-auto flex min-h-[72px] w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+    <header className="ab3-app-header sticky top-0 z-50 w-full min-w-0 max-w-full border-b border-white/10 bg-[#0d2140] text-white shadow-sm">
+      <div className="ab3-header-inner mx-auto flex min-h-[72px] w-full min-w-0 max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <Link href="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Image
             src="/ab3-activity-library-logo.png"
@@ -248,7 +248,7 @@ export default function AppHeader() {
         </Link>
 
         {/* Desktop navigation: never shrink links into each other. */}
-        <div className="hidden min-w-0 items-center gap-2 lg:flex xl:gap-3">
+        <div className="ab3-header-desktop hidden min-w-0 items-center gap-2 lg:flex xl:gap-3">
           <nav aria-label="Main navigation" className="flex shrink-0 items-center gap-1 xl:gap-2">
             {navLinks.map(({ href, label }) => (
               <Link
@@ -297,7 +297,7 @@ export default function AppHeader() {
           aria-expanded={mobileMenuOpen}
           aria-controls="ab3-mobile-navigation"
           onClick={() => setMobileMenuOpen((open) => !open)}
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/25 text-white hover:bg-white/10 lg:hidden"
+          className="ab3-header-toggle inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/25 text-white hover:bg-white/10 lg:hidden"
         >
           {mobileMenuOpen ? (
             <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 5l14 14M19 5L5 19" /></svg>
