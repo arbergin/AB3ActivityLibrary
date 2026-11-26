@@ -24,3 +24,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+/* Responsive page containment: avoid intrinsic-width expansion on narrow screens. */
+@media (max-width: 1023px) {
+  html { max-width: 100%; overflow-x: clip; }
+  body { width: 100%; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+  main, main > div, main section, main article, main aside, main form { min-width: 0; max-width: 100%; }
+  main .grid > *, main .flex > * { min-width: 0; }
+  main input:not([type="checkbox"]):not([type="radio"]), main select, main textarea, main iframe, main video { min-width: 0; max-width: 100%; }
+  main button, main a { max-width: 100%; }
+  main pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+}

@@ -842,7 +842,7 @@ export default function SearchResultsPanel({
   );
 
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -865,7 +865,10 @@ export default function SearchResultsPanel({
         )}
 
         <div className="mt-6 min-w-0 overflow-hidden rounded-lg border border-slate-200">
-          <div className="hidden grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 lg:grid">
+          <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.85fr)] gap-2 bg-slate-100 px-2 py-3 text-xs font-semibold text-slate-700 2xl:hidden">
+            <div>Activity</div><div>Category / Phase</div><div>Created</div>
+          </div>
+          <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,.85fr)_minmax(0,.9fr)_minmax(0,.9fr)_minmax(0,.85fr)_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 2xl:grid 2xl:gap-2">
             <div>Activity</div>
             <div>Location</div>
             <div>Phase</div>
@@ -899,7 +902,7 @@ export default function SearchResultsPanel({
                   }}
                   tabIndex={-1}
                   onClick={() => handleSelectActivity(activity)}
-                  className={`cursor-pointer border-t border-slate-200 px-4 py-4 text-sm lg:grid lg:grid-cols-[1.4fr_0.85fr_0.9fr_0.9fr_0.85fr_auto] lg:items-center ${
+                  className={`cursor-pointer border-t border-slate-200 grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.85fr)] items-start gap-2 px-2 py-3 text-xs [overflow-wrap:anywhere] 2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,.85fr)_minmax(0,.9fr)_minmax(0,.9fr)_minmax(0,.85fr)_auto] 2xl:items-center 2xl:px-4 2xl:py-4 2xl:text-sm ${
                     isSelected ? "bg-slate-100" : "bg-white hover:bg-slate-50"
                   }`}
                 >
@@ -928,50 +931,22 @@ export default function SearchResultsPanel({
                     )}
                   </div>
 
-                  <div className="mt-3 grid gap-2 text-slate-600 sm:grid-cols-2 lg:mt-0 lg:block">
-                    <div>
-                      <span className="font-semibold text-slate-700 lg:hidden">
-                        Location:{" "}
-                      </span>
-                      {activity.fieldLocation || "—"}
-                    </div>
-
-                    <div className="lg:hidden">
-                      <span className="font-semibold text-slate-700">
-                        Phase:{" "}
-                      </span>
-                      {activity.gamePhase || "—"}
-                    </div>
+                  <div className="min-w-0 text-slate-600 2xl:hidden">
+                    <div>{activity.category || "—"}</div>
+                    <div className="mt-2 border-t border-slate-200 pt-2">{activity.gamePhase || "—"}</div>
+                    <div className="mt-2 text-xs text-slate-500">Location: {activity.fieldLocation || "—"}</div>
                   </div>
-
-                  <div className="hidden text-slate-600 lg:block">
-                    {activity.gamePhase || "—"}
-                  </div>
-
-                  <div className="mt-2 text-slate-600 lg:mt-0">
-                    <span className="font-semibold text-slate-700 lg:hidden">
-                      Category:{" "}
-                    </span>
-                    {activity.category || "—"}
-                  </div>
-
-                  <div className="mt-2 text-slate-600 lg:mt-0">
-                    <span className="font-semibold text-slate-700 lg:hidden">
-                      Created:{" "}
-                    </span>
+                  <div className="hidden min-w-0 text-slate-600 2xl:block">{activity.fieldLocation || "—"}</div>
+                  <div className="hidden min-w-0 text-slate-600 2xl:block">{activity.gamePhase || "—"}</div>
+                  <div className="hidden min-w-0 text-slate-600 2xl:block">{activity.category || "—"}</div>
+                  <div className="min-w-0 text-slate-600">
                     {formatDate(activity.createdAt)}
+                    <div className="mt-2 2xl:hidden">
+                      <Link href={`/activity/${activity.id}`} onClick={(event) => event.stopPropagation()} className="inline-flex rounded-md bg-slate-900 px-2 py-1.5 text-xs font-semibold text-white">Open</Link>
+                    </div>
                   </div>
-
-                  <div className="mt-4 flex gap-3 lg:mt-0">
-                    <Link
-                      href={`/activity/${activity.id}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                      }}
-                      className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
-                    >
-                      Open
-                    </Link>
+                  <div className="hidden 2xl:flex">
+                    <Link href={`/activity/${activity.id}`} onClick={(event) => event.stopPropagation()} className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">Open</Link>
                   </div>
                 </div>
               );
@@ -980,7 +955,7 @@ export default function SearchResultsPanel({
         </div>
       </section>
 
-      <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto">
+      <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:self-start xl:overflow-y-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-bold text-slate-900">Activity Detail</h2>
 

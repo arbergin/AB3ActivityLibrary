@@ -1357,7 +1357,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                       onDoubleClick={() =>
                         beginEdit({ type: "week", id: week.id }, week.name)
                       }
-                      className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-4 py-3 transition ${
+                      className={`flex flex-wrap cursor-pointer items-center justify-between gap-3 rounded-lg border px-4 py-3 transition ${
                         rowIsSelected("week", week.id)
                           ? "border-[#0d2140] bg-[#e8eef7]"
                           : "border-slate-200 bg-slate-100 hover:bg-slate-50"
@@ -1436,7 +1436,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
 
                             {editingObjectiveWeekId === week.id ? (
                               <div
-                                className="flex min-w-[280px] flex-1 items-center gap-2"
+                                className="flex min-w-0 sm:min-w-[280px] flex-1 items-center gap-2"
                                 onClick={(event) => event.stopPropagation()}
                                 onDoubleClick={(event) => event.stopPropagation()}
                               >
@@ -1567,7 +1567,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                       {!(
                         editingRow?.type === "week" && editingRow.id === week.id
                       ) && (
-                        <div className="flex shrink-0 gap-2">
+                        <div className="flex flex-wrap shrink-0 gap-2">
                           <button
                             type="button"
                             onClick={(event) => {
@@ -1633,7 +1633,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                   practice.name
                                 )
                               }
-                              className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-4 py-3 transition ${
+                              className={`flex flex-wrap cursor-pointer items-center justify-between gap-3 rounded-lg border px-4 py-3 transition ${
                                 rowIsSelected("practice", practice.id)
                                   ? "border-[#0d2140] bg-blue-50"
                                   : "border-slate-200 bg-white hover:bg-slate-50"
@@ -1739,7 +1739,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
 
                                     {editingKeyFocusPracticeId === practice.id ? (
                                       <div
-                                        className="flex min-w-[280px] flex-1 items-center gap-2"
+                                        className="flex min-w-0 sm:min-w-[280px] flex-1 items-center gap-2"
                                         onClick={(event) => event.stopPropagation()}
                                         onDoubleClick={(event) => event.stopPropagation()}
                                       >
@@ -1879,7 +1879,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                 editingRow?.type === "practice" &&
                                 editingRow.id === practice.id
                               ) && (
-                                <div className="flex shrink-0 gap-2">
+                                <div className="flex flex-wrap shrink-0 gap-2">
                                   <button
                                     type="button"
                                     onClick={(event) => {
@@ -2147,7 +2147,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                               </div>
                                             </div>
 
-                                            <div className="flex shrink-0 gap-2">
+                                            <div className="flex flex-wrap shrink-0 gap-2">
                                               <button
                                                 type="button"
                                                 onClick={() => {
@@ -2248,7 +2248,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                             </div>
                                           </div>
 
-                                          <div className="flex shrink-0 gap-2">
+                                          <div className="flex flex-wrap shrink-0 gap-2">
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -2366,7 +2366,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                         </div>
                                       </div>
 
-                                      <div className="flex shrink-0 gap-2">
+                                      <div className="flex flex-wrap shrink-0 gap-2">
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -2462,7 +2462,7 @@ export default function TeamPlanner({ teamId, standalone = false }: TeamPlannerP
                                   <PlayerMentionText teamId={teamId} text={note.noteText || "Empty note"} />
                                 </div>
                               </div>
-                              <div className="flex shrink-0 gap-2">
+                              <div className="flex flex-wrap shrink-0 gap-2">
                                 <button
                                   type="button"
                                   onClick={() => {

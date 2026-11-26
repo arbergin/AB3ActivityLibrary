@@ -402,7 +402,7 @@ export default function BulkUserImport({
 
       {pendingUsers.length > 0 && validationErrors.length === 0 && (
         <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <div className="grid grid-cols-[1fr_1.2fr_0.7fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+          <div className="hidden sm:grid sm:grid-cols-3 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
             <div>Name</div>
             <div>Email</div>
             <div>Password Reset</div>
@@ -411,7 +411,7 @@ export default function BulkUserImport({
           {pendingUsers.slice(0, 5).map((user) => (
             <div
               key={`${user.rowNumber}-${user.email}`}
-              className="grid grid-cols-[1fr_1.2fr_0.7fr] border-t border-slate-200 px-4 py-3 text-sm"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-3 border-t border-slate-200 px-4 py-3 text-sm"
             >
               <div>{user.name}</div>
               <div className="break-words">{user.email}</div>
@@ -429,7 +429,7 @@ export default function BulkUserImport({
 
       {results.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <div className="grid grid-cols-[0.4fr_1.2fr_0.7fr_1.5fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+          <div className="hidden sm:grid sm:grid-cols-4 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
             <div>Row</div>
             <div>Email</div>
             <div>Status</div>
@@ -439,7 +439,7 @@ export default function BulkUserImport({
           {results.map((result) => (
             <div
               key={`${result.rowNumber}-${result.email}-${result.status}`}
-              className="grid grid-cols-[0.4fr_1.2fr_0.7fr_1.5fr] border-t border-slate-200 px-4 py-3 text-sm"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-4 border-t border-slate-200 px-4 py-3 text-sm"
             >
               <div>{result.rowNumber}</div>
               <div className="break-words">{result.email || "—"}</div>

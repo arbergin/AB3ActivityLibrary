@@ -5925,7 +5925,7 @@ export default function ActivityCreator({
                       12,
                   ),
                 )}px`,
-                minWidth: "300px",
+                minWidth: "0px",
                 minHeight: "320px",
                 maxWidth: `calc(100vw - ${lineOptionsPopupPosition.left + 12}px)`,
                 maxHeight: `calc(100vh - ${lineOptionsPopupPosition.top + 12}px)`,
@@ -7506,7 +7506,7 @@ export default function ActivityCreator({
         ref={pitchSectionRef}
         className={
           isPitchPoppedOut
-            ? "fixed z-[220] h-[calc(100vh-3rem)] w-[calc(100vw-3rem)] min-h-[520px] min-w-[720px] resize overflow-auto rounded-2xl border border-slate-300 bg-white p-2 shadow-2xl"
+            ? "fixed z-[220] h-[calc(100vh-3rem)] w-[calc(100vw-3rem)] min-h-[520px] min-w-0 lg:min-w-[720px] resize overflow-auto rounded-2xl border border-slate-300 bg-white p-2 shadow-2xl"
             : "overflow-hidden rounded-xl bg-white p-1 shadow-sm md:p-2"
         }
         style={
@@ -7949,7 +7949,7 @@ export default function ActivityCreator({
             role="dialog"
             aria-modal="true"
             aria-labelledby="frame-manager-title"
-            className="fixed z-10 flex h-[min(760px,calc(100vh-3rem))] w-[min(1000px,calc(100vw-3rem))] min-h-[420px] min-w-[340px] max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)] resize flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
+            className="fixed z-10 flex h-[min(760px,calc(100vh-3rem))] w-[min(1000px,calc(100vw-3rem))] min-h-[420px] min-w-0 sm:min-w-[340px] max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)] resize flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
             style={{
               left: `${frameManagerPosition.left}px`,
               top: `${frameManagerPosition.top}px`,

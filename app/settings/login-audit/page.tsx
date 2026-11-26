@@ -115,7 +115,7 @@ export default function LoginAuditPage() {
               </div>
             ) : (
               <div className="overflow-hidden rounded-lg border border-slate-200">
-                <div className="grid grid-cols-[1fr_1.2fr_1fr_1.2fr_0.8fr] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
+                <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,.8fr)] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">
                   <div>Name</div>
                   <div>Email</div>
                   <div>Login Time</div>
@@ -135,7 +135,7 @@ export default function LoginAuditPage() {
                   auditEntries.map((entry) => (
                     <div
                       key={entry.id}
-                      className="grid grid-cols-[1fr_1.2fr_1fr_1.2fr_0.8fr] items-start border-t border-slate-200 px-4 py-4 text-sm"
+                      className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,.8fr)] items-start border-t border-slate-200 px-4 py-4 text-sm"
                     >
                       <div className="font-semibold text-slate-800">
                         {entry.name || "—"}

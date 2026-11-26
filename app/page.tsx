@@ -148,7 +148,10 @@ function ActivityList({
         ) : null}
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+      <div className="mt-4 min-w-0 overflow-hidden rounded-lg border border-slate-200">
+        <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.85fr)] gap-2 bg-slate-100 px-2 py-3 text-xs font-semibold text-slate-700 sm:hidden">
+          <div>Activity</div><div>Category / Phase</div><div>Updated</div>
+        </div>
         {isLoading ? (
           <div className="px-4 py-6 text-sm text-slate-500">
             Loading activities...
@@ -165,25 +168,31 @@ function ActivityList({
             return (
               <div
                 key={activity.id}
-                className="flex min-w-0 flex-col items-stretch gap-3 border-t border-slate-200 px-3 py-4 first:border-t-0 hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
+                className="grid min-w-0 grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.85fr)] items-start gap-2 [overflow-wrap:anywhere] border-t border-slate-200 px-2 py-4 first:border-t-0 hover:bg-slate-50 sm:flex sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
               >
                 <div className="min-w-0 flex-1">
                   <div className="break-words font-semibold text-slate-800">
                     {activity.activityName}
                   </div>
 
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                  <div className="mt-1 hidden flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 sm:flex">
                     <span>{activity.fieldLocation || "No location"}</span>
                     <span>{activity.gamePhase || "No phase"}</span>
                     <span>{activity.category || "No category"}</span>
                   </div>
 
-                  <div className="mt-1 text-xs text-slate-400">
+                  <div className="mt-1 hidden text-xs text-slate-400 sm:block">
                     Updated: {formatDate(activity.updatedAt || activity.createdAt)}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                <div className="min-w-0 text-xs text-slate-600 sm:hidden">
+                  <div>{activity.category || "—"}</div>
+                  <div className="mt-2 border-t border-slate-200 pt-2">{activity.gamePhase || "—"}</div>
+                  <div className="mt-2 text-slate-500">{activity.fieldLocation || "No location"}</div>
+                </div>
+                <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">
+                  <div className="w-full text-xs text-slate-600 sm:hidden">{formatDate(activity.updatedAt || activity.createdAt)}</div>
                   <Link
                     href={`/activity/${activity.id}`}
                     className="rounded-md bg-[#0d2140] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#17345f]"
@@ -265,7 +274,7 @@ export default function HomePage() {
           <section className="mx-auto w-full min-w-0 max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
             <div className="mb-8 w-full rounded-xl bg-[#0d2140] px-5 py-4 shadow-lg backdrop-blur-sm">
               <h2 className="text-3xl font-bold text-white">Dashboard</h2>
-              <p className="mt-2 text-slate-200 lg:whitespace-nowrap">
+              <p className="mt-2 text-slate-200 ">
                 Welcome to the AB3 Soccer Activity Library. Create, import,
                 organize, search, and manage soccer training activities.
               </p>

@@ -592,7 +592,7 @@ export default function ActivityMetadataForm({
       onSubmit={handleSaveActivity}
       className={
         isDetailsSuperExpanded
-          ? "fixed bottom-5 right-5 z-[160] min-h-[420px] min-w-[360px] overflow-auto rounded-2xl bg-white p-6 shadow-2xl sm:bottom-8 sm:right-8"
+          ? "fixed bottom-5 right-5 z-[160] min-h-[420px] min-w-0 sm:min-w-[360px] overflow-auto rounded-2xl bg-white p-6 shadow-2xl sm:bottom-8 sm:right-8"
           : "rounded-xl bg-white p-6 shadow-sm"
       }
       style={
