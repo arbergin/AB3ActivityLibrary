@@ -561,8 +561,8 @@ function drawPitch(context: CanvasRenderingContext2D, pitch: Pitch) {
 function dribblePoints(points: { x: number; y: number }[]) {
   if (points.length < 2) return points;
 
-  const zigSpacing = 3.1;
-  const amplitude = 1.8;
+  const zigSpacing = 0.85;
+  const amplitude = 0.4;
   const output: { x: number; y: number }[] = [{ ...points[0] }];
   let remainingToNext = zigSpacing * 0.75;
   let direction = -1;
@@ -667,7 +667,7 @@ function drawLine(context: CanvasRenderingContext2D, line: ActivityCreatorLine) 
     );
     const endX = (end.x / 100) * WIDTH;
     const endY = (end.y / 100) * HEIGHT;
-    const extension = lineStyle === "dribble" ? WIDTH * 0.036 : 0;
+    const extension = lineStyle === "dribble" ? WIDTH * 0.012 : 0;
     const tipX = endX + extension * Math.cos(angle);
     const tipY = endY + extension * Math.sin(angle);
     const arrowLength = WIDTH * 0.03;

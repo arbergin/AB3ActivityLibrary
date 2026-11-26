@@ -3449,7 +3449,7 @@ export default function ActivityCreator({
       // the iOS Activity Planner behavior.
       const arrowExtension =
         line.lineStyle === "dribble"
-          ? canvasWidth * 0.036
+          ? canvasWidth * 0.012
           : 0;
       const tipX = endX + arrowExtension * Math.cos(angle);
       const tipY = endY + arrowExtension * Math.sin(angle);
@@ -6097,8 +6097,8 @@ export default function ActivityCreator({
   function getDribblePolylinePoints(points: { x: number; y: number }[]) {
     if (points.length < 2) return points;
 
-    const zigSpacing = 2.6;
-    const amplitude = 1.1;
+    const zigSpacing = 0.85;
+    const amplitude = 0.4;
     const output: { x: number; y: number }[] = [{ ...points[0] }];
     let remainingToNext = zigSpacing * 0.75;
     let direction = -1;
@@ -6172,7 +6172,7 @@ export default function ActivityCreator({
     // Arrowheads are part of the activity geometry and must zoom with the
     // pitch, just like the rest of the line and its underlying objects.
     const arrowExtension =
-      line.lineStyle === "dribble" ? 3.6 : 0;
+      line.lineStyle === "dribble" ? 1.2 : 0;
     const arrowTip = {
       x: end.x + arrowExtension * Math.cos(angle),
       y: end.y + arrowExtension * Math.sin(angle),
