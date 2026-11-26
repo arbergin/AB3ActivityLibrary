@@ -99,43 +99,7 @@ export default function SearchFilters({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-3 sm:ml-auto">
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={myActivitiesOnly}
-              onChange={(event) =>
-                onMyActivitiesOnlyChange(event.target.checked)
-              }
-              className="h-4 w-4"
-            />
-            My Activities Only
-          </label>
-          {onHasActivityDetailsOnlyChange && (
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
-              <input
-                type="checkbox"
-                checked={hasActivityDetailsOnly ?? false}
-                onChange={(event) =>
-                  onHasActivityDetailsOnlyChange(event.target.checked)
-                }
-                className="h-4 w-4"
-              />
-              Has Activity Details
-            </label>
-          )}
-          {onNoActivityDetailsOnlyChange && (
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
-              <input
-                type="checkbox"
-                checked={noActivityDetailsOnly ?? false}
-                onChange={(event) => onNoActivityDetailsOnlyChange(event.target.checked)}
-                className="h-4 w-4"
-              />
-              No Activity Details
-            </label>
-          )}
-        </div>
+
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -250,6 +214,44 @@ export default function SearchFilters({
           className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
         />
       </label>
+
+      <div className="mt-4 grid min-w-0 grid-cols-2 items-start gap-2 sm:flex sm:flex-wrap sm:gap-3">
+          <label className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold text-slate-700 sm:px-4 sm:text-sm col-start-1 row-start-1">
+            <input
+              type="checkbox"
+              checked={myActivitiesOnly}
+              onChange={(event) =>
+                onMyActivitiesOnlyChange(event.target.checked)
+              }
+              className="h-4 w-4 shrink-0"
+            />
+            My Activities Only
+          </label>
+          {onHasActivityDetailsOnlyChange && (
+            <label className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold text-slate-700 sm:px-4 sm:text-sm col-start-2 row-start-1">
+              <input
+                type="checkbox"
+                checked={hasActivityDetailsOnly ?? false}
+                onChange={(event) =>
+                  onHasActivityDetailsOnlyChange(event.target.checked)
+                }
+                className="h-4 w-4 shrink-0"
+              />
+              Has Activity Details
+            </label>
+          )}
+          {onNoActivityDetailsOnlyChange && (
+            <label className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold text-slate-700 sm:px-4 sm:text-sm col-start-2 row-start-2">
+              <input
+                type="checkbox"
+                checked={noActivityDetailsOnly ?? false}
+                onChange={(event) => onNoActivityDetailsOnlyChange(event.target.checked)}
+                className="h-4 w-4 shrink-0"
+              />
+              No Activity Details
+            </label>
+          )}
+        </div>
 
       <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
         <label className="grid w-full min-w-0 gap-2 sm:w-64">
