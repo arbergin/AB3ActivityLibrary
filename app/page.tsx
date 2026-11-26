@@ -223,17 +223,23 @@ export default function HomePage() {
   const [openedActivities, setOpenedActivities] = useState<Activity[]>([]);
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+  const [recentLoadFailed, setRecentLoadFailed] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadDashboardActivities() {
       setIsLoadingDashboard(true);
+      setRecentLoadFailed(false);
 
       try {
         const [recentCreated, recentOpened, profile] = await Promise.all([
           getRecentCreatedActivitiesForCurrentUser(),
-          getRecentOpenedActivitiesForCurrentUser(),
+          getRecentOpenedActivitiesForCurrentUser().catch((error) => {
+            console.error("Unable to load recent activities.", error);
+            if (isMounted) setRecentLoadFailed(true);
+            return [];
+          }),
           getCurrentUserProfile(),
         ]);
 
@@ -255,8 +261,23 @@ export default function HomePage() {
 
     loadDashboardActivities();
 
+    // Refresh when the user returns to this tab after working on another device.
+    async function refreshRecentActivities() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const recent = await getRecentOpenedActivitiesForCurrentUser();
+        if (isMounted) { setOpenedActivities(recent); setRecentLoadFailed(false); }
+      } catch (error) {
+        console.error("Unable to refresh recent activities.", error);
+        if (isMounted) setRecentLoadFailed(true);
+      }
+    }
+    window.addEventListener("focus", refreshRecentActivities);
+    document.addEventListener("visibilitychange", refreshRecentActivities);
     return () => {
       isMounted = false;
+      window.removeEventListener("focus", refreshRecentActivities);
+      document.removeEventListener("visibilitychange", refreshRecentActivities);
     };
   }, []);
 
@@ -294,7 +315,7 @@ export default function HomePage() {
 
               <ActivityList
                 title="Recent Activities"
-                emptyMessage="No recently opened activities yet."
+                emptyMessage={recentLoadFailed ? "Unable to load recent activities. Refresh to try again." : "No recently opened activities yet."}
                 activities={openedActivities}
                 isLoading={isLoadingDashboard}
                 currentProfile={currentProfile}

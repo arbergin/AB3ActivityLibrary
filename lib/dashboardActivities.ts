@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { getRecentOpenedActivityIds } from "@/lib/recentActivityViews";
+import { syncRecentActivityHistory } from "@/lib/recentActivityViews";
 import {
   supabaseRowToActivity,
   type SupabaseActivityRow,
@@ -54,34 +54,32 @@ export async function getRecentOpenedActivitiesForCurrentUser() {
     return [];
   }
 
-  const recentOpenedIds = getRecentOpenedActivityIds(user.id);
-
-  if (recentOpenedIds.length === 0) {
-    return [];
+  try {
+    await syncRecentActivityHistory(user.id);
+  } catch (error) {
+    console.error("Unable to migrate recent activity history.", error);
   }
 
+  // The inner join filters activities that are no longer visible to this user
+  // before applying the limit, using the existing activities RLS policies.
   const { data, error } = await supabase
-    .from("activities")
-    .select("*")
-    .in("id", recentOpenedIds);
+    .from("recent_activity_views")
+    .select("activity_id, last_viewed_at, activities!inner(*)")
+    .eq("user_id", user.id)
+    .order("last_viewed_at", { ascending: false })
+    .order("activity_id", { ascending: true })
+    .limit(5);
 
   if (error) {
-    console.error("Unable to load recent opened activities.", {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-    });
-
+    console.error("Unable to load recent opened activities.", error);
     throw error;
   }
 
-  const activities = ((data || []) as SupabaseActivityRow[]).map(addPreviewUrl);
-
-  return recentOpenedIds
-    .map((activityId) =>
-      activities.find((activity) => activity.id === activityId)
-    )
-    .filter((activity): activity is Activity => Boolean(activity))
-    .slice(0, 5);
+  return (data ?? []).flatMap((row) => {
+    // PostgREST returns a to-one relationship; also tolerate array inference
+    // from the untyped Supabase client.
+    const joined = row.activities as unknown as SupabaseActivityRow | SupabaseActivityRow[] | null;
+    const activity = Array.isArray(joined) ? joined[0] : joined;
+    return activity ? [addPreviewUrl(activity)] : [];
+  });
 }

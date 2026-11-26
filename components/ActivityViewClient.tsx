@@ -967,7 +967,7 @@ export default function ActivityViewClient({
       return;
     }
 
-    recordRecentActivityOpen(userId, activityIdToRecord);
+    await recordRecentActivityOpen(userId, activityIdToRecord);
   }
 
   useEffect(() => {
@@ -1031,7 +1031,9 @@ export default function ActivityViewClient({
         if (supabaseActivity) {
           setActivity(supabaseActivity);
           setActivitySource("supabase");
-          recordActivityOpen(supabaseActivity.id);
+          void recordActivityOpen(supabaseActivity.id).catch((error) => {
+            console.error("Unable to record recent activity view.", error);
+          });
           setHasLoaded(true);
           return;
         }
