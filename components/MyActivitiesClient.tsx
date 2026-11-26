@@ -676,25 +676,29 @@ export default function MyActivitiesClient() {
         </div>
       ) : (
         <>
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-            <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md">
+          <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
+            <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md">
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
+                <table className="w-full table-fixed divide-y divide-slate-200 md:table-auto">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <th scope="col" className="w-[40%] px-2 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:w-auto md:px-4">
                         Activity
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <th scope="col" className="w-[33%] px-2 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:hidden">
+                        <div>Category</div>
+                        <div>Game Phase</div>
+                      </th>
+                      <th scope="col" className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:table-cell">
                         Category
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <th scope="col" className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:table-cell">
                         Game Phase
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <th scope="col" className="w-[27%] px-2 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 md:w-auto md:px-4">
                         Updated
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <th scope="col" className="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500 md:table-cell">
                         Action
                       </th>
                     </tr>
@@ -718,7 +722,7 @@ export default function MyActivitiesClient() {
                               : "cursor-pointer hover:bg-slate-50"
                           }
                         >
-                          <td className="px-4 py-4 align-top">
+                          <td className="px-2 py-3 align-top [overflow-wrap:anywhere] md:px-4 md:py-4">
                             <div className="block w-full text-left">
                               <div className="font-semibold text-slate-900">
                                 {getActivityName(activity)}
@@ -729,18 +733,29 @@ export default function MyActivitiesClient() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 align-top text-sm text-slate-700">
+                          <td className="px-2 py-3 align-top text-sm text-slate-700 [overflow-wrap:anywhere] md:hidden">
+                            <div>{activity.category || "—"}</div>
+                            <div className="mt-2 border-t border-slate-200 pt-2">{activity.gamePhase || "—"}</div>
+                          </td>
+                          <td className="hidden px-4 py-4 align-top text-sm text-slate-700 md:table-cell">
                             {activity.category || "—"}
                           </td>
-                          <td className="px-4 py-4 align-top text-sm text-slate-700">
+                          <td className="hidden px-4 py-4 align-top text-sm text-slate-700 md:table-cell">
                             {activity.gamePhase || "—"}
                           </td>
-                          <td className="px-4 py-4 align-top text-sm text-slate-700">
+                          <td className="px-2 py-3 align-top text-xs text-slate-700 [overflow-wrap:anywhere] md:px-4 md:py-4 md:text-sm">
                             {formatDate(
                               activity.updatedAt || activity.createdAt,
                             )}
+                            <Link
+                              href={`/activity/${activity.id}`}
+                              onClick={(event) => event.stopPropagation()}
+                              className="mt-2 inline-flex max-w-full rounded-lg bg-[#0d2140] px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-[#17345f] md:hidden"
+                            >
+                              Open
+                            </Link>
                           </td>
-                          <td className="px-4 py-4 text-right align-top">
+                          <td className="hidden px-4 py-4 text-right align-top md:table-cell">
                             <div className="flex justify-end gap-2">
                               <Link
                                 href={`/activity/${activity.id}`}
@@ -1015,7 +1030,7 @@ export default function MyActivitiesClient() {
                 per page
               </label>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() =>
