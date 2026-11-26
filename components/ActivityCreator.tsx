@@ -6097,8 +6097,8 @@ export default function ActivityCreator({
   function getDribblePolylinePoints(points: { x: number; y: number }[]) {
     if (points.length < 2) return points;
 
-    const zigSpacing = 3.1;
-    const amplitude = 1.8;
+    const zigSpacing = 2.6;
+    const amplitude = 1.1;
     const output: { x: number; y: number }[] = [{ ...points[0] }];
     let remainingToNext = zigSpacing * 0.75;
     let direction = -1;
