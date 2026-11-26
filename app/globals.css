@@ -45,7 +45,7 @@ body > main, body > #__next, main {
   html, body {
     max-width: 100vw;
     max-width: 100dvw;
-    overflow-x: clip;
+    overflow-x: hidden;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
@@ -69,4 +69,13 @@ body > main, body > #__next, main {
   .ab3-dashboard-actions, .ab3-dashboard-lists { grid-template-columns: minmax(0, 1fr); }
   .ab3-dashboard-actions > *, .ab3-dashboard-lists > * { width: 100%; min-width: 0; max-width: 100%; }
   .ab3-dashboard-content { padding-inline: 16px; }
+}
+
+/* Mobile Safari: prevent intrinsic grid sizing and focus-induced auto zoom. */
+@media (max-width: 639px) {
+  main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  main textarea, main select { font-size: 16px; }
+  .ab3-detail-actions > * { min-width: 0; max-width: 100%; text-align: center; }
+  .ab3-detail-actions > div > button { width: 100%; justify-content: center; }
+  .ab3-download-menu { width: auto; min-width: 0; max-width: calc(100vw - 2rem); }
 }

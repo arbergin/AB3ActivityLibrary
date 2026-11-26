@@ -691,6 +691,7 @@ export default function SearchResultsPanel({
       window.requestAnimationFrame(() => {
         activityRowRefs.current[nextActivity.id]?.scrollIntoView({
           block: "nearest",
+          inline: "nearest",
           behavior: "smooth",
         });
       });
@@ -842,8 +843,8 @@ export default function SearchResultsPanel({
   );
 
   return (
-    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-      <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6">
+    <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <section className="w-full min-w-0 max-w-full rounded-xl bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-xl font-bold">Results</h2>
@@ -955,12 +956,12 @@ export default function SearchResultsPanel({
         </div>
       </section>
 
-      <section className="min-w-0 rounded-xl bg-white p-4 shadow-sm sm:p-6 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:self-start xl:overflow-y-auto">
+      <section className="w-full min-w-0 max-w-full rounded-xl bg-white p-4 shadow-sm sm:p-6 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:self-start xl:overflow-y-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-bold text-slate-900">Activity Detail</h2>
 
           {selectedActivity && (
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="ab3-detail-actions grid w-full min-w-0 max-w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
               <ActivityDownloadButton
                     activity={selectedActivity}
                     onMessage={setDownloadMessage}
@@ -1033,7 +1034,7 @@ export default function SearchResultsPanel({
           </div>
         ) : (
           <>
-            <div className="mt-4 flex min-h-64 min-w-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+            <div className="mt-4 flex w-full max-w-full min-h-64 min-w-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
               {selectedPreviewFailed ? (
                 <PreviewFallback />
               ) : selectedActivity.previewDataUrl &&
@@ -1041,14 +1042,14 @@ export default function SearchResultsPanel({
                 <iframe
                   src={selectedActivity.previewDataUrl}
                   title={`${selectedActivity.activityName} PDF preview`}
-                  className="h-80 w-full rounded-lg border border-slate-200"
+                  className="h-80 w-full min-w-0 max-w-full rounded-lg border border-slate-200"
                   onError={() => setSelectedPreviewFailed(true)}
                 />
               ) : selectedActivity.previewDataUrl ? (
                 <img
                   src={selectedActivity.previewDataUrl}
                   alt={`${selectedActivity.activityName} preview`}
-                  className="max-h-80 w-full rounded-lg object-contain"
+                  className="max-h-80 w-full min-w-0 max-w-full rounded-lg object-contain"
                   onError={() => setSelectedPreviewFailed(true)}
                 />
               ) : (
@@ -1056,7 +1057,7 @@ export default function SearchResultsPanel({
               )}
             </div>
 
-            <div className="mt-6 grid min-w-0 gap-3 text-sm">
+            <div className="mt-6 grid w-full min-w-0 max-w-full grid-cols-1 gap-3 text-sm">
               <div className="min-w-0">
                 <div className="font-semibold text-slate-700">
                   Activity Name

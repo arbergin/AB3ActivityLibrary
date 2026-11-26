@@ -201,7 +201,7 @@ export default function InlineActivityMetadataFields({
 
     return (
       <>
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
           <MetadataValue label="Field Location" value={activity.fieldLocation} />
           <MetadataValue label="Game Phase" value={activity.gamePhase} />
           <MetadataValue label="Category" value={activity.category} />
@@ -211,7 +211,7 @@ export default function InlineActivityMetadataFields({
           />
         </div>
 
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
           <MetadataValue
             label="Positions Involved"
             value={activity.positionsInvolved}
@@ -223,13 +223,13 @@ export default function InlineActivityMetadataFields({
   }
 
   const selectClass =
-    "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[#0d2140] focus:outline-none focus:ring-2 focus:ring-[#0d2140]/20 disabled:cursor-not-allowed disabled:bg-slate-100";
+    "mt-1 w-full min-w-0 max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[#0d2140] focus:outline-none focus:ring-2 focus:ring-[#0d2140]/20 disabled:cursor-not-allowed disabled:bg-slate-100";
   const inputClass = selectClass;
 
   return (
     <>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-        <label className="grid gap-1">
+      <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="grid min-w-0 grid-cols-1 gap-1">
           <span className="font-semibold text-slate-700">Field Location</span>
           <select
             value={draft.fieldLocation}
@@ -248,7 +248,7 @@ export default function InlineActivityMetadataFields({
           </select>
         </label>
 
-        <label className="grid gap-1">
+        <label className="grid min-w-0 grid-cols-1 gap-1">
           <span className="font-semibold text-slate-700">Game Phase</span>
           <select
             value={draft.gamePhase}
@@ -265,7 +265,7 @@ export default function InlineActivityMetadataFields({
           </select>
         </label>
 
-        <label className="grid gap-1">
+        <label className="grid min-w-0 grid-cols-1 gap-1">
           <span className="font-semibold text-slate-700">Category</span>
           <select
             value={draft.category}
@@ -282,7 +282,7 @@ export default function InlineActivityMetadataFields({
           </select>
         </label>
 
-        <label className="grid gap-1">
+        <label className="grid min-w-0 grid-cols-1 gap-1">
           <span className="font-semibold text-slate-700">
             Number of Players
           </span>
@@ -300,8 +300,8 @@ export default function InlineActivityMetadataFields({
         </label>
       </div>
 
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-        <label className="grid gap-1">
+      <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="grid min-w-0 grid-cols-1 gap-1">
           <span className="font-semibold text-slate-700">
             Positions Involved
           </span>
@@ -316,7 +316,7 @@ export default function InlineActivityMetadataFields({
           />
         </label>
 
-        <label className="grid gap-1">
+        <label className="grid min-w-0 grid-cols-1 gap-1">
           <span className="font-semibold text-slate-700">
             Activity Visibility
           </span>

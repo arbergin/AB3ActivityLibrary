@@ -40,15 +40,15 @@ export function MultiSelect({label, options, values, onChange, disabled = false}
 }
 export default function SessionDetailsFields({value,onChange,compact=false}: {value:SessionDetails; onChange:(value:SessionDetails)=>void; compact?:boolean}) {
   const id=useId();
-  return <div className="grid gap-4">
-    <label className="grid gap-1 text-sm font-semibold text-slate-700" htmlFor={`${id}-objective`}>Objective<textarea id={`${id}-objective`} rows={3} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" value={value.objective} onChange={e=>onChange({...value,objective:e.target.value})} placeholder="Enter the session objective"/></label>
-    <div className={compact ? "grid gap-4" : "grid gap-4 md:grid-cols-3"}>
-      <label className="grid content-start gap-1 text-sm font-semibold text-slate-700">Game Phase<select className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={value.gamePhase} onChange={e=>onChange({...value,gamePhase:e.target.value,principles:[],subprinciples:[]})}><option value="">No game phase selected</option>{gamePhases.map(p=><option key={p}>{p}</option>)}</select></label>
+  return <div className="grid min-w-0 grid-cols-1 gap-4">
+    <label className="grid min-w-0 grid-cols-1 gap-1 text-sm font-semibold text-slate-700" htmlFor={`${id}-objective`}>Objective<textarea id={`${id}-objective`} rows={3} className="w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" value={value.objective} onChange={e=>onChange({...value,objective:e.target.value})} placeholder="Enter the session objective"/></label>
+    <div className={compact ? "grid min-w-0 grid-cols-1 gap-4" : "grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3"}>
+      <label className="grid min-w-0 grid-cols-1 content-start gap-1 text-sm font-semibold text-slate-700">Game Phase<select className="w-full min-w-0 max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={value.gamePhase} onChange={e=>onChange({...value,gamePhase:e.target.value,principles:[],subprinciples:[]})}><option value="">No game phase selected</option>{gamePhases.map(p=><option key={p}>{p}</option>)}</select></label>
       <MultiSelect label="Principles" options={principleOptions(value.gamePhase)} values={value.principles} disabled={!value.gamePhase} onChange={principles=>onChange(normalizeSessionDetails({...value,principles}))}/>
       <MultiSelect label="Subprinciples" options={subprincipleOptions(value.gamePhase,value.principles)} values={value.subprinciples} disabled={!value.principles.length} onChange={subprinciples=>onChange({...value,subprinciples})}/>
     </div>
-    <label className="grid gap-1 text-sm font-semibold text-slate-700">Visibility
-      <select className="rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={value.visibility} onChange={e=>onChange({...value,visibility:e.target.value as SessionVisibility})}>
+    <label className="grid min-w-0 grid-cols-1 gap-1 text-sm font-semibold text-slate-700">Visibility
+      <select className="w-full min-w-0 max-w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal" value={value.visibility} onChange={e=>onChange({...value,visibility:e.target.value as SessionVisibility})}>
         {Object.entries(visibilityLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}
       </select>
       <span className="text-xs font-normal text-slate-500">{value.visibility==='private'?'Only you can view this session.':value.visibility==='club'?'Members of your club can view and copy this session, including your linked private activities and notes.':'All signed-in users can view and copy this session, including your linked private activities and notes.'}</span>

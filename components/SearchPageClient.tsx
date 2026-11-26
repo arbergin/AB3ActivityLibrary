@@ -289,7 +289,7 @@ export default function SearchPageClient() {
   ]);
 
   return (
-    <div className="grid min-w-0 gap-8">
+    <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-8">
       <div className="min-w-0">
         <SearchFilters
           filters={filters}

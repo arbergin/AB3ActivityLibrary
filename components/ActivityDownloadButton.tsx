@@ -241,7 +241,7 @@ export default function ActivityDownloadButton({
 
   return (
     <>
-      <div ref={menuRef} className={`relative ${className}`}>
+      <div ref={menuRef} className={`relative min-w-0 max-w-full ${className}`}>
         <button
           type="button"
           onClick={() => setIsOpen((current) => !current)}
@@ -257,7 +257,7 @@ export default function ActivityDownloadButton({
         {isOpen && (
           <div
             role="menu"
-            className="absolute right-0 top-full z-50 mt-2 min-w-64 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
+            className="ab3-download-menu fixed inset-x-4 bottom-4 z-50 max-h-[70dvh] overflow-y-auto sm:absolute sm:inset-x-auto sm:right-0 sm:bottom-auto sm:top-full sm:mt-2 sm:w-64 sm:max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
           >
             {exportOptions.map((option) => (
               <button
