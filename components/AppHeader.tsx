@@ -291,6 +291,17 @@ export default function AppHeader() {
         </div>
 
         {/* On phones and tablets use an accessible, full-width menu rather than a crowded row. */}
+        <div className="flex shrink-0 items-center gap-2 lg:hidden">
+          <Link
+            href="/"
+            aria-label="Home"
+            title="Home"
+            aria-current={pathname === "/" ? "page" : undefined}
+            onClick={() => setMobileMenuOpen(false)}
+            className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white hover:bg-white/10 ${pathname === "/" ? "bg-white/10" : ""}`}
+          >
+            <HomeIcon />
+          </Link>
         <button
           type="button"
           aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
@@ -305,12 +316,13 @@ export default function AppHeader() {
             <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           )}
         </button>
+        </div>
       </div>
 
       {mobileMenuOpen && (
         <nav id="ab3-mobile-navigation" aria-label="Mobile navigation" className="border-t border-white/15 px-4 pb-4 pt-2 lg:hidden">
           <div className="mx-auto grid max-w-7xl grid-cols-2 gap-2">
-            {navLinks.map(({ href, label }) => (
+            {navLinks.filter(({ href }) => href !== "/").map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}

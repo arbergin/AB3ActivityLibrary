@@ -86,12 +86,12 @@ function DashboardPrimaryActions() {
   ];
 
   return (
-    <section className="ab3-dashboard-actions grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+    <section className="ab3-dashboard-actions grid w-full min-w-0 grid-cols-1 gap-3 md:gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
-          className="flex min-h-44 min-w-0 flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md 2xl:p-5"
+          className="flex min-w-0 flex-col gap-2 rounded-xl md:min-h-44 md:gap-3 border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md 2xl:p-5"
         >
           <h2 className="text-lg font-bold leading-snug text-slate-900">
             {action.title}
