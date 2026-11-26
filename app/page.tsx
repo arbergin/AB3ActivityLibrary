@@ -149,8 +149,8 @@ function ActivityList({
       </div>
 
       <div className="mt-4 min-w-0 overflow-hidden rounded-lg border border-slate-200">
-        <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.85fr)] gap-2 bg-slate-100 px-2 py-3 text-xs font-semibold text-slate-700 sm:hidden">
-          <div>Activity</div><div>Category / Phase</div><div>Updated</div>
+        <div className="grid grid-cols-[minmax(0,1.05fr)_minmax(0,1.2fr)_minmax(0,.85fr)] gap-2 bg-slate-100 px-2 py-3 text-xs font-semibold text-slate-700 sm:hidden">
+          <div>Activity</div><div className="min-w-0 break-words">Category / Phase</div><div>Updated</div>
         </div>
         {isLoading ? (
           <div className="px-4 py-6 text-sm text-slate-500">
@@ -168,7 +168,7 @@ function ActivityList({
             return (
               <div
                 key={activity.id}
-                className="grid min-w-0 grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.85fr)] items-start gap-2 [overflow-wrap:anywhere] border-t border-slate-200 px-2 py-4 first:border-t-0 hover:bg-slate-50 sm:flex sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
+                className="grid min-w-0 grid-cols-[minmax(0,1.05fr)_minmax(0,1.2fr)_minmax(0,.85fr)] items-start gap-2 [overflow-wrap:anywhere] border-t border-slate-200 px-2 py-4 first:border-t-0 hover:bg-slate-50 sm:flex sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4"
               >
                 <div className="min-w-0 flex-1">
                   <div className="break-words font-semibold text-slate-800">

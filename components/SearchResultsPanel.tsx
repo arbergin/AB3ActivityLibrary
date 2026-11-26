@@ -865,8 +865,8 @@ export default function SearchResultsPanel({
         )}
 
         <div className="mt-6 min-w-0 overflow-hidden rounded-lg border border-slate-200">
-          <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.85fr)] gap-2 bg-slate-100 px-2 py-3 text-xs font-semibold text-slate-700 2xl:hidden">
-            <div>Activity</div><div>Category / Phase</div><div>Created</div>
+          <div className="grid grid-cols-[minmax(0,1.05fr)_minmax(0,1.2fr)_minmax(0,.85fr)] gap-2 bg-slate-100 px-2 py-3 text-xs font-semibold text-slate-700 2xl:hidden">
+            <div>Activity</div><div className="min-w-0 break-words">Category / Phase</div><div>Created</div>
           </div>
           <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,.85fr)_minmax(0,.9fr)_minmax(0,.9fr)_minmax(0,.85fr)_auto] bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 2xl:grid 2xl:gap-2">
             <div>Activity</div>
@@ -902,7 +902,7 @@ export default function SearchResultsPanel({
                   }}
                   tabIndex={-1}
                   onClick={() => handleSelectActivity(activity)}
-                  className={`cursor-pointer border-t border-slate-200 grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,.85fr)] items-start gap-2 px-2 py-3 text-xs [overflow-wrap:anywhere] 2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,.85fr)_minmax(0,.9fr)_minmax(0,.9fr)_minmax(0,.85fr)_auto] 2xl:items-center 2xl:px-4 2xl:py-4 2xl:text-sm ${
+                  className={`cursor-pointer border-t border-slate-200 grid grid-cols-[minmax(0,1.05fr)_minmax(0,1.2fr)_minmax(0,.85fr)] items-start gap-2 px-2 py-3 text-xs [overflow-wrap:anywhere] 2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,.85fr)_minmax(0,.9fr)_minmax(0,.9fr)_minmax(0,.85fr)_auto] 2xl:items-center 2xl:px-4 2xl:py-4 2xl:text-sm ${
                     isSelected ? "bg-slate-100" : "bg-white hover:bg-slate-50"
                   }`}
                 >

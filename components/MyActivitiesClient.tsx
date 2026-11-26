@@ -682,10 +682,10 @@ export default function MyActivitiesClient() {
                 <table className="w-full table-fixed divide-y divide-slate-200 lg:table-auto">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th scope="col" className="w-[40%] px-2 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 lg:w-auto lg:px-4">
+                      <th scope="col" className="w-[34%] px-2 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 lg:w-auto lg:px-4">
                         Activity
                       </th>
-                      <th scope="col" className="w-[33%] px-2 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 lg:hidden">
+                      <th scope="col" className="w-[39%] px-2 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500 lg:hidden">
                         <div>Category</div>
                         <div>Game Phase</div>
                       </th>
